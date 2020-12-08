@@ -2,11 +2,9 @@ import numpy as np
 
 class RecursiveSampleMoments:
     """
-    Iteratively constructs a sample mean
-    and covariance, given input samples.
-    Used to capture an estimate of the mean
-    and covariance of the bias of an MLDA
-    coarse model.
+    Iteratively constructs a sample mean and covariance, given input samples.
+    Used to capture an estimate of the mean and covariance of the bias of an MLDA
+    coarse model, and for the Adaptive Metropolis proposal.
     """
 
     def __init__(self, mu0, sigma0, t=1, sd=1, epsilon=0):
@@ -25,16 +23,15 @@ class RecursiveSampleMoments:
         return self.mu, self.sigma
 
     def get_mu(self):
-        """Returns the current mu value"""
+        # Returns the current mu value
         return self.mu
 
     def get_sigma(self):
-        """Returns the current covariance value"""
+        #Returns the current covariance value
         return self.sigma
 
     def update(self, x):
-        """Updates the mean and covariance given a
-        new sample x"""
+        # Updates the mean and covariance given a new sample x
         mu_previous = self.mu.copy()
 
         self.mu = (1 / (self.t + 1)) * (self.t * mu_previous + x)
@@ -49,11 +46,9 @@ class RecursiveSampleMoments:
 
 class ZeroMeanRecursiveSampleMoments:
     """
-    Iteratively constructs a sample mean
-    and covariance, given input samples.
-    Used to capture an estimate of the mean
-    and covariance of the bias of an MLDA
-    coarse model.
+    Iteratively constructs a sample covariance, with zero mean given input samples.
+    It is a specialised version of RecursiveSampleMoments, used only in the state
+    dependent error model.
     """
 
     def __init__(self, sigma0, t=1):
@@ -67,12 +62,11 @@ class ZeroMeanRecursiveSampleMoments:
         return self.sigma
 
     def get_sigma(self):
-        """Returns the current covariance value"""
+        # Returns the current covariance value
         return self.sigma
 
     def update(self, x):
-        """Updates the covariance given a
-        new sample x"""
+        # Updates the covariance given a new sample x
 
         self.sigma = (self.t-1)/self.t * self.sigma + 1/self.t * np.outer(x, x)
 

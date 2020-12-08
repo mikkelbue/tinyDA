@@ -1,34 +1,44 @@
+# external imports
 import numpy as np
-from scipy.stats import multivariate_normal
 
-class LogMVNormal:
-    def __init__(self, mean, covariance):
-        self.distribution = multivariate_normal(mean=mean, cov=covariance)
-        
-    def pdf(self, parameters):
-        return np.log(self.distribution.pdf(parameters))
-    
-    def rvs(self, size=1):
-        return self.distribution.rvs(size=size)
-        
 class LogLike:
-    def __init__(self, data, covariance):
-        self.data = data
+    '''
+    LogLike is a minimal implementation of the (unnormalised) Gaussian
+    likelihood function.
+    '''
+    
+    def __init__(self, mean, covariance):
+        
+        # set the mean and covariance as attributes
+        self.mean = mean
         self.cov = covariance
+        
+        # precompute the inverse of the covariance.
         self.cov_inverse = np.linalg.inv(self.cov)
         
-    def pdf(self, model_output):
-        return -0.5*np.linalg.multi_dot(((model_output - self.data).T, self.cov_inverse, (model_output - self.data)))
+    def logpdf(self, x):
+        # compute the unnormalised likelihood.
+        return -0.5*np.linalg.multi_dot(((x - self.mean).T, self.cov_inverse, (x - self.mean)))
         
 class AdaptiveLogLike(LogLike):
-    def __init__(self, data, covariance):
-        super().__init__(data, covariance)
-        self.bias = np.zeros(self.data.shape[0])
+    '''
+    AdaptiveLogLike is a minimal implementation of the (unnormalised) Gaussian
+    likelihood function, with offset, scaling, and rotation.
+    '''
+    def __init__(self, mean, covariance):
+        super().__init__(mean, covariance)
+        
+        # set the initial bias.
+        self.bias = np.zeros(self.mean.shape[0])
         
     def set_bias(self, bias, covariance_bias):
+        # set the bias and the covariance of the bias.
         self.bias = bias
         self.cov_bias = covariance_bias
+        
+        # precompute the inverse.
         self.cov_inverse = np.linalg.inv(self.cov + self.cov_bias)
         
-    def pdf(self, model_output):
-        return -0.5*np.linalg.multi_dot(((model_output + self.bias - self.data).T, self.cov_inverse, (model_output + self.bias - self.data)))
+    def logpdf(self, x):
+        # compute the unnormalised likelihood, with additional terms for offset, scaling, and rotation.
+        return -0.5*np.linalg.multi_dot(((x + self.bias - self.mean).T, self.cov_inverse, (x + self.bias - self.mean)))

@@ -1,3 +1,7 @@
+####################
+# This is code from a different project that I have not adapted yet.
+# Please do not use.
+####################
 import pickle
 
 import numpy as np
@@ -6,6 +10,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 class ChainDiagnostics:
+    '''
+    This is code from a different project that I have not adapted yet.
+    Please do not use.
+    '''
+    
     def __init__(self, chain):
         self.chain = chain
         
