@@ -52,3 +52,16 @@ class LinkFactory:
         qoi = None
         return model_output, qoi
         
+class BlackBoxLinkFactory(LinkFactory):
+    def __init__(self, model, datapoints, prior, likelihood, get_qoi=False):
+        
+        # Internatlise the model and datapoints
+        self.model = model
+        self.datapoints = datapoints
+        
+        # internatlise the distributions.
+        self.prior = prior
+        self.likelihood = likelihood
+        
+        self.get_qoi = get_qoi
+    

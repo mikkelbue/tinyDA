@@ -72,8 +72,11 @@ class GaussianRandomWalk:
         return link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
     def get_acceptance_ratio(self, proposal_link, previous_link):
-        # get the acceptance probability.
-        return np.exp(proposal_link.posterior - previous_link.posterior)
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:
+            # get the acceptance probability.
+            return np.exp(proposal_link.posterior - previous_link.posterior)
         
 class CrankNicolson(GaussianRandomWalk):
     
@@ -88,8 +91,11 @@ class CrankNicolson(GaussianRandomWalk):
         return np.sqrt(1 - self.scaling**2)*link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
     def get_acceptance_ratio(self, proposal_link, previous_link):
-        # get the acceptance probability.
-        return np.exp(proposal_link.likelihood - previous_link.likelihood)
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:
+            # get the acceptance probability.
+            return np.exp(proposal_link.likelihood - previous_link.likelihood)
 
 
 class AdaptiveMetropolis(GaussianRandomWalk):
