@@ -140,21 +140,21 @@ class DAChain:
         if self.adaptive_error_model is not None:
             
             # compute the difference between coarse and fine level.
-            model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+            self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
             
             if self.adaptive_error_model == 'state-independent':
                 # for the state-independent error model, the bias is 
                 # RecursiveSampleMoments, and the corrector is the mean 
                 # of all sampled differences.
-                self.bias = RecursiveSampleMoments(model_diff, np.zeros((model_diff.shape[0], model_diff.shape[0])))
+                self.bias = RecursiveSampleMoments(self.model_diff, np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.link_factory_coarse.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
             
             elif self.adaptive_error_model == 'state-dependent':
                 # for the state-dependent error model, the bias is 
                 # ZeroMeanRecursiveSampleMoments, and the corrector is 
                 # the last sampled difference.
-                self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((model_diff.shape[0], model_diff.shape[0])))
-                self.link_factory_coarse.likelihood.set_bias(model_diff, self.bias.get_sigma())
+                self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
+                self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
     def sample(self, iterations, subsampling_rate):
             
@@ -211,29 +211,29 @@ class DAChain:
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
                 
-                if self.adaptive_error_model == 'state independent':
+                if self.adaptive_error_model == 'state-independent':
                     # for the state-independent AEM, we simply update the 
                     # RecursiveSampleMoments with the difference between
                     # the fine and coarse model output
-                    model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
-                    self.bias.update(model_diff)
+                    self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+                    self.bias.update(self.model_diff)
                     
                     # and update the likelihood in the coarse link factory.
                     self.link_factory_coarse.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
             
-                elif self.adaptive_error_model == 'state dependent':
+                elif self.adaptive_error_model == 'state-dependent':
                     # for the state-dependent error model, we want the
                     # difference, corrected with the previous difference
                     # to compute the error covariance.
-                    model_diff_corrected = self.chain_fine[-1].model_output - (self.chain_coarse[-1].model_output + model_diff)
+                    self.model_diff_corrected = self.chain_fine[-1].model_output - (self.chain_coarse[-1].model_output + self.model_diff)
                     
                     # and the "pure" model difference for the offset.
-                    model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+                    self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
                     
                     # update the ZeroMeanRecursiveSampleMoments with the
                     # corrected difference.
-                    self.bias.update(model_diff_corrected)
+                    self.bias.update(self.model_diff_corrected)
                     
                     # and update the likelihood in the coarse link factory
                     # with the "pure" difference.
-                    self.link_factory_coarse.likelihood.set_bias(model_diff, self.bias.get_sigma())
+                    self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
