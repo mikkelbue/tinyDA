@@ -193,7 +193,7 @@ class DAChain:
             proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
             
             # compute the delayed acceptance probability.
-            alpha_2 = np.exp(proposal_link_fine.likelihood - self.chain_fine[-1].likelihood + self.chain_coarse[-subsampling_rate].likelihood - self.chain_coarse[-1].likelihood)
+            alpha_2 = np.exp(proposal_link_fine.likelihood - self.chain_fine[-1].likelihood + self.chain_coarse[-(subsampling_rate+1)].likelihood - self.chain_coarse[-1].likelihood)
             
             # Perform Metropolis adjustment, and update the coarse chain
             # to restart from the previous accepted fine link.
