@@ -104,7 +104,7 @@ class AdaptiveMetropolis(GaussianRandomWalk):
     This is the Adaptive Metropolis proposal, according to Haario et al.
     '''
     
-    def __init__(self, C0, t0=0, sd=None, epsilon=0):
+    def __init__(self, C0, t0=0, sd=None, epsilon=0, period=100):
         
         # check if covariance operator is a square numpy array.
         if not isinstance(C0, np.ndarray):
@@ -136,6 +136,9 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # Set epsilon to avoid degeneracy.
         self.epsilon = epsilon
         
+        # Set the update period.
+        self.period = period
+        
         # set a counter of how many times, the proposal has been called.
         self.t = 0
         
@@ -152,13 +155,15 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # with the given parameters.
         self.AM_recursor.update(kwargs['parameters'])
         
+        if self.t > self.t0 and self.t%self.period == 0:
+            self.C = self.AM_recursor.get_sigma()
+        else:
+            pass
+        
     def make_proposal(self, link):
         self.t += 1
         # only use the adaptive proposal, if the initial time has passed.
-        if self.t < self.t0:
-            pass
-        else:
-            self.C = self.AM_recursor.get_sigma()
+
         # make a proposal
         return link.parameters + np.random.multivariate_normal(self._mean, self.C)
 
