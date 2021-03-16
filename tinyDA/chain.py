@@ -1,4 +1,5 @@
 # externa; imports
+from itertools import compress
 import numpy as np
 from tqdm import tqdm
 
@@ -48,7 +49,7 @@ class Chain:
         
         # if the proposal is AM, use the initial parameters as the first
         # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis):
+        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
         
     def sample(self, iterations):
@@ -91,7 +92,7 @@ class DAChain:
     must have a set_bias() method. See example in the distributions.py.
     '''
     
-    def __init__(self, link_factory_coarse, link_factory_fine, proposal, initial_parameters=None, adaptive_error_model=None):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, initial_parameters=None, adaptive_error_model=None, R=None):
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse
@@ -110,6 +111,8 @@ class DAChain:
         # accounting
         self.chain_coarse = []
         self.accepted_coarse = []
+        self.is_coarse = []
+        
         self.chain_fine = []
         self.accepted_fine = []
                 
@@ -123,6 +126,7 @@ class DAChain:
         # append a link with the initial parameters to the coarse chain.
         self.chain_coarse.append(self.link_factory_coarse.create_link(self.initial_parameters))
         self.accepted_coarse.append(True)
+        self.is_coarse.append(False)
         
         # append a link with the initial parameters to the coarse chain.
         self.chain_fine.append(self.link_factory_fine.create_link(self.initial_parameters))
@@ -130,7 +134,7 @@ class DAChain:
         
         # if the proposal is AM, use the initial parameters as the first
         # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis):
+        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
         
         # set the adative error model as a. attribute.
@@ -139,8 +143,13 @@ class DAChain:
         # set up the adaptive error model.
         if self.adaptive_error_model is not None:
             
+            if R is None:
+                self.R = np.eye(len(self.chain_fine[-1].model_output))
+            else:
+                self.R = R
+            
             # compute the difference between coarse and fine level.
-            self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+            self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
             
             if self.adaptive_error_model == 'state-independent':
                 # for the state-independent error model, the bias is 
@@ -161,7 +170,7 @@ class DAChain:
         # begin iteration
         pbar = tqdm(range(iterations))
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1 = %0.3f' % np.mean(self.accepted_fine[-100:]))
+            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
             # subsample the coarse model.
             for j in range(subsampling_rate):
@@ -180,13 +189,15 @@ class DAChain:
                 if np.random.random() < alpha_1:
                     self.chain_coarse.append(proposal_link_coarse)
                     self.accepted_coarse.append(True)
+                    self.is_coarse.append(True)
                 else:
                     self.chain_coarse.append(self.chain_coarse[-1])
                     self.accepted_coarse.append(False)
+                    self.is_coarse.append(True)
                 
                 # adapt the proposal. if the proposal is set to non-adaptive,
                 # this has no effect.
-                self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=self.accepted_coarse)
+                self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
             # when subsampling is complete, create a new fine link from the
             # previous coarse link.
@@ -202,11 +213,13 @@ class DAChain:
                 self.accepted_fine.append(True)
                 self.chain_coarse.append(self.chain_coarse[-1])
                 self.accepted_coarse.append(True)
+                self.is_coarse.append(False)
             else:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
                 self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
                 self.accepted_coarse.append(False)
+                self.is_coarse.append(False)
             
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
@@ -215,7 +228,7 @@ class DAChain:
                     # for the state-independent AEM, we simply update the 
                     # RecursiveSampleMoments with the difference between
                     # the fine and coarse model output
-                    self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
                     self.bias.update(self.model_diff)
                     
                     # and update the likelihood in the coarse link factory.
@@ -225,10 +238,10 @@ class DAChain:
                     # for the state-dependent error model, we want the
                     # difference, corrected with the previous difference
                     # to compute the error covariance.
-                    self.model_diff_corrected = self.chain_fine[-1].model_output - (self.chain_coarse[-1].model_output + self.model_diff)
+                    self.model_diff_corrected = self.R.dot(self.chain_fine[-1].model_output) - (self.chain_coarse[-1].model_output + self.model_diff)
                     
                     # and the "pure" model difference for the offset.
-                    self.model_diff = self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
                     
                     # update the ZeroMeanRecursiveSampleMoments with the
                     # corrected difference.
