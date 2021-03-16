@@ -5,9 +5,10 @@ This is intended as a simple, lightweight implementation, with minimal dependenc
 ### This is very much a work in progress.
 
 ## Proposals
-* Random Walk Metropolis Hastings
-* preconditioned Crank-Nicolson
-* Adaptive Metropolis
+* Random Walk Metropolis Hastings (RWMH)
+* preconditioned Crank-Nicolson (pCN)
+* Adaptive Metropolis (AM)
+* Adaptive pCN
 
 ## Adaptive Error Models
 * State independent
