@@ -40,22 +40,24 @@ class GaussianRandomWalk:
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
             
-            # adaptivity counter for diminishing adaptivity.
-            self.k = 0
             # adaptivity scaling.
             self.gamma = gamma
             # adaptivity period (delay between adapting)
             self.period = period
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
         
-        # set a counter of how many times, the proposal has been called.
+        # initialise counter of how many times, adapt() has been called..
         self.t = 0
         
     def adapt(self, **kwargs):
         
+        self.t += 1
+        
         # if adaptive, run the adaptivity routines.
         if self.adaptive:
             
-            # make sure the periodicity is repspected
+            # make sure the periodicity is respected
             if self.t%self.period == 0:
                 
                 # compute the acceptance rate during the previous period.
@@ -69,7 +71,6 @@ class GaussianRandomWalk:
         
     def make_proposal(self, link):
         # make a Gaussian RWMH proposal.
-        self.t += 1
         return link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
     def get_acceptance(self, proposal_link, previous_link):
@@ -88,7 +89,6 @@ class CrankNicolson(GaussianRandomWalk):
         
     def make_proposal(self, link):
         # make a pCN proposal.
-        self.t += 1
         return np.sqrt(1 - self.scaling**2)*link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
     def get_acceptance(self, proposal_link, previous_link):
@@ -140,7 +140,7 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # Set the update period.
         self.period = period
         
-        # set a counter of how many times, the proposal has been called.
+        # set a counter of how many times, adapt() has been called..
         self.t = 0
         
     def initialise_sampling_moments(self, parameters):
@@ -150,11 +150,13 @@ class AdaptiveMetropolis(GaussianRandomWalk):
                                                   np.zeros((self.d, self.d)),
                                                   sd=self.sd, 
                                                   epsilon=self.epsilon)
+        self.t += 1
         
     def adapt(self, **kwargs):
         # AM is adaptive per definition. update the RecursiveSampleMoments
         # with the given parameters.
         self.AM_recursor.update(kwargs['parameters'])
+        self.t += 1
         
         if self.t >= self.t0 and self.t%self.period == 0:
             self.C = self.AM_recursor.get_sigma()
@@ -162,7 +164,6 @@ class AdaptiveMetropolis(GaussianRandomWalk):
             pass
         
     def make_proposal(self, link):
-        self.t += 1
         # only use the adaptive proposal, if the initial time has passed.
 
         # make a proposal
@@ -213,7 +214,7 @@ class AdaptiveCrankNicolson(CrankNicolson):
         # Set the update period.
         self.period = period
         
-        # set a counter of how many times, the proposal has been called.
+        # set a counter of how many times, adapt() has been called..
         self.t = 0
         
     def initialise_sampling_moments(self, parameters):
@@ -223,12 +224,14 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.t += 1
 
     def adapt(self, **kwargs):
-        # AM is adaptive per definition. update the RecursiveSampleMoments
-        # with the given parameters.
+        # ApCN is adaptive per definition. update the moments.
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
         self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
+        self.t += 1
         
+        # commpute the operator, if the initial adaptation is complete and
+        # the period matches.
         if self.t >= self.t0 and self.t%self.period == 0:
             self.lamb[:self.k] = self.lamb_n[:self.k]
             self.lamb[self.lamb > self.alpha] = self.alpha[self.lamb > self.alpha]
@@ -238,7 +241,6 @@ class AdaptiveCrankNicolson(CrankNicolson):
             pass        
 
     def make_proposal(self, link):
-        self.t += 1
         # only use the adaptive proposal, if the initial time has passed.
 
         # make a proposal
