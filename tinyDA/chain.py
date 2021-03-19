@@ -67,7 +67,7 @@ class Chain:
             
             # compute the acceptance probability, which is unique to
             # the proposal.
-            alpha = self.proposal.get_acceptance_ratio(proposal_link, self.chain[-1])
+            alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
             
             # perform Metropolis adjustment.
             if np.random.random() < alpha:
@@ -165,7 +165,9 @@ class DAChain:
                 self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
-    def sample(self, iterations, subsampling_rate):
+            self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+        
+    def sample(self, iterations, subsampling_rate=1):
             
         # begin iteration
         pbar = tqdm(range(iterations))
@@ -183,7 +185,7 @@ class DAChain:
                 
                 # compute the acceptance probability, which is unique to
                 # the proposal.
-                alpha_1 = self.proposal.get_acceptance_ratio(proposal_link_coarse, self.chain_coarse[-1])
+                alpha_1 = self.proposal.get_acceptance(proposal_link_coarse, self.chain_coarse[-1])
                 
                 # perform Metropolis adjustment.
                 if np.random.random() < alpha_1:
@@ -199,27 +201,35 @@ class DAChain:
                 # this has no effect.
                 self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
-            # when subsampling is complete, create a new fine link from the
-            # previous coarse link.
-            proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
-            
-            # compute the delayed acceptance probability.
-            alpha_2 = np.exp(proposal_link_fine.likelihood - self.chain_fine[-1].likelihood + self.chain_coarse[-(subsampling_rate+1)].likelihood - self.chain_coarse[-1].likelihood)
-            
-            # Perform Metropolis adjustment, and update the coarse chain
-            # to restart from the previous accepted fine link.
-            if np.random.random() < alpha_2:
-                self.chain_fine.append(proposal_link_fine)
-                self.accepted_fine.append(True)
-                self.chain_coarse.append(self.chain_coarse[-1])
-                self.accepted_coarse.append(True)
-                self.is_coarse.append(False)
-            else:
+            if sum(self.accepted_coarse[-subsampling_rate:]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
                 self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
+                
+            else:
+                # when subsampling is complete, create a new fine link from the
+                # previous coarse link.
+                proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
+                
+                # compute the delayed acceptance probability.
+                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
+                
+                # Perform Metropolis adjustment, and update the coarse chain
+                # to restart from the previous accepted fine link.
+                if np.random.random() < alpha_2:
+                    self.chain_fine.append(proposal_link_fine)
+                    self.accepted_fine.append(True)
+                    self.chain_coarse.append(self.chain_coarse[-1])
+                    self.accepted_coarse.append(True)
+                    self.is_coarse.append(False)
+                else:
+                    self.chain_fine.append(self.chain_fine[-1])
+                    self.accepted_fine.append(False)
+                    self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
+                    self.accepted_coarse.append(False)
+                    self.is_coarse.append(False)
             
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
@@ -250,3 +260,5 @@ class DAChain:
                     # and update the likelihood in the coarse link factory
                     # with the "pure" difference.
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
+                
+                self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)

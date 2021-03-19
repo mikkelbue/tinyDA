@@ -72,7 +72,7 @@ class GaussianRandomWalk:
         self.t += 1
         return link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
-    def get_acceptance_ratio(self, proposal_link, previous_link):
+    def get_acceptance(self, proposal_link, previous_link):
         if np.isnan(proposal_link.posterior):
             return 0
         else:
@@ -91,7 +91,7 @@ class CrankNicolson(GaussianRandomWalk):
         self.t += 1
         return np.sqrt(1 - self.scaling**2)*link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
 
-    def get_acceptance_ratio(self, proposal_link, previous_link):
+    def get_acceptance(self, proposal_link, previous_link):
         if np.isnan(proposal_link.posterior):
             return 0
         else:
@@ -217,18 +217,17 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.t = 0
         
     def initialise_sampling_moments(self, parameters):
-        self.x_n = np.dot(parameters, self.e)
-        self.s_n = parameters**2
-        self.lamb_n = (self.x_n - parameters)**2
+        u_j = np.inner(parameters, self.e.T)
+        self.x_n = u_j
+        self.lamb_n = (self.x_n - u_j)**2
         self.t += 1
 
     def adapt(self, **kwargs):
         # AM is adaptive per definition. update the RecursiveSampleMoments
         # with the given parameters.
-        self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*np.dot(kwargs['parameters'], self.e)
-        self.s_n = self.s_n + kwargs['parameters']**2
-        self.lamb_n = 1/(self.t+1)*self.s_n - self.x_n**2
-        #self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - kwargs['parameters'])**2
+        u_j = np.inner(kwargs['parameters'], self.e.T)
+        self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
+        self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
         
         if self.t >= self.t0 and self.t%self.period == 0:
             self.lamb[:self.k] = self.lamb_n[:self.k]
