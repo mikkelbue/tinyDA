@@ -105,7 +105,7 @@ class AdaptiveMetropolis(GaussianRandomWalk):
     This is the Adaptive Metropolis proposal, according to Haario et al.
     '''
     
-    def __init__(self, C0, sd=None, epsilon=0, t0=0, period=100):
+    def __init__(self, C0, sd=None, epsilon=0, t0=0, period=100, adaptive=False, gamma=1.01):
         
         # check if covariance operator is a square numpy array.
         if not isinstance(C0, np.ndarray):
@@ -125,6 +125,9 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # set a zero mean for the random draw.
         self._mean = np.zeros(self.d)
         
+        # set the scaling factor.
+        self.scaling = 1
+        
         # Set the scaling parameter for Diminishing Adaptation.
         if sd is not None:
             self.sd = sd
@@ -140,9 +143,21 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # Set the update period.
         self.period = period
         
-        # set a counter of how many times, adapt() has been called..
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+        
+        # set a counter of how many times, adapt() has been called.
         self.t = 0
         
+
     def initialise_sampling_moments(self, parameters):
         # initialise the sampling moments, which will compute the
         # adaptive covariance operator.
@@ -156,21 +171,16 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         # AM is adaptive per definition. update the RecursiveSampleMoments
         # with the given parameters.
         self.AM_recursor.update(kwargs['parameters'])
-        self.t += 1
+        
+        super().adapt(**kwargs)
         
         if self.t >= self.t0 and self.t%self.period == 0:
             self.C = self.AM_recursor.get_sigma()
         else:
             pass
-        
-    def make_proposal(self, link):
-        # only use the adaptive proposal, if the initial time has passed.
-
-        # make a proposal
-        return link.parameters + np.random.multivariate_normal(self._mean, self.C)
 
 class AdaptiveCrankNicolson(CrankNicolson):
-    def __init__(self, C0, scaling=0.1, k=None, t0=0, period=100):
+    def __init__(self, C0, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01):
         
         # check if covariance operator is a square numpy array.
         if not isinstance(C0, np.ndarray):
@@ -203,16 +213,27 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.lamb = self.alpha.copy()
         
         # truncation.
-        if k is not None:
-            self.k = k
+        if J is not None:
+            self.J = J
         else:
-            self.k = self.d
+            self.J = self.d
         
         # set the beginning of adaptation (rigidness of initial covariance).
         self.t0 = t0
         
         # Set the update period.
         self.period = period
+        
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
         
         # set a counter of how many times, adapt() has been called..
         self.t = 0
@@ -228,12 +249,13 @@ class AdaptiveCrankNicolson(CrankNicolson):
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
         self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
-        self.t += 1
+        
+        super().adapt(**kwargs)
         
         # commpute the operator, if the initial adaptation is complete and
         # the period matches.
         if self.t >= self.t0 and self.t%self.period == 0:
-            self.lamb[:self.k] = self.lamb_n[:self.k]
+            self.lamb[:self.J] = self.lamb_n[:self.J]
             self.lamb[self.lamb > self.alpha] = self.alpha[self.lamb > self.alpha]
             self.B = np.linalg.multi_dot((self.e, np.diag(self.lamb), self.e.T))
             self.operator = sqrtm(np.eye(self.d) - self.scaling**2*np.dot(self.B, self.L))
