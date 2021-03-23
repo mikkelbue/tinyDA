@@ -4,15 +4,19 @@
 Delayed Acceptance MCMC sampler with finite-length subchain sampling. 
 This is intended as a simple, lightweight implementation, with minimal dependencies, e.g. nothing beyond the SciPy stack.
 
-### This is very much a work in progress.
+## This is still a work in progress.
 
 ## Proposals
-* Random Walk Metropolis Hastings (RWMH)
-* preconditioned Crank-Nicolson (pCN)
-* Adaptive Metropolis (AM)
-* Adaptive pCN
+* Random Walk Metropolis Hastings (RWMH) - Metropolis et al. (1953), Hastings (1970).
+* preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013).
+* Adaptive Metropolis (AM) - Haario et al. (2001).
+* Adaptive pCN - Hu et al. (2016).
 
 ## Adaptive Error Models
-* State independent
-* State dependent
+* State independent - Cui et al. (2012)
+* State dependent - Cui et al. (2018)
 
+## Dependencies:
+* NumPy
+* SciPy
+* tqdm
