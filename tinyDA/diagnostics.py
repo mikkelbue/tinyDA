@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
         
-def plot_parameters(parameters, indices=[0], burnin=0, plot_type='fractal_wyrm'):
+def plot_parameters(parameters, indices=[0, 1], burnin=0, plot_type='fractal_wyrm'):
     
     n_cols = len(indices)
     n_rows = 1
