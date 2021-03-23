@@ -144,7 +144,7 @@ class DAChain:
         if self.adaptive_error_model is not None:
             
             if R is None:
-                self.R = np.eye(len(self.chain_fine[-1].model_output))
+                self.R = np.eye(self.chain_fine[-1].model_output.shape[0])
             else:
                 self.R = R
             
