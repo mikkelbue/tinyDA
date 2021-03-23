@@ -1,3 +1,5 @@
+<img src="./tinyDA.png" width="500">
+
 # tinyDA
 Delayed Acceptance MCMC sampler with finite-length subchain sampling. 
 This is intended as a simple, lightweight implementation, with minimal dependencies, e.g. nothing beyond the SciPy stack.
