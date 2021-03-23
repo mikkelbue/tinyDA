@@ -9,28 +9,28 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
         
-def plot_parameters(parameters, burnin=0, plot_type='fractal_wyrm'):
+def plot_parameters(parameters, indices=[0], burnin=0, plot_type='fractal_wyrm'):
     
-    n_cols = parameters.shape[1]
+    n_cols = len(indices)
     n_rows = 1
     
     # Plot field and solution.
     fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize = (8*n_cols, 6))
     
-    for i in range(parameters.shape[1]):
-        axes[i].set_title('Theta_{}'.format(i))
+    for i, par_i in enumerate(indices):
+        axes[i].set_title('Theta_{}'.format(par_i))
         if plot_type=='fractal_wyrm':
-            axes[i].plot(parameters[burnin:,i], color='c')
+            axes[i].plot(parameters[burnin:,par_i], color='c')
         elif plot_type=='histogram':
-            axes[i].hist(parameters[burnin:,i], color='c')
+            axes[i].hist(parameters[burnin:,par_i], color='c')
         else:
-            axes[i].plot(parameters[burnin:,i], color='c')
+            axes[i].plot(parameters[burnin:,par_i], color='c')
     
-def plot_parameter_matrix(parameters, burnin=0):
+def plot_parameter_matrix(parameters, indices=[0,1], burnin=0):
     
     df_param = pd.DataFrame()
-    for i in range(parameters.shape[1]):
-        df_param['$\\theta_{}$'.format(i)] = parameters[burnin:,i]
+    for i, par_i in enumerate(indices):
+        df_param['$\\theta_{}$'.format(par_i)] = parameters[burnin:,par_i]
     
     #cmap = sns.cubehelix_palette(dark=0, light=1.1, rot=-.4, as_cmap=True)
     
