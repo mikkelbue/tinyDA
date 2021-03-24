@@ -16,6 +16,11 @@ This is intended as a simple, lightweight implementation, with minimal dependenc
 * State independent - Cui et al. (2012)
 * State dependent - Cui et al. (2018)
 
+## Diagnostics
+* Some plotting functions
+* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  - Vehtari et al. (2020)
+* Bulk-ESS - Vehtari et al. (2020)
+
 ## Dependencies:
 * NumPy
 * SciPy
