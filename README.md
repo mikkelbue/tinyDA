@@ -86,7 +86,7 @@ am_cov = np.eye(n_dim)
 am_t0 = 1000
 am_sd = 1
 am_epsilon = 1e-6
-#my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_epsilon)
+my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_epsilon)
 ```
 
 ### Sampling
