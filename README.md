@@ -95,6 +95,10 @@ The Delayed Acceptance sampler can then be initalised and run, simply with:
 my_chain = tda.DAChain(my_link_factory_coarse, my_link_factory_fine, my_proposal)
 my_chain.sample(n_samples, subsampling_rate=n_subsampling)
 ```
+If you decide you need more samples, you can just call `tda.DAChain.sample()` again, since all samples and tuning parameters are cached:
+```
+my_chain.sample(additional_n_samples, subsampling_rate=n_subsampling)
+```
 
 ### Postprocessing
 The entire sampling history is then stored in `my_chain.chain_fine`, and you can extract an array of parameters by doing something like:
