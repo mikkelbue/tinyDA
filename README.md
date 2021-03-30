@@ -16,6 +16,7 @@ It is fully imperative and easy to use!
 * preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013).
 * Adaptive Metropolis (AM) - Haario et al. (2001).
 * Adaptive pCN - Hu et al. (2016).
+* DREAM(Z) - Vrugt (2006).
 
 ### Adaptive Error Models
 * State independent - Cui et al. (2012)
