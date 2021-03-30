@@ -46,11 +46,11 @@ cov_prior = np.eye(n_dim)
 cov_likelihood = sigma**2*np.eye(data.shape[0])
 
 my_prior = multivariate_normal(mean_prior, cov_prior)
-my_loglike = tda.LogLike(y, cov_likelihood)
+my_loglike = tda.LogLike(data, cov_likelihood)
 ```
 If using a Gaussian likelihood, we recommend using the `tinyDA` implementation, since it is unnormalised and plays along well with `tda.AdaptiveLogLike` used for the Adaptive Error Model. Home-brew distributions can easily be defined, and must have a `.rvs()` method for drawing random samples and a `logpdf(x)` method for computing the log-likelihood, as per the `SciPy` implementation.
 
-### `tinyDA.LinkFactory`
+### tinyDA.LinkFactory
 The sampler is constructed around what we call a `LinkFactory`, which is responsible for:
 1. Evaluating the model and collecting the model output.
 2. Evaluating the posterior density, given the parameters.
