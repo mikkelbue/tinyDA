@@ -138,16 +138,13 @@ def compute_ESS(parameters, bulk=False):
         
         # set up lists for the autocorrelation and the maximum lag.
         rho_t_m = []
-        T = []
         
         # compute the autocorrelation of the parameter for each chain.
         for j in range(M):
             rho_t_m.append(get_autocorrelation(parameters[j][:,i]))
-            T.append(rho_t_m[j].shape[0])
         
         # make sure the autocorrelation of each chain has the same maximum lag.
-        T_min = min(T)
-        rho_t_m = np.array([r[:T_min] for r in rho_t_m])
+        rho_t_m = np.array(rho_t_m)
         
         # compute rho_t of the parameter for all the chains.
         rho_t = 1 - (W[i] - 1/M * (s_m_sq[:,i][...,np.newaxis]*rho_t_m).sum(axis=0)) / var_hat[i]
