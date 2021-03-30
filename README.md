@@ -31,6 +31,7 @@ It is fully imperative and easy to use!
 * NumPy
 * SciPy
 * tqdm
+* pyDOE (optional)
 
 ## Usage
 A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
