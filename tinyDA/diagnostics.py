@@ -160,7 +160,7 @@ def compute_ESS(parameters, bulk=False):
         
     return np.array(ESS)
     
-def get_autocorrelation(x):
+def get_autocorrelation(x, T=None):
     
     # get the mean and the length.
     x = x - np.mean(x)
@@ -173,9 +173,11 @@ def get_autocorrelation(x):
     rho = np.real(np.fft.ifft( fvi * np.conjugate(fvi) )[:N] )
     rho /= N - np.arange(N); rho /= rho[0]
     
-    # get the positive sequence.
-    P = convolve(rho, np.array([1,1]))
-    T = np.argmax(np.array(P) < 0)
+    if T is None:
+        # get the positive sequence.
+        P = convolve(rho, np.array([1,1]))
+        T = np.argmax(np.array(P) < 0)
+    
     rho = rho[:T]
     
     return rho
