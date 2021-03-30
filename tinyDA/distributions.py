@@ -1,6 +1,31 @@
 # external imports
 import numpy as np
 
+class CompositePrior:
+    def __init__(self, distributions):
+        self.distributions = distributions
+        self.dim = len(distributions)
+        
+    def logpdf(self, x):
+        return sum([self.distributions[i].logpdf(x[i]) for i in range(self.dim)])
+        
+    def rvs(self, n_samples=1):
+        x = np.zeros((n_samples, self.dim))
+        
+        for i in range(self.dim):
+            x[:,i] = self.distributions[i].rvs(size=n_samples)
+        
+        if n_samples == 1:
+            return x.flatten()
+        else:
+            return x
+        
+    def ppf(self, x):
+        for i in range(self.dim):
+            x[:,i] = self.distributions[i].ppf(x[:,i])
+        return x
+            
+
 class LogLike:
     '''
     LogLike is a minimal implementation of the (unnormalised) Gaussian
