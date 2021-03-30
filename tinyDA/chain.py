@@ -51,6 +51,9 @@ class Chain:
         # sample for the RecursiveSamplingMoments.
         if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
+            
+        elif isinstance(self.proposal, SingleDreamZ):
+            self.proposal.initialise_archive(self.link_factory.prior)
         
     def sample(self, iterations):
         
@@ -136,6 +139,9 @@ class DAChain:
         # sample for the RecursiveSamplingMoments.
         if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
+            
+        elif isinstance(self.proposal, SingleDreamZ):
+            self.proposal.initialise_archive(self.link_factory_coarse.prior)
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model

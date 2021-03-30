@@ -1,6 +1,8 @@
 # external imports
+import warnings
 import numpy as np
 from scipy.linalg import sqrtm
+import scipy.stats as stats
 
 # internal imports
 from .utils import  RecursiveSampleMoments
@@ -267,3 +269,102 @@ class AdaptiveCrankNicolson(CrankNicolson):
 
         # make a proposal
         return np.dot(self.operator, link.parameters) + self.scaling*np.random.multivariate_normal(self._mean, self.B)
+
+class SingleDreamZ(GaussianRandomWalk):
+    def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', adaptive=False, gamma=1.01, period=100):
+        
+        warnings.warn(' SingleDreamZ is an EXPERIMENTAL proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016), but using only a single chain.')
+        
+        self.M = M0
+        
+        self.delta = delta
+        self.b = b
+        self.b_star = b_star
+        
+        #self.n_CR = n_CR
+        #self.m = np.arange(1, self.n_CR+1)
+        #self.p_m = np.ones(self.n_CR)/self.n_CR
+        self.Z_method = Z_method
+        
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+            # adaptivity period (delay between adapting)
+            self.period = period
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+        
+        self.t = 0
+        
+    def initialise_archive(self, prior):
+        
+        self.d = prior.dim
+        self.scaling = 2.38/np.sqrt(2*self.delta*self.d)
+        
+        if self.Z_method == 'lhs':
+            
+            try:
+                from pyDOE import lhs
+                self.Z = lhs(self.d, samples=self.M)
+                self.Z = prior.ppf(self.Z)
+                return
+                
+            except AttributeError:
+                if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
+                    for i in range(self.d):
+                        self.Z[:, i] = stats.norm(loc=prior.mean[i], scale=prior.cov[i,i]).ppf(self.Z[:, i])
+                    return
+                else:
+                    warnings.warn('Prior does not have .ppf method. Falling back on default Z-sampling method: \'random\'')
+                    pass
+                    
+            except ModuleNotFoundError:
+                warnings.warn('pyDOE module not found. Falling back on default Z-sampling method: \'random\'')
+                pass
+                    
+        self.Z = prior.rvs(self.M)
+            
+    #def gamma_dream(self, d_prime):
+    #    return 2.38/np.sqrt(2*self.delta*d_prime)
+        
+    def adapt(self, **kwargs):
+        
+        super().adapt(**kwargs)
+        
+        #self.scaling = min(self.scaling, 1.0)
+        
+        self.Z = np.vstack((self.Z, kwargs['parameters']))
+        self.M = self.Z.shape[0]
+        
+    def make_proposal(self, link):
+        
+        Z_r1 = np.zeros(self.d)
+        Z_r2 = np.zeros(self.d)
+        
+        for i in range(self.delta):
+            r1, r2 = np.random.choice(self.M, 2, replace=False)
+            Z_r1 += self.Z[r1,:]
+            Z_r2 += self.Z[r2,:]
+        
+        #m = np.random.choice(self.m, p=self.p_m)
+        #CR = m/self.n_CR
+        CR = min((2.38/self.scaling)**2/(2*self.delta*self.d), 1)
+        
+        subspace_indicator = np.zeros(self.d)
+        subspace_draw = np.random.uniform(size=self.d)
+        subspace_indicator[subspace_draw < CR] = 1
+
+        if subspace_indicator.sum() == 0:
+            subspace_indicator[np.random.choice(self.d)] = 1
+        
+        #d_prime = int(subspace_indicator.sum())
+        
+        e = np.random.uniform(-self.b, self.b, size=self.d)
+        epsilon = np.random.normal(0, self.b_star, size=self.d)
+        
+        return link.parameters + subspace_indicator*((np.ones(self.d) + e)*self.scaling*(Z_r1 - Z_r2) + epsilon)
