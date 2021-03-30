@@ -152,8 +152,15 @@ def compute_ESS(parameters, bulk=False):
         # compute rho_t of the parameter for all the chains.
         rho_t = 1 - (W[i] - 1/M * (s_m_sq[:,i][...,np.newaxis]*rho_t_m).sum(axis=0)) / var_hat[i]
         
+        if rho_t.shape[0]%2 == 0:
+            P_t = rho_t[::2]+rho_t[1::2]
+        else:
+            P_t = rho_t[:-1:2]+rho_t[1::2]
+        
+        k = np.argmax(P_t < 0)
+        
         # get the autocorrelation length.
-        tau = 1 + 2*rho_t[1:].sum()
+        tau = -1 + 2*P_t[:k].sum()
         
         # compute ESS and append to list.
         ESS.append(N*M/tau)
@@ -174,13 +181,9 @@ def get_autocorrelation(x, T=None):
     rho /= N - np.arange(N); rho /= rho[0]
     
     if T is None:
-        # get the positive sequence.
-        P = convolve(rho, np.array([1,1]))
-        T = np.argmax(np.array(P) < 0)
-    
-    rho = rho[:T]
-    
-    return rho
+        return rho
+    else:
+        return rho[:T]
     
 def rank_normalise(parameters):
     
