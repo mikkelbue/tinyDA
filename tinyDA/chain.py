@@ -100,6 +100,9 @@ class Chain:
             # adapt the proposal. if the proposal is set to non-adaptive,
             # this has no effect.
             self.proposal.adapt(parameters=self.chain[-1].parameters, accepted=self.accepted)
+        
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.pool.close()
 
 class DAChain:
     
@@ -302,3 +305,6 @@ class DAChain:
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
                 self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+        
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.pool.close()

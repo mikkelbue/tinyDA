@@ -387,6 +387,8 @@ class MultipleTry:
         # set the number of tries per proposal.
         self.k = k
         
+        self.pool = mp.Pool(self.k)
+        
         if self.kernel.adaptive:
             warnings.warn(' Using global adaptive scaling with MultipleTry proposal can be unstable.\n')
         
@@ -415,8 +417,7 @@ class MultipleTry:
         proposals = [self.kernel.make_proposal(link) for i in range(self.k)]
         
         # get the links in parallel.
-        with mp.Pool(self.k) as p:
-            self.proposal_links = p.map(self.link_factory.create_link, proposals)
+        self.proposal_links = self.pool.map(self.link_factory.create_link, proposals)
         
         # get the unnormalised weights according to the proposal type.
         if isinstance(self.kernel, CrankNicolson):
@@ -443,8 +444,7 @@ class MultipleTry:
             references = [self.kernel.make_proposal(proposal_link) for i in range(self.k-1)]
             
             # get the links in parallel.
-            with mp.Pool(self.k-1) as p:
-                self.reference_links = p.map(self.link_factory.create_link, references)
+            self.reference_links = self.pool.map(self.link_factory.create_link, references)
             
             # get the unnormalised weights according to the proposal type.
             if isinstance(self.kernel, CrankNicolson):
