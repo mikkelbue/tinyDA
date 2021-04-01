@@ -17,6 +17,7 @@ It is fully imperative and easy to use!
 * Adaptive Metropolis (AM) - Haario et al. (2001).
 * Adaptive pCN - Hu et al. (2016).
 * DREAM(Z) - Vrugt (2016).
+* Multiple-Try Metropolis (MTM) using any of the above proposals as a kernel - Liu et al. (2000)
 
 ### Adaptive Error Models
 * State independent - Cui et al. (2012)
