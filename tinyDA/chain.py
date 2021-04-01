@@ -316,13 +316,11 @@ class ASDAChain:
             self.initial_parameters = self.link_factory_coarse.prior.rvs()
             
         # append a link with the initial parameters to the coarse chain.
-        self.chain_coarse.append(self.link_factory_coarse.create_link(self.initial_parameters))
-        self.accepted_coarse.append(True)
-        self.is_coarse.append(False)
+        initial_coarse_link = self.link_factory_coarse.create_link(self.initial_parameters)
         
         # append a link with the initial parameters to the coarse chain.
-        #self.chain_fine.append(self.link_factory_fine.create_link(self.initial_parameters))
-        #self.accepted_fine.append(True)
+        self.chain_fine.append(self.link_factory_fine.create_link(self.initial_parameters))
+        self.accepted_fine.append(True)
         
         # if the proposal is AM, use the initial parameters as the first
         # sample for the RecursiveSamplingMoments.
@@ -333,16 +331,6 @@ class ASDAChain:
             self.proposal.initialise_archive(self.link_factory_coarse.prior)
             
         self.workers = workers
-            
-        with ThreadPoolExecutor(max_workers=self.workers) as executor:
-            
-            fine_process = executor.submit(fine_worker, self.initial_parameters, self.link_factory_fine)
-            coarse_process = executor.submit(coarse_worker, self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True)
-            
-            self.chain_fine.append(fine_process.result())
-            self.accepted_fine.append(True)
-            
-            self.proposal_chain, self.proposal_accepted = coarse_process.result()
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model
@@ -356,7 +344,7 @@ class ASDAChain:
                 self.R = R
             
             # compute the difference between coarse and fine level.
-            self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
+            self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - initial_coarse_link.model_output
             
             if self.adaptive_error_model == 'state-independent':
                 # for the state-independent error model, the bias is 
@@ -372,7 +360,8 @@ class ASDAChain:
                 self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
-            self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+        initial_coarse_link = self.link_factory_coarse.create_link(self.initial_parameters)
+        self.proposal_chain, self.proposal_accepted = coarse_worker(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True)
         
     def sample(self, iterations):
             
@@ -385,6 +374,9 @@ class ASDAChain:
             self.chain_coarse.extend(self.proposal_chain)
             self.accepted_coarse.extend(self.proposal_accepted)
             self.is_coarse.extend([False] + self.subsampling_rate*[True])
+            
+            for i in range(-self.subsampling_rate+1, 0): 
+                self.proposal.adapt(parameters=self.chain_coarse[i].parameters, accepted=list(compress(self.accepted_coarse[:i], self.is_coarse[:i])))     
             
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 
@@ -408,8 +400,6 @@ class ASDAChain:
                 self.accepted_fine.append(False)
                 self.proposal_chain = pessimistic_chain
                 self.proposal_accepted = pessimistic_accepted
-
-            #self.proposal.adapt(parameters=self.chain_coarse[-i].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
@@ -418,7 +408,7 @@ class ASDAChain:
                     # for the state-independent AEM, we simply update the 
                     # RecursiveSampleMoments with the difference between
                     # the fine and coarse model output
-                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
+                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.proposal_chain[0].model_output
                     self.bias.update(self.model_diff)
                     
                     # and update the likelihood in the coarse link factory.
@@ -428,10 +418,10 @@ class ASDAChain:
                     # for the state-dependent error model, we want the
                     # difference, corrected with the previous difference
                     # to compute the error covariance.
-                    self.model_diff_corrected = self.R.dot(self.chain_fine[-1].model_output) - (self.chain_coarse[-1].model_output + self.model_diff)
+                    self.model_diff_corrected = self.R.dot(self.chain_fine[-1].model_output) - (self.proposal_chain[0].model_output + self.model_diff)
                     
                     # and the "pure" model difference for the offset.
-                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.chain_coarse[-1].model_output
+                    self.model_diff = self.R.dot(self.chain_fine[-1].model_output) - self.proposal_chain[0].model_output
                     
                     # update the ZeroMeanRecursiveSampleMoments with the
                     # corrected difference.
@@ -441,7 +431,7 @@ class ASDAChain:
                     # with the "pure" difference.
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
-                self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+                self.proposal_chain[0] = self.link_factory_coarse.create_link(self.proposal_chain[0].parameters)
 
 def coarse_worker(initial_link, link_factory, proposal, subsampling_rate, initial_accepted):
     
