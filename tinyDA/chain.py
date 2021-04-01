@@ -24,10 +24,24 @@ class Chain:
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
         if isinstance(self.proposal, CrankNicolson):
-            if not np.allclose(self.link_factory.prior.cov, self.proposal.C):
-                raise ValueError('C-proposal must equal C-prior for pCN proposal')
-            if np.count_nonzero(self.link_factory.prior.mean):
-                raise ValueError('Prior must be zero mean for pCN proposal')
+            if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+                if not (self.link_factory.prior.cov == self.proposal.C).all():
+                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
+                if np.count_nonzero(self.link_factory.prior.mean):
+                    raise ValueError('Prior must be zero mean for pCN proposal')
+            else:
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
+        elif isinstance(self.proposal, MultipleTry):
+            if isinstance(self.proposal.kernel, CrankNicolson):
+                if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+                    if not (self.link_factory.prior.cov == self.proposal.kernel.C).all():
+                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
+                    if np.count_nonzero(self.link_factory.prior.mean):
+                        raise ValueError('Prior must be zero mean for pCN kernel')
+                else:
+                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
         # initialise a list, which holds the links.
         self.chain = []
@@ -54,6 +68,9 @@ class Chain:
             
         elif isinstance(self.proposal, SingleDreamZ):
             self.proposal.initialise_archive(self.link_factory.prior)
+            
+        elif isinstance(self.proposal, MultipleTry):
+            self.proposal.initialise_kernel(self.link_factory, self.initial_parameters)
         
     def sample(self, iterations):
         
@@ -105,10 +122,24 @@ class DAChain:
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
         if isinstance(self.proposal, CrankNicolson):
-            if not np.allclose(self.link_factory_coarse.prior.cov, self.proposal.C):
-                raise ValueError('C-proposal must equal C-prior for pCN proposal')
-            if np.count_nonzero(self.link_factory_coarse.prior.mean):
-                raise ValueError('Prior must be zero mean for pCN proposal')
+            if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                if not (self.link_factory_coarse.prior.cov == self.proposal.C).all():
+                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
+                if np.count_nonzero(self.link_factory_coarse.prior.mean):
+                    raise ValueError('Prior must be zero mean for pCN proposal')
+            else:
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
+        elif isinstance(self.proposal, MultipleTry):
+            if isinstance(self.proposal.kernel, CrankNicolson):
+                if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                    if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():
+                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
+                    if np.count_nonzero(self.link_factory_coarse.prior.mean):
+                        raise ValueError('Prior must be zero mean for pCN kernel')
+                else:
+                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -142,6 +173,9 @@ class DAChain:
             
         elif isinstance(self.proposal, SingleDreamZ):
             self.proposal.initialise_archive(self.link_factory_coarse.prior)
+            
+        elif isinstance(self.proposal, MultipleTry):
+            self.proposal.initialise_kernel(self.link_factory_coarse, self.initial_parameters)
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model
