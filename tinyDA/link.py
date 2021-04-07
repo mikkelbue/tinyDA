@@ -45,6 +45,13 @@ class LinkFactory:
         
         return Link(parameters, prior, model_output, likelihood, qoi)
         
+    def update_link(self, link):
+        
+        # recompute the likelihood.
+        likelihood = self.likelihood.logpdf(link.model_output)
+        
+        return Link(link.parameters, link.prior, link.model_output, likelihood, link.qoi)
+        
     def evaluate_model(self, parameters):
         # model output must return model_output and qoi (can be None),
         # and must be adapted to the problem at hand.

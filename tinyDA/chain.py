@@ -1,6 +1,5 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-
-# externa; imports
+# external imports
+from concurrent.futures import ThreadPoolExecutor
 from itertools import compress
 import numpy as np
 from tqdm import tqdm
@@ -26,10 +25,24 @@ class Chain:
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
         if isinstance(self.proposal, CrankNicolson):
-            if not np.allclose(self.link_factory.prior.cov, self.proposal.C):
-                raise ValueError('C-proposal must equal C-prior for pCN proposal')
-            if np.count_nonzero(self.link_factory.prior.mean):
-                raise ValueError('Prior must be zero mean for pCN proposal')
+            if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+                if not (self.link_factory.prior.cov == self.proposal.C).all():
+                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
+                if np.count_nonzero(self.link_factory.prior.mean):
+                    raise ValueError('Prior must be zero mean for pCN proposal')
+            else:
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
+        elif isinstance(self.proposal, MultipleTry):
+            if isinstance(self.proposal.kernel, CrankNicolson):
+                if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+                    if not (self.link_factory.prior.cov == self.proposal.kernel.C).all():
+                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
+                    if np.count_nonzero(self.link_factory.prior.mean):
+                        raise ValueError('Prior must be zero mean for pCN kernel')
+                else:
+                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
         # initialise a list, which holds the links.
         self.chain = []
@@ -56,6 +69,9 @@ class Chain:
             
         elif isinstance(self.proposal, SingleDreamZ):
             self.proposal.initialise_archive(self.link_factory.prior)
+            
+        elif isinstance(self.proposal, MultipleTry):
+            self.proposal.initialise_kernel(self.link_factory, self.initial_parameters)
         
     def sample(self, iterations):
         
@@ -85,6 +101,9 @@ class Chain:
             # adapt the proposal. if the proposal is set to non-adaptive,
             # this has no effect.
             self.proposal.adapt(parameters=self.chain[-1].parameters, accepted=self.accepted)
+        
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.pool.close()
 
 class DAChain:
     
@@ -97,21 +116,34 @@ class DAChain:
     must have a set_bias() method. See example in the distributions.py.
     '''
     
-    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, initial_parameters=None, adaptive_error_model=None, R=None):
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse
         self.link_factory_fine = link_factory_fine
         self.proposal = proposal
-        self.subsampling_rate = subsampling_rate
         
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
         if isinstance(self.proposal, CrankNicolson):
-            if not np.allclose(self.link_factory_coarse.prior.cov, self.proposal.C):
-                raise ValueError('C-proposal must equal C-prior for pCN proposal')
-            if np.count_nonzero(self.link_factory_coarse.prior.mean):
-                raise ValueError('Prior must be zero mean for pCN proposal')
+            if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                if not (self.link_factory_coarse.prior.cov == self.proposal.C).all():
+                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
+                if np.count_nonzero(self.link_factory_coarse.prior.mean):
+                    raise ValueError('Prior must be zero mean for pCN proposal')
+            else:
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
+        elif isinstance(self.proposal, MultipleTry):
+            if isinstance(self.proposal.kernel, CrankNicolson):
+                if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                    if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():
+                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
+                    if np.count_nonzero(self.link_factory_coarse.prior.mean):
+                        raise ValueError('Prior must be zero mean for pCN kernel')
+                else:
+                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -145,6 +177,9 @@ class DAChain:
             
         elif isinstance(self.proposal, SingleDreamZ):
             self.proposal.initialise_archive(self.link_factory_coarse.prior)
+            
+        elif isinstance(self.proposal, MultipleTry):
+            self.proposal.initialise_kernel(self.link_factory_coarse, self.initial_parameters)
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model
@@ -174,17 +209,17 @@ class DAChain:
                 self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
-            self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+            self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
-    def sample(self, iterations):
+    def sample(self, iterations, subsampling_rate=1):
             
         # begin iteration
         pbar = tqdm(range(iterations))
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
+            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
             # subsample the coarse model.
-            for j in range(self.subsampling_rate):
+            for j in range(subsampling_rate):
                 
                 # draw a new proposal, given the previous parameters.
                 proposal = self.proposal.make_proposal(self.chain_coarse[-1])
@@ -210,10 +245,10 @@ class DAChain:
                 # this has no effect.
                 self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
-            if sum(self.accepted_coarse[-self.subsampling_rate:]) == 0:
+            if sum(self.accepted_coarse[-subsampling_rate:]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
-                self.chain_coarse.append(self.chain_coarse[-(self.subsampling_rate+1)])
+                self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
                 
@@ -223,7 +258,7 @@ class DAChain:
                 proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
                 
                 # compute the delayed acceptance probability.
-                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
+                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
                 
                 # Perform Metropolis adjustment, and update the coarse chain
                 # to restart from the previous accepted fine link.
@@ -236,7 +271,7 @@ class DAChain:
                 else:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
-                    self.chain_coarse.append(self.chain_coarse[-(self.subsampling_rate+1)])
+                    self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
             
@@ -270,7 +305,11 @@ class DAChain:
                     # with the "pure" difference.
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
-                self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+                self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
+        
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.pool.close()
+
                 
 class ASDAChain:
     
