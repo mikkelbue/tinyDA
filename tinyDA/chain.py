@@ -1,5 +1,5 @@
 # external imports
-from concurrent.futures import ThreadPoolExecutor
+import multiprocessing as mp
 from itertools import compress
 import numpy as np
 from tqdm import tqdm
@@ -412,6 +412,8 @@ class ADAChain:
         self.proposal_chain, self.proposal_accepted = coarse_worker(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True)
         
     def sample(self, iterations):
+        
+        self.pool = mp.Pool(self.workers)
             
         # begin iteration
         pbar = tqdm(range(iterations))
@@ -426,15 +428,14 @@ class ADAChain:
             for i in range(-self.subsampling_rate+1, 0): 
                 self.proposal.adapt(parameters=self.chain_coarse[i].parameters, accepted=list(compress(self.accepted_coarse[:i], self.is_coarse[:i])))     
             
-            with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 
-                fine_process = executor.submit(fine_worker, self.chain_coarse[-1].parameters, self.link_factory_fine)
-                optimistic_coarse_process = executor.submit(coarse_worker, self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True)
-                pessimistic_coarse_process = executor.submit(coarse_worker, self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False)
-                
-                proposal_link_fine = fine_process.result()
-                optimistic_chain, optimistic_accepted = optimistic_coarse_process.result()
-                pessimistic_chain, pessimistic_accepted = pessimistic_coarse_process.result()
+            fine_process = self.pool.starmap_async(fine_worker, [[self.chain_coarse[-1].parameters, self.link_factory_fine]])
+            optimistic_coarse_process = self.pool.starmap_async(coarse_worker, [[self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True]])
+            pessimistic_coarse_process = self.pool.starmap_async(coarse_worker, [[self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False]])
+            
+            proposal_link_fine = fine_process.get()[0]
+            optimistic_chain, optimistic_accepted = optimistic_coarse_process.get()[0]
+            pessimistic_chain, pessimistic_accepted = pessimistic_coarse_process.get()[0]
             
             alpha = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[(-self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)   
             
@@ -481,6 +482,8 @@ class ADAChain:
                 
                 for j, link in enumerate(self.proposal_chain):
                     self.proposal_chain[j] = self.link_factory_coarse.update_link(link)
+        
+        self.pool.close()
 
 def coarse_worker(initial_link, link_factory, proposal, subsampling_rate, initial_accepted):
     
