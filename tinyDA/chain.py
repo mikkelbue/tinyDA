@@ -430,12 +430,12 @@ class ADAChain:
             
                 
             fine_process = self.pool.starmap_async(fine_worker, [[self.chain_coarse[-1].parameters, self.link_factory_fine]])
-            optimistic_coarse_process = self.pool.starmap_async(coarse_worker, [[self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True]])
-            pessimistic_coarse_process = self.pool.starmap_async(coarse_worker, [[self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False]])
+            coarse_process = self.pool.starmap(coarse_worker, [[self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True], 
+                                                               [self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False]])
             
             proposal_link_fine = fine_process.get()[0]
-            optimistic_chain, optimistic_accepted = optimistic_coarse_process.get()[0]
-            pessimistic_chain, pessimistic_accepted = pessimistic_coarse_process.get()[0]
+            optimistic_chain, optimistic_accepted = coarse_process[0]
+            pessimistic_chain, pessimistic_accepted = coarse_process[1]
             
             alpha = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[(-self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)   
             
