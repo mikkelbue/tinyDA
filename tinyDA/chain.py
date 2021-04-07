@@ -208,7 +208,7 @@ class DAChain:
                 self.bias = ZeroMeanRecursiveSampleMoments(np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
-            self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+            self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
     def sample(self, iterations, subsampling_rate=1):
             
@@ -304,7 +304,7 @@ class DAChain:
                     # with the "pure" difference.
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
-                self.chain_coarse[-1] = self.link_factory_coarse.create_link(self.chain_coarse[-1].parameters)
+                self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
         if isinstance(self.proposal, MultipleTry):
             self.proposal.pool.close()
