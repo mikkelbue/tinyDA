@@ -448,9 +448,9 @@ class MultipleTry:
             
             # get the unnormalised weights according to the proposal type.
             if isinstance(self.kernel, CrankNicolson):
-                self.reference_weights = np.array([link.likelihood for link in self.proposal_links] + [previous_link.likelihood])
+                self.reference_weights = np.array([link.likelihood for link in self.reference_links] + [previous_link.likelihood])
             elif isinstance(self.kernel, GaussianRandomWalk):
-                self.reference_weights = np.array([link.posterior for link in self.proposal_links] + [previous_link.posterior])
+                self.reference_weights = np.array([link.posterior for link in self.reference_links] + [previous_link.posterior])
             
             # get the acceptance probability.
             return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
