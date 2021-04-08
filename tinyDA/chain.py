@@ -44,7 +44,7 @@ class Chain:
                         raise ValueError('Prior must be zero mean for pCN kernel')
                 else:
                     raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
-            ray.init(num_cpus=self.proposal.k)
+            ray.init(num_cpus=self.proposal.k, ignore_reinit_error=True)
         
         # initialise a list, which holds the links.
         self.chain = []
@@ -88,9 +88,10 @@ class Chain:
             # create a link from that proposal.
             proposal_link = self.link_factory.create_link(proposal)
             
-            # compute the acceptance probability, which is unique to
-            # the proposal.
-            alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
+            # compute the acceptance probability.
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
             
             # perform Metropolis adjustment.
             if np.random.random() < alpha:
@@ -144,7 +145,7 @@ class DAChain:
                         raise ValueError('Prior must be zero mean for pCN kernel')
                 else:
                     raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
-            ray.init(num_cpus=self.proposal.k)
+            ray.init(num_cpus=self.proposal.k, ignore_reinit_error=True)
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -228,9 +229,10 @@ class DAChain:
                 # create a link from that proposal.
                 proposal_link_coarse = self.link_factory_coarse.create_link(proposal)
                 
-                # compute the acceptance probability, which is unique to
-                # the proposal.
-                alpha_1 = self.proposal.get_acceptance(proposal_link_coarse, self.chain_coarse[-1])
+                # compute the acceptance probability.
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    alpha_1 = self.proposal.get_acceptance(proposal_link_coarse, self.chain_coarse[-1])
                 
                 # perform Metropolis adjustment.
                 if np.random.random() < alpha_1:
@@ -259,7 +261,9 @@ class DAChain:
                 proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
                 
                 # compute the delayed acceptance probability.
-                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
                 
                 # Perform Metropolis adjustment, and update the coarse chain
                 # to restart from the previous accepted fine link.
@@ -340,7 +344,6 @@ class ADAChain:
         
         # check the same if the CrankNicolson is nested in a MultipleTry proposal.
         elif isinstance(self.proposal, MultipleTry):
-            raise TypeError('MultipleTry proposal is incompatible with ADAChain.')
             if isinstance(self.proposal.kernel, CrankNicolson):
                 if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                     if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():
@@ -349,10 +352,10 @@ class ADAChain:
                         raise ValueError('Prior must be zero mean for pCN kernel')
                 else:
                     raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
-            #if self.proposal.k >= 3:
-            #    self.proposal = AsynchronousMultipleTry(self.proposal)
-            #else:
-            #    raise ValueError('MultipleTry proposal must have k >= 3 to work meaningfully with asynchronous sampling')
+            if self.proposal.k >= 3:
+                self.proposal = AsynchronousMultipleTry(self.proposal)
+            else:
+                raise ValueError('MultipleTry proposal must have k >= 3 to work meaningfully with asynchronous sampling')
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -423,14 +426,14 @@ class ADAChain:
         else:
             self.workers = psutil.cpu_count() - 1
         
-        ray.init(num_cpus=self.workers)
+        ray.init(num_cpus=self.workers, ignore_reinit_error=True)
         
         if isinstance(self.proposal, MultipleTry):
-            k = self.proposal.k_total
+            k_mtm = self.proposal.k_total
         else:
-            k = None
+            k_mtm = None
         
-        proposal_process = coarse_worker.remote(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k)
+        proposal_process = coarse_worker.remote(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k_mtm)
         self.proposal_chain, self.proposal_accepted = ray.get(proposal_process)
         
     def sample(self, iterations):
@@ -450,18 +453,20 @@ class ADAChain:
                 
             if isinstance(self.proposal, MultipleTry):
                 optimism = np.mean(self.accepted_fine[-100:])
-                k_optimistic = int(max(1, min(self.proposal.k_total-1, np.round(optimism*self.proposal.k_total))))
-                k_pessimistic = self.proposal.k_total - k_optimistic
+                k_mtm_optimistic = int(max(1, min(self.proposal.k_total-1, np.round(optimism*self.proposal.k_total))))
+                k_mtm_pessimistic = self.proposal.k_total - k_mtm_optimistic
             else:
-                k_optimistic = k_pessimistic = None
-                
+                k_mtm_optimistic = k_mtm_pessimistic = None
+            
             fine_process = fine_worker.remote(self.chain_coarse[-1].parameters, self.link_factory_fine)
-            optimistic_process = coarse_worker.remote(self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k_optimistic)
-            pessimistic_process = coarse_worker.remote(self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False, k_pessimistic)
+            optimistic_process = coarse_worker.remote(self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k_mtm_optimistic)
+            pessimistic_process = coarse_worker.remote(self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False, k_mtm_pessimistic)
             
             proposal_link_fine = ray.get(fine_process)
             
-            alpha = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[(-self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)   
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                alpha = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[(-self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)   
             
             if np.random.random() < alpha:
                 self.chain_fine.append(proposal_link_fine)
@@ -537,9 +542,6 @@ def coarse_worker(initial_link, link_factory, proposal, subsampling_rate, initia
         else:
             chain.append(chain[-1])
             accepted.append(False)
-    
-    if isinstance(proposal, MultipleTry):
-        proposal.reset()
             
     return chain, accepted
 

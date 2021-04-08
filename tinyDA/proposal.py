@@ -82,7 +82,9 @@ class GaussianRandomWalk:
             return 0
         else:
             # get the acceptance probability.
-            return np.exp(proposal_link.posterior - previous_link.posterior)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                return np.exp(proposal_link.posterior - previous_link.posterior)
         
 class CrankNicolson(GaussianRandomWalk):
     
@@ -100,7 +102,9 @@ class CrankNicolson(GaussianRandomWalk):
             return 0
         else:
             # get the acceptance probability.
-            return np.exp(proposal_link.likelihood - previous_link.likelihood)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                return np.exp(proposal_link.likelihood - previous_link.likelihood)
 
 
 class AdaptiveMetropolis(GaussianRandomWalk):
@@ -455,11 +459,9 @@ class MultipleTry:
                 self.reference_weights = np.array([link.posterior for link in self.reference_links] + [previous_link.posterior])
             
             # get the acceptance probability.
-            return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
-
-@ray.remote
-def create_link(parameters, link_factory):
-    return link_factory.create_link(parameters)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
 
 # TODO: rewrite this for ray.
 class AsynchronousMultipleTry(MultipleTry):
@@ -472,10 +474,6 @@ class AsynchronousMultipleTry(MultipleTry):
         
     def set_k(self, k):
         self.k = k
-        if self.k > 1:
-            self.pool = mp.Pool(self.k)
-        else:
-            pass
 
     def make_proposal(self, link):
         if self.k > 1:
@@ -489,9 +487,6 @@ class AsynchronousMultipleTry(MultipleTry):
         else:
             return self.kernel.get_acceptance(proposal_link, previous_link)
 
-    def reset(self):
-        if self.k > 1:
-            self.pool.close()
-            self.pool = None
-        else:
-            pass
+@ray.remote
+def create_link(parameters, link_factory):
+    return link_factory.create_link(parameters)
