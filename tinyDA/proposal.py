@@ -1,6 +1,6 @@
 # external imports
 import warnings
-import multiprocessing as mp
+import ray
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
@@ -387,8 +387,6 @@ class MultipleTry:
         # set the number of tries per proposal.
         self.k = k
         
-        self.pool = mp.Pool(self.k)
-        
         if self.kernel.adaptive:
             warnings.warn(' Using global adaptive scaling with MultipleTry proposal can be unstable.\n')
         
@@ -417,7 +415,9 @@ class MultipleTry:
         proposals = [self.kernel.make_proposal(link) for i in range(self.k)]
         
         # get the links in parallel.
-        self.proposal_links = self.pool.map(self.link_factory.create_link, proposals)
+        link_factory_id = ray.put(self.link_factory)
+        proposal_process = [create_link.remote(proposal, link_factory_id) for proposal in proposals]
+        self.proposal_links = ray.get(proposal_process)
         
         # get the unnormalised weights according to the proposal type.
         if isinstance(self.kernel, CrankNicolson):
@@ -444,17 +444,24 @@ class MultipleTry:
             references = [self.kernel.make_proposal(proposal_link) for i in range(self.k-1)]
             
             # get the links in parallel.
-            self.reference_links = self.pool.map(self.link_factory.create_link, references)
+            link_factory_id = ray.put(self.link_factory)
+            reference_process = [create_link.remote(reference, link_factory_id) for reference in references]
+            self.reference_links = ray.get(reference_process)
             
             # get the unnormalised weights according to the proposal type.
             if isinstance(self.kernel, CrankNicolson):
-                self.reference_weights = np.array([link.likelihood for link in self.proposal_links] + [previous_link.likelihood])
+                self.reference_weights = np.array([link.likelihood for link in self.reference_links] + [previous_link.likelihood])
             elif isinstance(self.kernel, GaussianRandomWalk):
-                self.reference_weights = np.array([link.posterior for link in self.proposal_links] + [previous_link.posterior])
+                self.reference_weights = np.array([link.posterior for link in self.reference_links] + [previous_link.posterior])
             
             # get the acceptance probability.
             return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
 
+@ray.remote
+def create_link(parameters, link_factory):
+    return link_factory.create_link(parameters)
+
+# TODO: rewrite this for ray.
 class AsynchronousMultipleTry(MultipleTry):
     def __init__(self, multiple_try_proposal):
         
