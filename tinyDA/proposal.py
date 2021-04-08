@@ -465,16 +465,26 @@ class AsynchronousMultipleTry(MultipleTry):
         
     def set_k(self, k):
         self.k = k
-        self.pool = mp.Pool(self.k)
+        if self.k > 1:
+            self.pool = mp.Pool(self.k)
+        else:
+            pass
 
     def make_proposal(self, link):
-        if self.k == 1:
-            return self.kernel.make_proposal(link)
-        else:
+        if self.k > 1:
             return super().make_proposal(link)
+        else:
+            return self.kernel.make_proposal(link)
             
     def get_acceptance(self, proposal_link, previous_link):
-        if self.k == 1:
-            return self.kernel.get_acceptance(proposal_link, previous_link)
-        else:
+        if self.k > 1:
             return super().get_acceptance(proposal_link, previous_link)
+        else:
+            return self.kernel.get_acceptance(proposal_link, previous_link)
+
+    def reset(self):
+        if self.k > 1:
+            self.pool.close()
+            self.pool = None
+        else:
+            pass
