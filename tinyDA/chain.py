@@ -323,7 +323,7 @@ class ADAChain:
     must have a set_bias() method. See example in the distributions.py.
     '''
     
-    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None, workers=3):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse
@@ -344,7 +344,18 @@ class ADAChain:
         
         # check the same if the CrankNicolson is nested in a MultipleTry proposal.
         elif isinstance(self.proposal, MultipleTry):
-            raise TypeError('Multiple-Try proposal cannot be used with ADAChain at this point.')
+            if isinstance(self.proposal.kernel, CrankNicolson):
+                if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                    if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():
+                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
+                    if np.count_nonzero(self.link_factory_coarse.prior.mean):
+                        raise ValueError('Prior must be zero mean for pCN kernel')
+                else:
+                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+            if self.proposal.k >= 3:
+                self.proposal = AsynchronousMultipleTry(self.proposal)
+            else:
+                raise ValueError('MultipleTry proposal must have k >= 3 to work meaningfully with asynchronous sampling')
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -377,7 +388,13 @@ class ADAChain:
         elif isinstance(self.proposal, SingleDreamZ):
             self.proposal.initialise_archive(self.link_factory_coarse.prior)
             
-        self.workers = workers
+        elif isinstance(self.proposal, MultipleTry):
+            self.proposal.initialise_kernel(self.link_factory_coarse, self.initial_parameters)
+            
+        #self.workers = workers
+        #mp.set_start_method('spawn')
+        self.queue = mp.Queue()
+        self.queue_keys = ['fine', 'optimistic', 'pessimistic']
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model
@@ -408,12 +425,18 @@ class ADAChain:
                 self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
         
             initial_coarse_link = self.link_factory_coarse.update_link(initial_coarse_link)
-        
-        self.proposal_chain, self.proposal_accepted = coarse_worker(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True)
+            
+        if isinstance(self.proposal, MultipleTry):
+            k = self.proposal.k_total
+        else:
+            k = None
+            
+        self.k_history = []
+        self.proposal_chain, self.proposal_accepted = coarse_worker(initial_coarse_link, self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k)
         
     def sample(self, iterations):
         
-        self.pool = mp.Pool(self.workers)
+        #self.pool = mp.Pool(self.workers)
             
         # begin iteration
         pbar = tqdm(range(iterations))
@@ -428,13 +451,30 @@ class ADAChain:
             for i in range(-self.subsampling_rate+1, 0): 
                 self.proposal.adapt(parameters=self.chain_coarse[i].parameters, accepted=list(compress(self.accepted_coarse[:i], self.is_coarse[:i])))
                 
-            parallel_process = self.pool.map(worker_wrapper, [(self.chain_coarse[-1].parameters, self.link_factory_fine),
-                                                              (self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True), 
-                                                              (self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False)])
+            if isinstance(self.proposal, MultipleTry):
+                optimism = np.mean(self.accepted_fine[-100:])
+                k_optimistic = int(max(1, min(self.proposal.k_total-1, np.round(optimism*self.proposal.k_total))))
+                k_pessimistic = self.proposal.k_total - k_optimistic
+            else:
+                k_optimistic = k_pessimistic = None
             
-            proposal_link_fine = parallel_process[0]
-            optimistic_chain, optimistic_accepted = parallel_process[1]
-            pessimistic_chain, pessimistic_accepted = parallel_process[2]
+            process_args = [(self.chain_coarse[-1].parameters, self.link_factory_fine),
+                            (self.chain_coarse[-1], self.link_factory_coarse, self.proposal, self.subsampling_rate, True, k_optimistic), 
+                            (self.chain_coarse[(-self.subsampling_rate+1)], self.link_factory_coarse, self.proposal, self.subsampling_rate, False, k_pessimistic)]
+            
+            jobs = [mp.Process(target=worker_wrapper, args=(q_key, self.queue, process_args[j])) for j, q_key in enumerate(self.queue_keys)]
+            
+            for job in jobs:
+                job.start()
+            
+            for job in jobs:
+                job.join()
+            
+            result = [self.queue.get() for job in jobs]
+                
+            proposal_link_fine = result[0]
+            optimistic_chain, optimistic_accepted = result[1]
+            pessimistic_chain, pessimistic_accepted = result[2]
             
             alpha = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[(-self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)   
             
@@ -482,15 +522,21 @@ class ADAChain:
                 for j, link in enumerate(self.proposal_chain):
                     self.proposal_chain[j] = self.link_factory_coarse.update_link(link)
         
-        self.pool.close()
+        #self.pool.close()
         
-def worker_wrapper(args):
-    if len(args) == 2:
-        return fine_worker(*args)
-    elif len(args) == 5:
-        return coarse_worker(*args)
+def worker_wrapper(q_key, q, args):
+    if q_key == 'fine':
+        result = fine_worker(*args)
+    elif q_key == 'optimistic' or q_key == 'pessimistic':
+        result = coarse_worker(*args)
+    q.put(result)
 
-def coarse_worker(initial_link, link_factory, proposal, subsampling_rate, initial_accepted):
+def coarse_worker(initial_link, link_factory, proposal, subsampling_rate, initial_accepted, k):
+    
+    if isinstance(proposal, MultipleTry):
+        proposal.set_k(k)
+    else:
+        pass
     
     chain = [initial_link]
     accepted = [initial_accepted]

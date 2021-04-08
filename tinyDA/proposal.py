@@ -454,3 +454,27 @@ class MultipleTry:
             
             # get the acceptance probability.
             return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
+
+class AsynchronousMultipleTry(MultipleTry):
+    def __init__(self, multiple_try_proposal):
+        
+        # set the kernel
+        self.kernel = multiple_try_proposal.kernel
+        
+        self.k_total = multiple_try_proposal.k
+        
+    def set_k(self, k):
+        self.k = k
+        self.pool = mp.Pool(self.k)
+
+    def make_proposal(self, link):
+        if self.k == 1:
+            return self.kernel.make_proposal(link)
+        else:
+            return super().make_proposal(link)
+            
+    def get_acceptance(self, proposal_link, previous_link):
+        if self.k == 1:
+            return self.kernel.get_acceptance(proposal_link, previous_link)
+        else:
+            return super().get_acceptance(proposal_link, previous_link)
