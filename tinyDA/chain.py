@@ -74,6 +74,9 @@ class Chain:
         
     def sample(self, iterations):
         
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.open_pool()
+        
         # start the iteration
         pbar = tqdm(range(iterations))
         for i in pbar:
@@ -102,7 +105,7 @@ class Chain:
             self.proposal.adapt(parameters=self.chain[-1].parameters, accepted=self.accepted)
         
         if isinstance(self.proposal, MultipleTry):
-            self.proposal.pool.close()
+            self.proposal.close_pool()
 
 class DAChain:
     
@@ -115,12 +118,13 @@ class DAChain:
     must have a set_bias() method. See example in the distributions.py.
     '''
     
-    def __init__(self, link_factory_coarse, link_factory_fine, proposal, initial_parameters=None, adaptive_error_model=None, R=None):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse
         self.link_factory_fine = link_factory_fine
         self.proposal = proposal
+        self.subsampling_rate = subsampling_rate
         
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
@@ -210,15 +214,18 @@ class DAChain:
         
             self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
-    def sample(self, iterations, subsampling_rate=1):
+    def sample(self, iterations):
+        
+        if isinstance(self.proposal, MultipleTry):
+            self.proposal.open_pool()
             
         # begin iteration
         pbar = tqdm(range(iterations))
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
+            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
             # subsample the coarse model.
-            for j in range(subsampling_rate):
+            for j in range(self.subsampling_rate):
                 
                 # draw a new proposal, given the previous parameters.
                 proposal = self.proposal.make_proposal(self.chain_coarse[-1])
@@ -244,10 +251,10 @@ class DAChain:
                 # this has no effect.
                 self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
-            if sum(self.accepted_coarse[-subsampling_rate:]) == 0:
+            if sum(self.accepted_coarse[-self.subsampling_rate:]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
-                self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
+                self.chain_coarse.append(self.chain_coarse[-(self.subsampling_rate+1)])
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
                 
@@ -257,7 +264,7 @@ class DAChain:
                 proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
                 
                 # compute the delayed acceptance probability.
-                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
+                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
                 
                 # Perform Metropolis adjustment, and update the coarse chain
                 # to restart from the previous accepted fine link.
@@ -270,7 +277,7 @@ class DAChain:
                 else:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
-                    self.chain_coarse.append(self.chain_coarse[-(subsampling_rate+1)])
+                    self.chain_coarse.append(self.chain_coarse[-(self.subsampling_rate+1)])
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
             
@@ -307,4 +314,5 @@ class DAChain:
                 self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
         if isinstance(self.proposal, MultipleTry):
-            self.proposal.pool.close()
+            self.proposal.close_pool()
+            

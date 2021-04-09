@@ -390,10 +390,14 @@ class MultipleTry:
         # set the number of tries per proposal.
         self.k = k
         
-        self.pool = mp.Pool(self.k)
-        
         if self.kernel.adaptive:
             warnings.warn(' Using global adaptive scaling with MultipleTry proposal can be unstable.\n')
+            
+    def open_pool(self):
+        self.pool = mp.Pool(self.k)
+        
+    def close_pool(self):
+        self.pool.close()
         
     def initialise_kernel(self, link_factory, initial_parameters):
         
