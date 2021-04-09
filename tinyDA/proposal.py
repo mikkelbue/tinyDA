@@ -1,6 +1,9 @@
 # external imports
 import warnings
-import multiprocessing as mp
+try:
+    import ray.util.multiprocessing as mp
+except ModuleNotFoundError:
+    import multiprocessing as mp
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
