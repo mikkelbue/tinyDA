@@ -17,6 +17,7 @@ class GaussianRandomWalk:
     '''
     Standard MH random walk proposal.
     '''
+    is_symmetric = True
     
     def __init__(self, C, scaling=1, adaptive=False, gamma=1.01, period=100):
         
@@ -93,7 +94,8 @@ class CrankNicolson(GaussianRandomWalk):
     This is the preconditioned Crank Nicolson proposal, inheriting
     from the  GaussianRandomWalk.
     '''
-        
+    is_symmetric = False
+    
     def make_proposal(self, link):
         # make a pCN proposal.
         return np.sqrt(1 - self.scaling**2)*link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
@@ -104,6 +106,9 @@ class CrankNicolson(GaussianRandomWalk):
         else:
             # get the acceptance probability.
             return np.exp(proposal_link.likelihood - previous_link.likelihood)
+            
+    def get_q(self, x_link, y_link):
+        return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.sqrt(1 - self.scaling**2)*x_link.parameters, cov=self.scaling**2*self.C)
 
 
 class AdaptiveMetropolis(GaussianRandomWalk):
@@ -274,6 +279,9 @@ class AdaptiveCrankNicolson(CrankNicolson):
 
         # make a proposal
         return np.dot(self.operator, link.parameters) + self.scaling*np.random.multivariate_normal(self._mean, self.B)
+        
+    def get_q(self, x_link, y_link):
+        return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.dot(self.operator, x_link.parameters), cov=self.scaling**2*self.B)
 
 class SingleDreamZ(GaussianRandomWalk):
     def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', adaptive=False, gamma=1.01, period=100):

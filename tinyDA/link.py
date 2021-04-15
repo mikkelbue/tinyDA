@@ -45,10 +45,13 @@ class LinkFactory:
         
         return Link(parameters, prior, model_output, likelihood, qoi)
         
-    def update_link(self, link):
+    def update_link(self, link, bias=None):
         
-        # recompute the likelihood.
-        likelihood = self.likelihood.logpdf(link.model_output)
+        if bias is None:
+            # recompute the likelihood.
+            likelihood = self.likelihood.logpdf(link.model_output)
+        else:
+            likelihood = self.likelihood.logpdf_custom_bias(link.model_output, bias)
         
         return Link(link.parameters, link.prior, link.model_output, likelihood, link.qoi)
         

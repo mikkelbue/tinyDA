@@ -264,7 +264,21 @@ class DAChain:
                 proposal_link_fine = self.link_factory_fine.create_link(self.chain_coarse[-1].parameters)
                 
                 # compute the delayed acceptance probability.
-                alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
+                if self.adaptive_error_model == 'state-dependent':
+                    
+                    bias_next = self.R.dot(proposal_link_fine.model_output) - self.chain_coarse[-1].model_output
+                    coarse_state_biased = self.link_factory_coarse.update_link(self.chain_coarse[-(self.subsampling_rate+1)], bias_next)
+                    
+                    if self.proposal.is_symmetric:
+                        q_x_y = q_y_x = 0
+                    else:
+                        q_x_y = self.proposal.get_q(self.chain_fine[-1], proposal_link_fine)
+                        q_y_x = self.proposal.get_q(proposal_link_fine, self.chain_fine[-1])
+                    
+                    alpha_2 = np.exp(min(proposal_link_fine.posterior + q_y_x, coarse_state_biased.posterior + q_x_y) - min(self.chain_fine[-1].posterior + q_x_y, self.chain_coarse[-1].posterior + q_y_x))
+                
+                else:
+                    alpha_2 = np.exp(proposal_link_fine.posterior - self.chain_fine[-1].posterior + self.chain_coarse[-(self.subsampling_rate+1)].posterior - self.chain_coarse[-1].posterior)
                 
                 # Perform Metropolis adjustment, and update the coarse chain
                 # to restart from the previous accepted fine link.

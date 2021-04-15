@@ -67,3 +67,7 @@ class AdaptiveLogLike(LogLike):
     def logpdf(self, x):
         # compute the unnormalised likelihood, with additional terms for offset, scaling, and rotation.
         return -0.5*np.linalg.multi_dot(((x + self.bias - self.mean).T, self.cov_inverse, (x + self.bias - self.mean)))
+        
+    def logpdf_custom_bias(self, x, bias):
+        # compute the unnormalised likelihood, with additional terms for offset, scaling, and rotation.
+        return -0.5*np.linalg.multi_dot(((x + bias - self.mean).T, self.cov_inverse, (x + bias - self.mean)))
