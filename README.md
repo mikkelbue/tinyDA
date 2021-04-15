@@ -20,7 +20,7 @@ It is fully imperative and easy to use!
 * Multiple-Try Metropolis (MTM) using any of the above proposals as a kernel - Liu et al. (2000)
 
 ### Adaptive Error Models
-* State independent - Cui et al. (2012)
+* State independent - Cui et al. (2018)
 * State dependent - Cui et al. (2018)
 
 ### Diagnostics
