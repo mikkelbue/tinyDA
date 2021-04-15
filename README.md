@@ -3,7 +3,7 @@
 # tinyDA
 Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
 
-This is intended as a simple, lightweight implementation, with minimal dependencies, e.g. nothing beyond the SciPy stack. 
+This is intended as a simple, lightweight implementation, with minimal dependencies, i.e. nothing beyond the SciPy stack. 
 
 It is fully imperative and easy to use!
 
