@@ -107,7 +107,7 @@ def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
     else:
         return s_m_sq, W, var_hat
     
-def compute_ESS(parameters, bulk=False):
+def compute_ESS(parameters, rank_normalised=False):
     
     '''
     ESS according to Vehtari et al. (2020). The first argument (parameters) 
@@ -117,7 +117,7 @@ def compute_ESS(parameters, bulk=False):
     '''
     
     # rank normalise, if the switch is set.
-    if bulk:
+    if rank_normalised:
         parameters = rank_normalise(parameters)
     else:
         pass
