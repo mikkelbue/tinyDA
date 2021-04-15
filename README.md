@@ -98,12 +98,12 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 ### Sampling
 The Delayed Acceptance sampler can then be initalised and run, simply with:
 ```
-my_chain = tda.DAChain(my_link_factory_coarse, my_link_factory_fine, my_proposal)
-my_chain.sample(n_samples, subsampling_rate=n_subsampling)
+my_chain = tda.DAChain(my_link_factory_coarse, my_link_factory_fine, my_proposal, subsampling_rate)
+my_chain.sample(n_samples)
 ```
 If you decide you need more samples, you can just call `tda.DAChain.sample()` again, since all samples and tuning parameters are cached:
 ```
-my_chain.sample(additional_n_samples, subsampling_rate=n_subsampling)
+my_chain.sample(additional_n_samples)
 ```
 
 ### Postprocessing
