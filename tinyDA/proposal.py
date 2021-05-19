@@ -9,6 +9,12 @@ from scipy.linalg import sqrtm
 import scipy.stats as stats
 from scipy.special import logsumexp
 
+try:
+    import TransportMaps as tm
+    from .transportmap import DataDist
+except ModuleNotFoundError:
+    pass
+
 # internal imports
 from .utils import  RecursiveSampleMoments
 
@@ -367,10 +373,10 @@ class SingleDreamZ(GaussianRandomWalk):
         self.Z = np.vstack((self.Z, kwargs['parameters']))
         self.M = self.Z.shape[0]
         
+        super().adapt(**kwargs)
+        
         # adaptivity
         if self.adaptive:
-            
-            super().adapt(**kwargs)
             
             # compute new multinomial distribution according to the normalised jumping distance.
             self.DeltaCR[self.mCR] = self.DeltaCR[self.mCR] + (kwargs['jumping_distance']**2/np.std(self.Z, axis=0)**2).sum()
@@ -413,6 +419,113 @@ class SingleDreamZ(GaussianRandomWalk):
         epsilon = np.random.normal(0, self.b_star, size=self.d)
         
         return link.parameters + subspace_indicator*((np.ones(self.d) + e)*gamma_DREAM*(Z_r1 - Z_r2) + epsilon)
+        
+class GaussianTransportMap(GaussianRandomWalk):
+    
+    def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, adaptive=False, gamma=1.01):
+        
+        try:
+            import TransportMaps
+        except ModuleNotFoundError as e:
+            print(e)
+            return
+            
+        # check if covariance operator is a square numpy array.
+        if not isinstance(C, np.ndarray):
+            raise TypeError('C must be a numpy array')
+        elif C.ndim == 1:
+            if not C.shape[0] == 1:
+                raise ValueError('C must be an NxN array')
+        elif not C.shape[0] == C.shape[1]:
+            raise ValueError('C must be an NxN array')
+        
+        # set the covariance operator
+        self.C = C
+        
+        # extract the dimensionality.
+        self.d = self.C.shape[0]
+        
+        # set the distribution mean to zero.
+        self._mean = np.zeros(self.d)
+        
+        # set the scaling.
+        self.scaling = scaling
+        
+        # set the beginning of adaptation (rigidness of initial covariance).
+        self.t0 = t0
+        
+        # Set the update period.
+        self.period = period
+        
+        # set the discard fraction
+        self.discard_fraction = discard_fraction
+        
+        # set the reference distribution
+        self.rho = tm.Distributions.GaussianDistribution(self._mean, self.C)
+        
+        # set up an initial (dummy) transport map
+        self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), np.ones(self.d))
+        
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+        
+        # initialise counter of how many times, adapt() has been called..
+        self.t = 0
+        
+    def initialise_sampling_moments(self, parameters):
+        
+        self.Z = parameters
+        
+    def adapt(self, **kwargs):
+        
+        super().adapt(**kwargs)
+        
+        self.Z = np.vstack((self.Z, kwargs['parameters']))
+        
+        if self.t == self.t0:
+            self.Z = self.Z[int(self.discard_fraction*self.Z.shape[0]):,:]
+        
+        if self.t >= self.t0 and self.t%self.period == 0:
+            
+            a = np.array([4*(x.min() + x.max())/(x.min() - x.max()) for x in self.Z.T])
+            b = np.array([8./(x.max() - x.min()) for x in self.Z.T])
+            L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
+            
+            pi = DataDist(self.d, self.Z)
+            S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, 2, 'total')
+            push_L_pi = tm.Distributions.PushForwardTransportMapDistribution(L, pi)
+            push_SL_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
+            
+            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1}; tol = 1e-3; ders = 2
+
+            push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders)
+            self.SL = tm.Maps.CompositeMap(S,L)
+        
+    def make_proposal(self, link):
+        
+        r = self.SL(np.expand_dims(link.parameters, axis=0)).flatten()
+        
+        r_proposal = r + self.scaling*self.rho.rvs(1).flatten()
+        
+        return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
+
+        
+    def get_acceptance(self, proposal_link, previous_link):
+        
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:    
+            return np.exp(proposal_link.posterior - previous_link.posterior \
+                - self.SL.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
+                + self.SL.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))
 
 class MultipleTry:
     def __init__(self, kernel, k):
