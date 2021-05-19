@@ -284,14 +284,17 @@ class AdaptiveCrankNicolson(CrankNicolson):
         return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.dot(self.operator, x_link.parameters), cov=self.scaling**2*self.B)
 
 class SingleDreamZ(GaussianRandomWalk):
-    def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', adaptive=False, gamma=1.01, period=100):
+    def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', nCR=3, adaptive=False, gamma=1.01, period=100):
         
         warnings.warn(' SingleDreamZ is an EXPERIMENTAL proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016), but using only a single chain.\n')
         
-        # Set initial archive size.
+        # set initial archive size.
         self.M = M0
         
-        # Set DREAM parameters
+        # set global scaling
+        self.scaling = 1
+        
+        # set DREAM parameters
         self.delta = delta
         self.b = b
         self.b_star = b_star
@@ -302,6 +305,11 @@ class SingleDreamZ(GaussianRandomWalk):
         # set adaptivity.
         self.adaptive = adaptive
         
+        # set crossover distribution.
+        self.nCR = nCR
+        self.mCR = None
+        self.pCR = np.array(self.nCR * [1/self.nCR])
+        
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
             
@@ -311,6 +319,10 @@ class SingleDreamZ(GaussianRandomWalk):
             self.period = period
             # initialise adaptivity counter for diminishing adaptivity.
             self.k = 0
+            
+            # DREAM-specifivc adaptivity
+            self.LCR = np.zeros(self.nCR)
+            self.DeltaCR = np.ones(self.nCR)
         
         self.t = 0
         
@@ -318,7 +330,6 @@ class SingleDreamZ(GaussianRandomWalk):
         
         # get the dimension and the initial scaling.
         self.d = prior.dim
-        self.scaling = 2.38/np.sqrt(2*self.delta*self.d)
         
         # draw initial archive with latin hypercube sampling.
         if self.Z_method == 'lhs':
@@ -352,12 +363,22 @@ class SingleDreamZ(GaussianRandomWalk):
         
     def adapt(self, **kwargs):
         
-        # do global adaptive scaling.
-        super().adapt(**kwargs)
-        
         # extend the archive.
         self.Z = np.vstack((self.Z, kwargs['parameters']))
         self.M = self.Z.shape[0]
+        
+        # adaptivity
+        if self.adaptive:
+            
+            super().adapt(**kwargs)
+            
+            # compute new multinomial distribution according to the normalised jumping distance.
+            self.DeltaCR[self.mCR] = self.DeltaCR[self.mCR] + (kwargs['jumping_distance']**2/np.std(self.Z, axis=0)**2).sum()
+            self.LCR[self.mCR] = self.LCR[self.mCR] + 1
+            
+            if np.all(self.LCR > 0):
+                DeltaCR_mean = self.DeltaCR/self.LCR
+                self.pCR = DeltaCR_mean/DeltaCR_mean.sum()
         
     def make_proposal(self, link):
         
@@ -371,8 +392,9 @@ class SingleDreamZ(GaussianRandomWalk):
             Z_r1 += self.Z[r1,:]
             Z_r2 += self.Z[r2,:]
         
-        # compute the optimal crossover probability.
-        CR = min((2.38/self.scaling)**2/(2*self.delta*self.d), 1)
+        # randomly choose crossover probability.
+        self.mCR = np.random.choice(self.nCR, p=self.pCR)
+        CR = (self.mCR+1) / self.nCR
         
         # set up the subspace indicator, deciding which dimensions to pertubate.
         subspace_indicator = np.zeros(self.d)
@@ -383,11 +405,14 @@ class SingleDreamZ(GaussianRandomWalk):
         if subspace_indicator.sum() == 0:
             subspace_indicator[np.random.choice(self.d)] = 1
         
+        # compute the optimal scaling.
+        gamma_DREAM = self.scaling*2.38/np.sqrt(2*self.delta*subspace_indicator.sum())
+        
         # get the random scalings and gaussian pertubation.
         e = np.random.uniform(-self.b, self.b, size=self.d)
         epsilon = np.random.normal(0, self.b_star, size=self.d)
         
-        return link.parameters + subspace_indicator*((np.ones(self.d) + e)*self.scaling*(Z_r1 - Z_r2) + epsilon)
+        return link.parameters + subspace_indicator*((np.ones(self.d) + e)*gamma_DREAM*(Z_r1 - Z_r2) + epsilon)
 
 class MultipleTry:
     def __init__(self, kernel, k):

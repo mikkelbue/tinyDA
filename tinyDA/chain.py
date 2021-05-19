@@ -102,7 +102,9 @@ class Chain:
             
             # adapt the proposal. if the proposal is set to non-adaptive,
             # this has no effect.
-            self.proposal.adapt(parameters=self.chain[-1].parameters, accepted=self.accepted)
+            self.proposal.adapt(parameters=self.chain[-1].parameters, 
+                                jumping_distance=self.chain[-1].parameters-self.chain[-2].parameters, 
+                                accepted=self.accepted)
         
         if isinstance(self.proposal, MultipleTry):
             self.proposal.close_pool()
@@ -249,7 +251,9 @@ class DAChain:
                 
                 # adapt the proposal. if the proposal is set to non-adaptive,
                 # this has no effect.
-                self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, accepted=list(compress(self.accepted_coarse, self.is_coarse)))
+                self.proposal.adapt(parameters=self.chain_coarse[-1].parameters, 
+                                    jumping_distance=self.chain_coarse[-1].parameters-self.chain_coarse[-2].parameters, 
+                                    accepted=list(compress(self.accepted_coarse, self.is_coarse)))
             
             if sum(self.accepted_coarse[-self.subsampling_rate:]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
