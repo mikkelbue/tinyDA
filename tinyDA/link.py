@@ -18,6 +18,10 @@ class Link:
         
         # compute the (unnormalised) posterior.
         self.posterior = self.prior + self.likelihood
+        
+class DummyLink(Link):
+    def __init__(self, parameters):
+        self.parameters = parameters
 
 class LinkFactory:
     
