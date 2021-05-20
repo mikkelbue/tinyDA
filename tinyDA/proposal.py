@@ -446,13 +446,12 @@ class GaussianTransportMap(GaussianRandomWalk):
     
     def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, adaptive=False, gamma=1.01):
         
-        warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
-        
         try:
-            import TransportMaps
-        except ModuleNotFoundError as e:
-            print(e)
-            return
+            print('Loaded TransportMaps v{}'.format(tm.__version__))
+        except NameError as e:
+            raise ModuleNotFoundError("No module named 'TransportMaps'. GaussianTransportMap proposal is not available.") from e
+        
+        warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
             
         # check if covariance operator is a square numpy array.
         if not isinstance(C, np.ndarray):

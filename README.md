@@ -12,11 +12,12 @@ It is fully imperative and easy to use!
 ## Features
 
 ### Proposals
-* Random Walk Metropolis Hastings (RWMH) - Metropolis et al. (1953), Hastings (1970).
-* preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013).
-* Adaptive Metropolis (AM) - Haario et al. (2001).
-* Adaptive pCN - Hu et al. (2016).
-* DREAM(Z) - Vrugt (2016).
+* Random Walk Metropolis Hastings (RWMH) - Metropolis et al. (1953), Hastings (1970)
+* preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013)
+* Adaptive Metropolis (AM) - Haario et al. (2001)
+* Adaptive pCN - Hu and Yao (2016)
+* DREAM(Z) - Vrugt (2016)
+* Transport Map MCMC - Parno and Marzouk (2017)
 * Multiple-Try Metropolis (MTM) using any of the above proposals as a kernel - Liu et al. (2000)
 
 ### Adaptive Error Models
@@ -24,15 +25,15 @@ It is fully imperative and easy to use!
 * State dependent - Cui et al. (2018)
 
 ### Diagnostics
-* Some plotting functions
-* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  - Vehtari et al. (2020)
-* Bulk-ESS - Vehtari et al. (2020)
+* A bunch of plotting functions
+* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  and ESS - Vehtari et al. (2020)
 
 ### Dependencies:
 * NumPy
 * SciPy
 * tqdm
-* pyDOE (optional)
+* [pyDOE](https://pythonhosted.org/pyDOE/) (optional)
+* [TransportMaps](http://transportmaps.mit.edu/docs/) (optional)
 
 ## Usage
 A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
@@ -117,4 +118,3 @@ Some diagnostics are available in the diagnostics module. Please refer to their 
 * More user-friendly diagnostics
 * Parallel multi-chain sampling
 * Population-based proposals
-* Gradient-based proposals
