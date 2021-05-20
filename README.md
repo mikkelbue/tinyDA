@@ -61,7 +61,7 @@ The sampler is constructed around what we call a `LinkFactory`, which is respons
 3. Constructing `tda.Link` instances that hold information for each sample.
 
 <br/>
-<p align="center"><img src="./misc/flowchart.png" width="500"></p>
+<p align="center"><img src="./misc/flowchart.png" width="600"></p>
 <br/>
 
 The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` or `tda.BlackBoxLinkFactory`. The former allows for computing the model output directly from the input parameters, using pure Python or whichever external library you want to call. The `evaluate_model()` method must thus be overwritten:
