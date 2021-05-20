@@ -32,8 +32,8 @@ class Chain:
             else:
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
-        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
-        elif isinstance(self.proposal, MultipleTry):
+        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        elif isinstance(self.proposal, MultipleTry) or isinstance(self.proposal, GaussianTransportMap):
             if isinstance(self.proposal.kernel, CrankNicolson):
                 if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
                     if not (self.link_factory.prior.cov == self.proposal.kernel.C).all():
@@ -72,7 +72,7 @@ class Chain:
         # start the iteration
         pbar = tqdm(range(iterations))
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1 = %0.3f' % np.mean(self.accepted[-100:]))
+            pbar.set_description('Running chain, \u03B1 = %0.2f' % np.mean(self.accepted[-100:]))
             
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
@@ -131,8 +131,8 @@ class DAChain:
             else:
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
-        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
-        elif isinstance(self.proposal, MultipleTry):
+        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        elif isinstance(self.proposal, MultipleTry) or isinstance(self.proposal, GaussianTransportMap):
             if isinstance(self.proposal.kernel, CrankNicolson):
                 if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                     if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():

@@ -17,6 +17,7 @@ except ModuleNotFoundError:
 
 # internal imports
 from .utils import  RecursiveSampleMoments
+from .link import DummyLink
 
 class GaussianRandomWalk:
     
@@ -436,43 +437,35 @@ class SingleDreamZ(GaussianRandomWalk):
         epsilon = np.random.normal(0, self.b_star, size=self.d)
         
         return link.parameters + subspace_indicator*((np.ones(self.d) + e)*gamma_DREAM*(Z_r1 - Z_r2) + epsilon)
-        
-class GaussianTransportMap(GaussianRandomWalk):
+                
+class GaussianTransportMap:
     
     '''
     Transport Map enhanced Gaussian Random Walk, or independence sampler
     (set flag independence_sampler=True). See Parno and Marzouk (2017).
     '''
     
-    def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, adaptive=False, gamma=1.01):
+    def __init__(self, kernel, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, T0=None):
         
         try:
             print('Loaded TransportMaps v{}'.format(tm.__version__))
         except NameError as e:
             raise ModuleNotFoundError("No module named 'TransportMaps'. GaussianTransportMap proposal is not available.") from e
+            
+        if isinstance(kernel, CrankNicolson):
+            if not independence_sampler:
+                raise NotImplementedError('GaussianTransportMap must have independence_sampler=True for CrankNicolson proposal.')
+            if T0 is not None:
+                raise NotImplementedError('GaussianTransportMap must have T0=None for CrankNicolson proposal.')
+            
+        if isinstance(kernel, AdaptiveMetropolis) or isinstance(kernel, AdaptiveCrankNicolson) or isinstance(kernel, SingleDreamZ):
+            raise NotImplementedError('GaussianTransportMap does not work with kernels which adapt to the posterior, \n\
+                including AdaptiveMetropolis, AdaptiveCrankNicolson and SingleDreamZ.')
         
         warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
             
         # check if covariance operator is a square numpy array.
-        if not isinstance(C, np.ndarray):
-            raise TypeError('C must be a numpy array')
-        elif C.ndim == 1:
-            if not C.shape[0] == 1:
-                raise ValueError('C must be an NxN array')
-        elif not C.shape[0] == C.shape[1]:
-            raise ValueError('C must be an NxN array')
-        
-        # set the covariance operator
-        self.C = C
-        
-        # extract the dimensionality.
-        self.d = self.C.shape[0]
-        
-        # set the distribution mean to zero.
-        self._mean = np.zeros(self.d)
-        
-        # set the scaling.
-        self.scaling = scaling
+        self.kernel = kernel
         
         # set the beginning of adaptation (rigidness of initial covariance).
         self.t0 = t0
@@ -486,55 +479,59 @@ class GaussianTransportMap(GaussianRandomWalk):
         # set independence sampler flag.
         self.independence_sampler = independence_sampler
         
-        # set the reference distribution
-        self.rho = tm.Distributions.GaussianDistribution(self._mean, self.C)
-        
-        # set up an initial (dummy) transport map
-        self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), 1/self.scaling*np.ones(self.d))
-        
-        # set adaptivity.
-        self.adaptive = adaptive
-        
-        # if adaptive, set some adaptivity parameters
-        if self.adaptive:
-            
-            # adaptivity scaling.
-            self.gamma = gamma
-            # initialise adaptivity counter for diminishing adaptivity.
-            self.k = 0
+        # set the initial transport map
+        self.T0 = T0
         
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
         
     def setup_proposal(self, **kwargs):
-        self.Z = kwargs['parameters']
+        
+        # setup the kernel
+        self.kernel.setup_proposal(**kwargs)
+        
+        # get the dimensionality
+        self.d = self.kernel.d
+        
+        # set the reference distribution
+        self.rho = tm.Distributions.GaussianDistribution(np.zeros(self.d), np.eye(self.d))
+        
+        # set up an initial (dummy) transport map
+        if self.T0 is not None:
+            self.T = self.T0
+        else:
+            self.T = tm.Maps.IdentityTransportMap(self.d)
+        
+        # initialise the history
+        self.history = kwargs['parameters']
+        
+        # set the initial guess for the next KL minimisation.
+        self.map_coeffs = None
     
     def adapt(self, **kwargs):
         
-        # do the Metropolis-adaptation
-        super().adapt(**kwargs)
+        self.t += 1
         
         # add the latest parameters to the archive
-        self.Z = np.vstack((self.Z, kwargs['parameters']))
+        self.history = np.vstack((self.history, kwargs['parameters']))
         
-        # scale the initial map to make sure we get some accepted links.
-        if self.adaptive and self.t < self.t0 and self.t%self.period == 0:
-            self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), 1/self.scaling*np.ones(self.d))
+        if not self.independence_sampler or self.t < self.t0:
+            self.kernel.adapt(**kwargs)
         
         # truncate the archive to make sure burnin is discarded.
         if self.t == self.t0:
-            self.Z = self.Z[int(self.discard_fraction*self.Z.shape[0]):,:]
+            self.history = self.history[int(self.discard_fraction*self.history.shape[0]):,:]
         
         # do the transport map adaptation.
         if self.t >= self.t0 and self.t%self.period == 0:
             
             # first, rescale the archive with a linear map.
-            a = np.array([4*(x.min() + x.max())/(x.min() - x.max()) for x in self.Z.T])
-            b = np.array([8./(x.max() - x.min()) for x in self.Z.T])
+            a = np.array([4*(x.min() + x.max())/(x.min() - x.max()) for x in self.history.T])
+            b = np.array([8./(x.max() - x.min()) for x in self.history.T])
             L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
             
             # set up a basic distribution for the arhive.
-            pi = DataDist(self.d, self.Z)
+            pi = DataDist(self.d, self.history)
             
             # create our transport map and the push distributions.
             S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, 2, 'total')
@@ -543,10 +540,13 @@ class GaussianTransportMap(GaussianRandomWalk):
             
             # set up parameters for KL minimisation and optimise.
             qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1}; tol = 1e-3; ders = 2
-            push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders)
+            push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders, x0=self.map_coeffs)
             
             # create a composite map.
-            self.SL = tm.Maps.CompositeMap(S, L)
+            self.T = tm.Maps.CompositeMap(S, L)
+            
+            # set the initial guess for the next KL minimisation.
+            self.map_coeffs = np.expand_dims(push_SL_pi.coeffs, axis=1)
         
     def make_proposal(self, link):
         
@@ -557,49 +557,52 @@ class GaussianTransportMap(GaussianRandomWalk):
             # draw proposal from rho.
             r_proposal = self.rho.rvs(1).flatten()
             
-            return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
+            return self.T.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
         
         # otherwise
         else:
             
             # push the parameters to the reference distribution.
-            r = self.SL(np.expand_dims(link.parameters, axis=0)).flatten()
+            r_previous = self.T(np.expand_dims(link.parameters, axis=0)).flatten()
         
             # create a reference proposal.
-            r_proposal = r + self.rho.rvs(1).flatten()
+            r_proposal = self.kernel.make_proposal(DummyLink(r_previous))
         
         # push the reference proposal back through the map and return it.
-        return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
+        return self.T.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
 
         
     def get_acceptance(self, proposal_link, previous_link):
         
         if np.isnan(proposal_link.posterior):
             return 0
+        
         else:
-            
-            # if using the independence sampler, get the reference density.
+            # if using the independence sampler, get the reference parameters and density first.
             if self.independence_sampler and self.t >= self.t0:
+                
                 # get the reference parameters.
-                r_proposal = self.SL(np.expand_dims(proposal_link.parameters, axis=0))
-                r_previous = self.SL(np.expand_dims(previous_link.parameters, axis=0))
+                r_proposal = self.T(np.expand_dims(proposal_link.parameters, axis=0))
+                r_previous = self.T(np.expand_dims(previous_link.parameters, axis=0))
                 
                 # get the densities.
-                q_proposal = self.rho.log_pdf(r_proposal)
-                q_previous = self.rho.log_pdf(r_previous)
+                q_y = self.rho.log_pdf(r_proposal)
+                q_x = self.rho.log_pdf(r_previous)
+                
+                # NB! it is cheaper to take the log_det_grad of the parameters,
+                # than the inverse of the reference parameters, but the sign is flipped.
+                # see See Parno and Marzouk (2017) for details.
+                return np.exp(proposal_link.posterior - previous_link.posterior + q_x - q_y \
+                    - self.T.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
+                    + self.T.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))
             
+            # otherwise, return the transport map acceptance rate (for a symmetric proposal!).
+            # for the CrankNicolson kernel, the second factor is always one, since T is identity 
+            # when t<t0, and when t>t0, the independence sampler is used.
             else:
-                # if not, the proposal is symmetric.
-                q_proposal = q_previous = 0
-            
-            # note: it is cheaper to take the log_det_grad of the parameters,
-            # than the inverse of the reference parameters, but the sign is flipped.
-            return np.exp(proposal_link.posterior - previous_link.posterior \
-                + q_previous - q_proposal \
-                - self.SL.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
-                + self.SL.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))
-                #+ self.SL.log_det_grad_x_inverse(r_proposal) \
-                #- self.SL.log_det_grad_x_inverse(r_previous))
+                return self.kernel.get_acceptance(proposal_link, previous_link) \
+                    * np.exp(- self.T.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
+                             + self.T.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))
 
 class MultipleTry:
     
