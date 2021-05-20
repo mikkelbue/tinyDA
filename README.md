@@ -25,14 +25,14 @@ It is fully imperative and easy to use!
 
 ### Diagnostics
 * Some plotting functions
-* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  - Vehtari et al. (2020)
-* Bulk-ESS - Vehtari et al. (2020)
+* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  and ESS - Vehtari et al. (2020)
 
 ### Dependencies:
 * NumPy
 * SciPy
 * tqdm
 * pyDOE (optional)
+* TransportMaps (optional)
 
 ## Usage
 A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
