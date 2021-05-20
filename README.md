@@ -1,4 +1,4 @@
-<img src="./misc/tinyDA.png" width="500", align="center">
+<img src="./misc/tinyDA.png" width="500", style="horizontal-align:middle">
 
 # tinyDA
 Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
