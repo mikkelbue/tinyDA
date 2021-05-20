@@ -1,4 +1,4 @@
-<img src="./misc/tinyDA.png" width="500">
+<img src="./misc/tinyDA.png" width="500", align="center">
 
 # tinyDA
 Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
@@ -55,11 +55,12 @@ my_loglike = tda.LogLike(data, cov_likelihood)
 If using a Gaussian likelihood, we recommend using the `tinyDA` implementation, since it is unnormalised and plays along well with `tda.AdaptiveLogLike` used for the Adaptive Error Model. Home-brew distributions can easily be defined, and must have a `.rvs()` method for drawing random samples and a `logpdf(x)` method for computing the log-likelihood, as per the `SciPy` implementation.
 
 ### tinyDA.LinkFactory
-<img src="./misc/flowchart.png" width="500">
 The sampler is constructed around what we call a `LinkFactory`, which is responsible for:
 1. Evaluating the model and collecting the model output.
 2. Evaluating the posterior density, given the parameters.
 3. Constructing `tda.Link` instances that hold information for each sample.
+
+<img src="./misc/flowchart.png" width="500", align="center">
 
 The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` or `tda.BlackBoxLinkFactory`. The former allows for computing the model output directly from the input parameters, using pure Python or whichever external library you want to call. The `evaluate_model()` method must thus be overwritten:
 
