@@ -464,7 +464,7 @@ class GaussianTransportMap(GaussianRandomWalk):
         self.rho = tm.Distributions.GaussianDistribution(self._mean, self.C)
         
         # set up an initial (dummy) transport map
-        self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), np.ones(self.d))
+        self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), 1/self.scaling*np.ones(self.d))
         
         # set adaptivity.
         self.adaptive = adaptive
@@ -480,41 +480,57 @@ class GaussianTransportMap(GaussianRandomWalk):
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
         
-    def initialise_sampling_moments(self, parameters):
-        
-        self.Z = parameters
+        # set up a dummy for the archive of accepted states.
+        self.Z = np.zeros(self.d)
         
     def adapt(self, **kwargs):
         
+        # do the Metropolis-adaptation
         super().adapt(**kwargs)
         
+        # add the latest parameters to the archive
         self.Z = np.vstack((self.Z, kwargs['parameters']))
         
+        # scale the initial map to make sure we get some accepted links.
+        if self.adaptive and self.t < self.t0 and self.t%self.period == 0:
+            self.SL = tm.Maps.FrozenLinearDiagonalTransportMap(np.zeros(self.d), 1/self.scaling*np.ones(self.d))
+        
+        # truncate the archive to make sure burnin is discarded.
         if self.t == self.t0:
             self.Z = self.Z[int(self.discard_fraction*self.Z.shape[0]):,:]
         
+        # do the transport map adaptation.
         if self.t >= self.t0 and self.t%self.period == 0:
             
+            # first, rescale the archive with a linear map.
             a = np.array([4*(x.min() + x.max())/(x.min() - x.max()) for x in self.Z.T])
             b = np.array([8./(x.max() - x.min()) for x in self.Z.T])
             L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
             
+            # set up a basic distribution for the arhive.
             pi = DataDist(self.d, self.Z)
+            
+            # create our transport map and the push distributions.
             S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, 2, 'total')
             push_L_pi = tm.Distributions.PushForwardTransportMapDistribution(L, pi)
             push_SL_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
             
-            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1}; tol = 1e-3; ders = 2
-
+            # set up parameters for KL minimisation and optimise.
+            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1e-3}; tol = 1e-3; ders = 2
             push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders)
-            self.SL = tm.Maps.CompositeMap(S,L)
+            
+            # create a composite map.
+            self.SL = tm.Maps.CompositeMap(S, L)
         
     def make_proposal(self, link):
         
+        # push the parameters to the reference distribution.
         r = self.SL(np.expand_dims(link.parameters, axis=0)).flatten()
         
-        r_proposal = r + self.scaling*self.rho.rvs(1).flatten()
+        # create a reference proposal.
+        r_proposal = r + self.rho.rvs(1).flatten()
         
+        # push the reference proposal back through the map and return it.
         return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
 
         
@@ -522,7 +538,9 @@ class GaussianTransportMap(GaussianRandomWalk):
         
         if np.isnan(proposal_link.posterior):
             return 0
-        else:    
+        else:
+            # note: it is easier to take the log_det_grad of the parameters,
+            # than the inverse of the reference parameters, but the sign is flipped.
             return np.exp(proposal_link.posterior - previous_link.posterior \
                 - self.SL.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
                 + self.SL.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))

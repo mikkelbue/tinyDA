@@ -63,7 +63,7 @@ class Chain:
         
         # if the proposal is AM, use the initial parameters as the first
         # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson) or isinstance(self.proposal, GaussianTransportMap):
+        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
             
         elif isinstance(self.proposal, SingleDreamZ):
@@ -177,7 +177,7 @@ class DAChain:
         
         # if the proposal is AM, use the initial parameters as the first
         # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson) or isinstance(self.proposal, GaussianTransportMap):
+        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
             self.proposal.initialise_sampling_moments(self.initial_parameters)
             
         elif isinstance(self.proposal, SingleDreamZ):
