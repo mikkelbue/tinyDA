@@ -79,3 +79,19 @@ class BlackBoxLinkFactory(LinkFactory):
         
         self.get_qoi = get_qoi
     
+    def evaluate_model(self, parameters):
+        
+        # solve the model using the parameters.
+        self.model.solve(parameters)
+        
+        # get the model output at the datapoints.
+        output = self.model.get_data(self.datapoints)
+        
+        # get the quantity of interest.
+        if self.get_qoi:
+            qoi = self.model.get_qoi()
+        else:
+            qoi = None
+            
+        # return everything.
+        return output, qoi
