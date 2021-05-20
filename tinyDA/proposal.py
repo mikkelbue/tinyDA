@@ -422,7 +422,9 @@ class SingleDreamZ(GaussianRandomWalk):
         
 class GaussianTransportMap(GaussianRandomWalk):
     
-    def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, adaptive=False, gamma=1.01):
+    def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, adaptive=False, gamma=1.01):
+        
+        warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
         
         try:
             import TransportMaps
@@ -459,6 +461,9 @@ class GaussianTransportMap(GaussianRandomWalk):
         
         # set the discard fraction
         self.discard_fraction = discard_fraction
+        
+        # set independence sampler flag.
+        self.independence_sampler = independence_sampler
         
         # set the reference distribution
         self.rho = tm.Distributions.GaussianDistribution(self._mean, self.C)
@@ -516,7 +521,7 @@ class GaussianTransportMap(GaussianRandomWalk):
             push_SL_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
             
             # set up parameters for KL minimisation and optimise.
-            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1e-3}; tol = 1e-3; ders = 2
+            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1}; tol = 1e-3; ders = 2
             push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders)
             
             # create a composite map.
@@ -524,11 +529,23 @@ class GaussianTransportMap(GaussianRandomWalk):
         
     def make_proposal(self, link):
         
-        # push the parameters to the reference distribution.
-        r = self.SL(np.expand_dims(link.parameters, axis=0)).flatten()
+        # if independece sampler flag is set, and map has been built,
+        # dram an independent sample
+        if self.independence_sampler and self.t >= self.t0:
+            
+            # draw proposal from rho.
+            r_proposal = self.rho.rvs(1).flatten()
+            
+            return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
         
-        # create a reference proposal.
-        r_proposal = r + self.rho.rvs(1).flatten()
+        # otherwise
+        else:
+            
+            # push the parameters to the reference distribution.
+            r = self.SL(np.expand_dims(link.parameters, axis=0)).flatten()
+        
+            # create a reference proposal.
+            r_proposal = r + self.rho.rvs(1).flatten()
         
         # push the reference proposal back through the map and return it.
         return self.SL.inverse(np.expand_dims(r_proposal, axis=0)).flatten()
@@ -539,11 +556,29 @@ class GaussianTransportMap(GaussianRandomWalk):
         if np.isnan(proposal_link.posterior):
             return 0
         else:
-            # note: it is easier to take the log_det_grad of the parameters,
+            
+            # if using the independence sampler, get the reference density.
+            if self.independence_sampler and self.t >= self.t0:
+                # get the reference parameters.
+                r_proposal = self.SL(np.expand_dims(proposal_link.parameters, axis=0))
+                r_previous = self.SL(np.expand_dims(previous_link.parameters, axis=0))
+                
+                # get the densities.
+                q_proposal = self.rho.log_pdf(r_proposal)
+                q_previous = self.rho.log_pdf(r_previous)
+            
+            else:
+                # if not, the proposal is symmetric.
+                q_proposal = q_previous = 0
+            
+            # note: it is cheaper to take the log_det_grad of the parameters,
             # than the inverse of the reference parameters, but the sign is flipped.
             return np.exp(proposal_link.posterior - previous_link.posterior \
+                + q_previous - q_proposal \
                 - self.SL.log_det_grad_x(np.expand_dims(proposal_link.parameters, axis=0)) \
                 + self.SL.log_det_grad_x(np.expand_dims(previous_link.parameters, axis=0)))
+                #+ self.SL.log_det_grad_x_inverse(r_proposal) \
+                #- self.SL.log_det_grad_x_inverse(r_previous))
 
 class MultipleTry:
     def __init__(self, kernel, k):
