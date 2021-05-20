@@ -23,6 +23,7 @@ class GaussianRandomWalk:
     '''
     Standard MH random walk proposal.
     '''
+    
     is_symmetric = True
     
     def __init__(self, C, scaling=1, adaptive=False, gamma=1.01, period=100):
@@ -64,6 +65,9 @@ class GaussianRandomWalk:
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
         
+    def setup_proposal(self, **kwargs):
+        pass
+        
     def adapt(self, **kwargs):
         
         self.t += 1
@@ -100,6 +104,7 @@ class CrankNicolson(GaussianRandomWalk):
     This is the preconditioned Crank Nicolson proposal, inheriting
     from the  GaussianRandomWalk.
     '''
+    
     is_symmetric = False
     
     def make_proposal(self, link):
@@ -176,10 +181,10 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         self.t = 0
         
 
-    def initialise_sampling_moments(self, parameters):
+    def setup_proposal(self, **kwargs):
         # initialise the sampling moments, which will compute the
         # adaptive covariance operator.
-        self.AM_recursor = RecursiveSampleMoments(parameters,
+        self.AM_recursor = RecursiveSampleMoments(kwargs['parameters'],
                                                   np.zeros((self.d, self.d)),
                                                   sd=self.sd, 
                                                   epsilon=self.epsilon)
@@ -198,6 +203,11 @@ class AdaptiveMetropolis(GaussianRandomWalk):
             pass
 
 class AdaptiveCrankNicolson(CrankNicolson):
+    
+    '''
+    Adaptive preconditioned Crank-Nicolson proposal, see Hu and Yao (2016).
+    '''
+    
     def __init__(self, C0, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01):
         
         # check if covariance operator is a square numpy array.
@@ -256,8 +266,8 @@ class AdaptiveCrankNicolson(CrankNicolson):
         # set a counter of how many times, adapt() has been called..
         self.t = 0
         
-    def initialise_sampling_moments(self, parameters):
-        u_j = np.inner(parameters, self.e.T)
+    def setup_proposal(self, **kwargs):
+        u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = u_j
         self.lamb_n = (self.x_n - u_j)**2
         self.t += 1
@@ -290,6 +300,11 @@ class AdaptiveCrankNicolson(CrankNicolson):
         return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.dot(self.operator, x_link.parameters), cov=self.scaling**2*self.B)
 
 class SingleDreamZ(GaussianRandomWalk):
+    
+    '''
+    Dream(Z) proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016).
+    '''
+    
     def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', nCR=3, adaptive=False, gamma=1.01, period=100):
         
         warnings.warn(' SingleDreamZ is an EXPERIMENTAL proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016), but using only a single chain.\n')
@@ -332,7 +347,9 @@ class SingleDreamZ(GaussianRandomWalk):
         
         self.t = 0
         
-    def initialise_archive(self, prior):
+    def setup_proposal(self, **kwargs):
+        
+        prior = kwargs['link_factory'].prior
         
         # get the dimension and the initial scaling.
         self.d = prior.dim
@@ -422,6 +439,11 @@ class SingleDreamZ(GaussianRandomWalk):
         
 class GaussianTransportMap(GaussianRandomWalk):
     
+    '''
+    Transport Map enhanced Gaussian Random Walk, or independence sampler
+    (set flag independence_sampler=True). See Parno and Marzouk (2017).
+    '''
+    
     def __init__(self, C, scaling=1, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, adaptive=False, gamma=1.01):
         
         warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
@@ -485,9 +507,9 @@ class GaussianTransportMap(GaussianRandomWalk):
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
         
-        # set up a dummy for the archive of accepted states.
-        self.Z = np.zeros(self.d)
-        
+    def setup_proposal(self, **kwargs):
+        self.Z = kwargs['parameters']
+    
     def adapt(self, **kwargs):
         
         # do the Metropolis-adaptation
@@ -581,6 +603,14 @@ class GaussianTransportMap(GaussianRandomWalk):
                 #- self.SL.log_det_grad_x_inverse(r_previous))
 
 class MultipleTry:
+    
+    '''
+    Multiple-Try proposal, which will take any other TinyDA proposal
+    as a kernel. The parameter k sets the number of tries.
+    '''
+    
+    is_symmetric = True
+    
     def __init__(self, kernel, k):
         
         # set the kernel
@@ -598,19 +628,13 @@ class MultipleTry:
     def close_pool(self):
         self.pool.close()
         
-    def initialise_kernel(self, link_factory, initial_parameters):
+    def setup_proposal(self, **kwargs):
         
         # initialise the kernel.
-        self.link_factory = link_factory
+        self.link_factory = kwargs['link_factory']
         
-        # if the kernel is AM, use the initial parameters as the first
-        # sample for the RecursiveSamplingMoments.
-        if isinstance(self.kernel, AdaptiveMetropolis) or isinstance(self.kernel, AdaptiveCrankNicolson):
-            self.kernel.initialise_sampling_moments(initial_parameters)
-        
-        # if the kernel is SingleDreamZ, initialise the archive.
-        elif isinstance(self.kernel, SingleDreamZ):
-            self.kernel.initialise_archive(self.link_factory.prior)
+        # pass the kwargs to the kernel.
+        self.kernel.setup_proposal(**kwargs)
         
     def adapt(self, **kwargs):
         
