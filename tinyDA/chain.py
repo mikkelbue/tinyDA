@@ -61,16 +61,8 @@ class Chain:
         self.chain.append(self.link_factory.create_link(self.initial_parameters))
         self.accepted.append(True)
         
-        # if the proposal is AM, use the initial parameters as the first
-        # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
-            self.proposal.initialise_sampling_moments(self.initial_parameters)
-            
-        elif isinstance(self.proposal, SingleDreamZ):
-            self.proposal.initialise_archive(self.link_factory.prior)
-            
-        elif isinstance(self.proposal, MultipleTry):
-            self.proposal.initialise_kernel(self.link_factory, self.initial_parameters)
+        # setup the proposal
+        self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory)
         
     def sample(self, iterations):
         
@@ -175,16 +167,8 @@ class DAChain:
         self.chain_fine.append(self.link_factory_fine.create_link(self.initial_parameters))
         self.accepted_fine.append(True)
         
-        # if the proposal is AM, use the initial parameters as the first
-        # sample for the RecursiveSamplingMoments.
-        if isinstance(self.proposal, AdaptiveMetropolis) or isinstance(self.proposal, AdaptiveCrankNicolson):
-            self.proposal.initialise_sampling_moments(self.initial_parameters)
-            
-        elif isinstance(self.proposal, SingleDreamZ):
-            self.proposal.initialise_archive(self.link_factory_coarse.prior)
-            
-        elif isinstance(self.proposal, MultipleTry):
-            self.proposal.initialise_kernel(self.link_factory_coarse, self.initial_parameters)
+        # setup the proposal
+        self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory_coarse)
         
         # set the adative error model as a. attribute.
         self.adaptive_error_model = adaptive_error_model
