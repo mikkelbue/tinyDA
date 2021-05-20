@@ -112,7 +112,7 @@ The entire sampling history is then stored in `my_chain.chain_fine`, and you can
 ```python
 parameters = np.array([link.parameters for link in my_chain.chain_fine])
 ```
-Some diagnostics are available in the diagnostics module. Please refer to their respective dicstrings for usage instructions.
+Some diagnostics are available in the diagnostics module. Please refer to their respective docstrings for usage instructions.
 
 # TODO
 * More user-friendly diagnostics
