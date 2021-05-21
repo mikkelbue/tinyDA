@@ -445,7 +445,7 @@ class GaussianTransportMap:
     (set flag independence_sampler=True). See Parno and Marzouk (2017).
     '''
     
-    def __init__(self, kernel, t0=1000, period=100, discard_fraction=0.9, independence_sampler=False, T0=None):
+    def __init__(self, kernel, order=1, t0=1000, period=100, independence_sampler=False, T0=None, reg_alpha=1, discard_fraction=0.9, k_history=None):
         
         try:
             print('Loaded TransportMaps v{}'.format(tm.__version__))
@@ -464,8 +464,18 @@ class GaussianTransportMap:
         
         warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
             
-        # check if covariance operator is a square numpy array.
+        # set the kernel.
         self.kernel = kernel
+        
+        # set the map order
+        self.order = order
+        
+        if self.order == 1:
+            pass
+        elif self.order == 2:
+            warnings.warn(' Inversion of second order transport maps can be slow, particularly for high dimensional maps.\n')
+        else:
+            raise ValueError('Transport maps can be of first or second order only')
         
         # set the beginning of adaptation (rigidness of initial covariance).
         self.t0 = t0
@@ -473,14 +483,22 @@ class GaussianTransportMap:
         # Set the update period.
         self.period = period
         
-        # set the discard fraction
-        self.discard_fraction = discard_fraction
-        
         # set independence sampler flag.
         self.independence_sampler = independence_sampler
         
         # set the initial transport map
         self.T0 = T0
+        
+        # set the regularisation parameter
+        self.reg_alpha = reg_alpha
+        
+        # set the discard fraction
+        self.discard_fraction = discard_fraction
+        
+        # set the size of the history sample used to generate the map.
+        self.k_history = k_history
+        if self.k_history is None:
+            warnings.warn(' Using entire sampling history to generate transport map. This can be memory intensive.\n')
         
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
@@ -530,23 +548,29 @@ class GaussianTransportMap:
             b = np.array([8./(x.max() - x.min()) for x in self.history.T])
             L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
             
-            # set up a basic distribution for the arhive.
-            pi = DataDist(self.d, self.history)
+            # set up a distribution for the arhive.
+            if self.k_history is None:
+                X = self.history
+            else:
+                idx = np.random.randint(0, self.history.shape[0], self.k_history)
+                X = self.history[idx, :]
+            
+            pi = DataDist(self.d, X)
             
             # create our transport map and the push distributions.
-            S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, 2, 'total')
+            S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, self.order, 'total')
             push_L_pi = tm.Distributions.PushForwardTransportMapDistribution(L, pi)
-            push_SL_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
+            push_T_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
             
             # set up parameters for KL minimisation and optimise.
-            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': 1}; tol = 1e-3; ders = 2
-            push_SL_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders, x0=self.map_coeffs)
+            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': self.reg_alpha}; tol = 1e-3; ders = 2
+            push_T_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders, x0=self.map_coeffs)
             
             # create a composite map.
             self.T = tm.Maps.CompositeMap(S, L)
             
             # set the initial guess for the next KL minimisation.
-            self.map_coeffs = np.expand_dims(push_SL_pi.coeffs, axis=1)
+            self.map_coeffs = np.expand_dims(push_T_pi.coeffs, axis=1)
         
     def make_proposal(self, link):
         
