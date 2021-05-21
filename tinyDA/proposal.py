@@ -16,8 +16,51 @@ except ModuleNotFoundError:
     pass
 
 # internal imports
-from .utils import  RecursiveSampleMoments
 from .link import DummyLink
+from .utils import RecursiveSampleMoments
+from .transportmap import DataDist, get_gaussian_transport_map
+
+class IndependenceSampler:
+    
+    '''
+    Independence sampler using a proposal distribution q(x).
+    '''
+    
+    is_symmetric = False
+    
+    def __init__(self, q):
+        
+        self.q = q
+        
+    def setup_proposal(self, **kwargs):
+        pass
+        
+    def adapt(self, **kwargs):
+        pass
+        
+    def make_proposal(self, link):
+        return self.q.rvs(1).flatten()
+        
+    def get_acceptance(self, proposal_link, previous_link):
+        
+        if hasattr(self.q, 'logpdf'):
+            q_proposal = self.q.logpdf(proposal_link.parameters)
+            q_previous = self.q.logpdf(proposal_link.parameters)
+        elif hasattr(self.q, 'log_pdf'):
+            q_proposal = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
+            q_previous = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
+        else:
+            raise AttributeError('Proposal distribution has neither .logpdf() or log_pdf() method')
+        
+        return np.exp(proposal_link.posterior - previous_link.posterior + q_previous - q_proposal)
+        
+    def get_q(self, x_link, y_link):
+        if hasattr(self.q, 'logpdf'):
+            return self.q.logpdf(y_link.parameters)
+        elif hasattr(self.q, 'log_pdf'):
+            return self.q.log_pdf(np.expand_dims(y_link.parameters, axis=0))
+        else:
+            raise AttributeError('Proposal distribution has neither .logpdf() or log_pdf() method')
 
 class GaussianRandomWalk:
     
@@ -543,34 +586,18 @@ class GaussianTransportMap:
         # do the transport map adaptation.
         if self.t >= self.t0 and self.t%self.period == 0:
             
-            # first, rescale the archive with a linear map.
-            a = np.array([4*(x.min() + x.max())/(x.min() - x.max()) for x in self.history.T])
-            b = np.array([8./(x.max() - x.min()) for x in self.history.T])
-            L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
-            
             # set up a distribution for the arhive.
             if self.k_history is None:
-                X = self.history
+                data = self.history
             else:
                 idx = np.random.randint(0, self.history.shape[0], self.k_history)
-                X = self.history[idx, :]
+                data = self.history[idx, :]
             
-            pi = DataDist(self.d, X)
+            # get the transport map and coefficients.
+            self.T, coeffs = get_gaussian_transport_map(data, self.order, self.reg_alpha, self.map_coeffs)
             
-            # create our transport map and the push distributions.
-            S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(self.d, self.order, 'total')
-            push_L_pi = tm.Distributions.PushForwardTransportMapDistribution(L, pi)
-            push_T_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
-            
-            # set up parameters for KL minimisation and optimise.
-            qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': self.reg_alpha}; tol = 1e-3; ders = 2
-            push_T_pi.minimize_kl_divergence(self.rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders, x0=self.map_coeffs)
-            
-            # create a composite map.
-            self.T = tm.Maps.CompositeMap(S, L)
-            
-            # set the initial guess for the next KL minimisation.
-            self.map_coeffs = np.expand_dims(push_T_pi.coeffs, axis=1)
+            # expand coefficient dimension.
+            self.map_coeffs = np.expand_dims(coeffs, axis=1)
         
     def make_proposal(self, link):
         
