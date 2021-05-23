@@ -495,15 +495,14 @@ class GaussianTransportMap:
         except NameError as e:
             raise ModuleNotFoundError("No module named 'TransportMaps'. GaussianTransportMap proposal is not available.") from e
             
-        if isinstance(kernel, CrankNicolson):
+        if isinstance(kernel, CrankNicolson) or isinstance(kernel, AdaptiveMetropolis) or isinstance(kernel, SingleDreamZ):
             if not independence_sampler:
-                raise NotImplementedError('GaussianTransportMap must have independence_sampler=True for CrankNicolson proposal.')
+                raise NotImplementedError('GaussianTransportMap must have independence_sampler=True for kernel: {}'.format(type(kernel)))
             if T0 is not None:
-                raise NotImplementedError('GaussianTransportMap must have T0=None for CrankNicolson proposal.')
-            
-        if isinstance(kernel, AdaptiveMetropolis) or isinstance(kernel, AdaptiveCrankNicolson) or isinstance(kernel, SingleDreamZ):
-            raise NotImplementedError('GaussianTransportMap does not work with kernels which adapt to the posterior, \n\
-                including AdaptiveMetropolis, AdaptiveCrankNicolson and SingleDreamZ.')
+                raise NotImplementedError('GaussianTransportMap must have T0=None for kernel: {}'.format(type(kernel)))
+            if isinstance(kernel, AdaptiveMetropolis) or isinstance(kernel, AdaptiveCrankNicolson):
+                if t0 < kernel.t0:
+                    raise ValueError('Adaptive kernels should start adapting before independence sampler kicks in: t0 >> kernel.t0.')
         
         warnings.warn(' GaussianTransportMap is an EXPERIMENTAL proposal. Use with caution.\n')
             
