@@ -17,31 +17,19 @@ class Chain:
     
     def __init__(self, link_factory, proposal, initial_parameters=None):
         
+        # if the proposal is pCN, Check if the proposal covariance is equal 
+        # to the prior covariance and if the prior is zero mean.
+        if isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
+            if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+        
         # internalise the link factory and the proposal
         self.link_factory = link_factory
         self.proposal = proposal
-        
-        # if the proposal is pCN, Check if the proposal covariance is equal 
-        # to the prior covariance and if the prior is zero mean.
-        if isinstance(self.proposal, CrankNicolson):
-            if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
-                if not (self.link_factory.prior.cov == self.proposal.C).all():
-                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
-                if np.count_nonzero(self.link_factory.prior.mean):
-                    raise ValueError('Prior must be zero mean for pCN proposal')
-            else:
-                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
-        
-        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(self.proposal, MultipleTry) or isinstance(self.proposal, GaussianTransportMap):
-            if isinstance(self.proposal.kernel, CrankNicolson):
-                if isinstance(self.link_factory.prior, stats._multivariate.multivariate_normal_frozen):
-                    if not (self.link_factory.prior.cov == self.proposal.kernel.C).all():
-                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
-                    if np.count_nonzero(self.link_factory.prior.mean):
-                        raise ValueError('Prior must be zero mean for pCN kernel')
-                else:
-                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
         # initialise a list, which holds the links.
         self.chain = []
@@ -114,33 +102,21 @@ class DAChain:
     
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
         
+        # if the proposal is pCN, Check if the proposal covariance is equal 
+        # to the prior covariance and if the prior is zero mean.
+        if isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
+            if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+        
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse
         self.link_factory_fine = link_factory_fine
         self.proposal = proposal
         self.subsampling_rate = subsampling_rate
-        
-        # if the proposal is pCN, Check if the proposal covariance is equal 
-        # to the prior covariance and if the prior is zero mean.
-        if isinstance(self.proposal, CrankNicolson):
-            if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
-                if not (self.link_factory_coarse.prior.cov == self.proposal.C).all():
-                    raise ValueError('C-proposal must equal C-prior for pCN proposal')
-                if np.count_nonzero(self.link_factory_coarse.prior.mean):
-                    raise ValueError('Prior must be zero mean for pCN proposal')
-            else:
-                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
-        
-        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(self.proposal, MultipleTry) or isinstance(self.proposal, GaussianTransportMap):
-            if isinstance(self.proposal.kernel, CrankNicolson):
-                if isinstance(self.link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
-                    if not (self.link_factory_coarse.prior.cov == self.proposal.kernel.C).all():
-                        raise ValueError('C-proposal must equal C-prior for pCN kernel')
-                    if np.count_nonzero(self.link_factory_coarse.prior.mean):
-                        raise ValueError('Prior must be zero mean for pCN kernel')
-                else:
-                    raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
                 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting

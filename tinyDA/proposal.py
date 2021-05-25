@@ -151,6 +151,38 @@ class CrankNicolson(GaussianRandomWalk):
     
     is_symmetric = False
     
+    def __init__(self, scaling=1, adaptive=False, gamma=1.01, period=100):
+        
+        # set the scaling.
+        self.scaling = scaling
+        
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+            # adaptivity period (delay between adapting)
+            self.period = period
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+        
+        # initialise counter of how many times, adapt() has been called..
+        self.t = 0
+        
+    def setup_proposal(self, **kwargs):
+        
+        # set the covariance operator
+        self.C = kwargs['link_factory'].prior.cov
+        
+        # extract the dimensionality.
+        self.d = self.C.shape[0]
+        
+        # set the distribution mean to zero.
+        self._mean = np.zeros(self.d)
+    
     def make_proposal(self, link):
         # make a pCN proposal.
         return np.sqrt(1 - self.scaling**2)*link.parameters + self.scaling*np.random.multivariate_normal(self._mean, self.C)
@@ -252,43 +284,13 @@ class AdaptiveCrankNicolson(CrankNicolson):
     Adaptive preconditioned Crank-Nicolson proposal, see Hu and Yao (2016).
     '''
     
-    def __init__(self, C0, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01):
-        
-        # check if covariance operator is a square numpy array.
-        if not isinstance(C0, np.ndarray):
-            raise TypeError('C0 must be a numpy array')
-        elif C0.ndim == 1:
-            if not C0.shape[0] == 1:
-                raise ValueError('C0 must be an NxN array')
-        elif not C0.shape[0] == C0.shape[1]:
-            raise ValueError('C0 must be an NxN array')
-        
-        # set the initial covariance operator.
-        self.C = C0
-        
-        # extract the dimensionality.
-        self.d = self.C.shape[0]
-        
-        # set a zero mean for the random draw.
-        self._mean = np.zeros(self.d)
+    def __init__(self, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01):
         
         # set the scaling.
         self.scaling = scaling
         
-        # adaptive parameters
-        self.B = self.C.copy()
-        self.L = np.linalg.inv(self.C)
-        self.operator = sqrtm(np.eye(self.d) - self.scaling**2*np.dot(self.B, self.L))
-        
-        # eigendecomposition of covariance matrix.
-        self.alpha, self.e = np.linalg.eig(self.C)
-        self.lamb = self.alpha.copy()
-        
         # truncation.
-        if J is not None:
-            self.J = J
-        else:
-            self.J = self.d
+        self.J = J
         
         # set the beginning of adaptation (rigidness of initial covariance).
         self.t0 = t0
@@ -311,6 +313,29 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.t = 0
         
     def setup_proposal(self, **kwargs):
+        
+        # set the initial covariance operator.
+        self.C = kwargs['link_factory'].prior.cov
+        
+        # extract the dimensionality.
+        self.d = self.C.shape[0]
+        
+        # set a zero mean for the random draw.
+        self._mean = np.zeros(self.d)
+        
+        # adaptive parameters
+        self.B = self.C.copy()
+        self.L = np.linalg.inv(self.C)
+        self.operator = sqrtm(np.eye(self.d) - self.scaling**2*np.dot(self.B, self.L))
+        
+        # eigendecomposition of covariance matrix.
+        self.alpha, self.e = np.linalg.eig(self.C)
+        self.lamb = self.alpha.copy()
+        
+        # truncation.
+        if self.J is None:
+            self.J = self.d
+        
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = u_j
         self.lamb_n = (self.x_n - u_j)**2
