@@ -728,12 +728,12 @@ class MultipleTry:
         
         # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
         if self.kernel.is_symmetric:
-            q_x_y = np.ones(self.k)
+            q_x_y = np.zeros(self.k)
         else:
             q_x_y = np.array([self.kernel.get_q(link, proposal_link) for proposal_link in self.proposal_links])
         
         # get the unnormalised weights.
-        self.proposal_weights = np.array([link.posterior*q for link, q in zip(self.proposal_links, q_x_y)])
+        self.proposal_weights = np.array([link.posterior+q for link, q in zip(self.proposal_links, q_x_y)])
         
         # unless all proposals are extremely unlikely, return one link according to the density.
         if not np.isinf(self.proposal_weights).all():
@@ -758,18 +758,12 @@ class MultipleTry:
             
             # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
             if self.kernel.is_symmetric:
-                q_y_x = np.ones(self.k)
+                q_y_x = np.zeros(self.k)
             else:
                 q_y_x = np.array([self.kernel.get_q(proposal_link, reference_link) for reference_link in self.reference_links])
             
             # get the unnormalised weights.
-            self.refererence_weights = np.array([link.posterior*q for link, q in zip(self.reference_links, q_y_x)])
-            
-            # get the unnormalised weights according to the proposal type.
-            if isinstance(self.kernel, CrankNicolson):
-                self.reference_weights = np.array([link.likelihood for link in self.reference_links] + [previous_link.likelihood])
-            elif isinstance(self.kernel, GaussianRandomWalk):
-                self.reference_weights = np.array([link.posterior for link in self.reference_links] + [previous_link.posterior])
+            self.reference_weights = np.array([link.posterior+q for link, q in zip(self.reference_links, q_y_x)])
             
             # get the acceptance probability.
             return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))
