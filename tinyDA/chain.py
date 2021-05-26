@@ -26,6 +26,9 @@ class Chain:
         elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+                
+        if isinstance(proposal, MALA):
+            link_factory.compute_gradient = True
         
         # internalise the link factory and the proposal
         self.link_factory = link_factory
@@ -111,6 +114,11 @@ class DAChain:
         elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+                
+        if isinstance(proposal, MALA):
+            if adaptive_error_model == 'state-dependent':
+                raise NotImplementedError('MALA proposal is not compatible with state-dependent error model')
+            link_factory_coarse.compute_gradient = True
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse

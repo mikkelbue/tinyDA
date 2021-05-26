@@ -367,6 +367,52 @@ class AdaptiveCrankNicolson(CrankNicolson):
         
     def get_q(self, x_link, y_link):
         return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.dot(self.operator, x_link.parameters), cov=self.scaling**2*self.B)
+        
+class MALA(GaussianRandomWalk):
+    
+    '''
+    Metropolis Adjusted Langevin Algorithm.
+    '''
+    
+    is_symmetric = False
+        
+    def setup_proposal(self, **kwargs):
+        pass
+        
+    def adapt(self, **kwargs):
+        
+        self.t += 1
+        
+        # if adaptive, run the adaptivity routines.
+        if self.adaptive:
+            
+            # make sure the periodicity is respected
+            if self.t%self.period == 0:
+                
+                # compute the acceptance rate during the previous period.
+                acceptance_rate = np.mean(kwargs['accepted'][-self.period:])
+                # set the scaling so that the acceptance rate will converge to 0.24.
+                self.scaling = np.exp(np.log(self.scaling) + self.gamma**-self.k*(acceptance_rate-0.57))
+                # increase adaptivity counter for diminishing adaptivity.
+                self.k += 1
+        else:
+            pass
+        
+    def make_proposal(self, link):
+        # make a Gaussian RWMH proposal.
+        return link.parameters + 0.5*self.scaling**2*link.gradient + self.scaling*np.random.multivariate_normal(self._mean, self.C)
+
+    def get_acceptance(self, proposal_link, previous_link):
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:
+            # get the acceptance probability.
+            q_x_y = self.get_q(previous_link, proposal_link)
+            q_y_x = self.get_q(proposal_link, previous_link)
+            return np.exp(proposal_link.posterior + q_y_x - previous_link.posterior - q_x_y)
+            
+    def get_q(self, x_link, y_link):
+        return -0.5/self.scaling**2 * np.linalg.norm(y_link.parameters - x_link.parameters - 0.5*self.scaling**2*x_link.gradient)**2
 
 class SingleDreamZ(GaussianRandomWalk):
     
