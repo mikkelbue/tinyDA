@@ -11,14 +11,13 @@ from scipy.special import logsumexp
 
 try:
     import TransportMaps as tm
-    from .transportmap import DataDist
+    from .transportmap import DataDist, get_gaussian_transport_map
 except ModuleNotFoundError:
     pass
 
 # internal imports
 from .link import DummyLink
 from .utils import RecursiveSampleMoments
-from .transportmap import DataDist, get_gaussian_transport_map
 
 class IndependenceSampler:
     

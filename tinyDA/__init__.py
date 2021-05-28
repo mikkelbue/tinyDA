@@ -4,4 +4,9 @@ from .distributions import *
 from .proposal import *
 from .diagnostics import *
 from .utils import *
-from .transportmap import *
+
+try:
+    import TransportMaps as tm
+    from .transportmap import *
+except ModuleNotFoundError:
+    pass
