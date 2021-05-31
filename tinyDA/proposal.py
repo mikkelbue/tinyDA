@@ -11,14 +11,13 @@ from scipy.special import logsumexp
 
 try:
     import TransportMaps as tm
-    from .transportmap import DataDist
+    from .transportmap import DataDist, get_gaussian_transport_map
 except ModuleNotFoundError:
     pass
 
 # internal imports
 from .link import DummyLink
 from .utils import RecursiveSampleMoments
-from .transportmap import DataDist, get_gaussian_transport_map
 
 class IndependenceSampler:
     
@@ -30,6 +29,7 @@ class IndependenceSampler:
     
     def __init__(self, q):
         
+        # set the proposal distribution.
         self.q = q
         
     def setup_proposal(self, **kwargs):
@@ -39,22 +39,20 @@ class IndependenceSampler:
         pass
         
     def make_proposal(self, link):
+        
+        # draw a random sample from the proposal distribution. 
         return self.q.rvs(1).flatten()
         
     def get_acceptance(self, proposal_link, previous_link):
         
-        if hasattr(self.q, 'logpdf'):
-            q_proposal = self.q.logpdf(proposal_link.parameters)
-            q_previous = self.q.logpdf(proposal_link.parameters)
-        elif hasattr(self.q, 'log_pdf'):
-            q_proposal = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
-            q_previous = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
-        else:
-            raise AttributeError('Proposal distribution has neither .logpdf() or log_pdf() method')
+        q_proposal = self.get_q(None, proposal_link)
+        q_previous = self.get_q(None, previous_link)
         
         return np.exp(proposal_link.posterior - previous_link.posterior + q_previous - q_proposal)
         
     def get_q(self, x_link, y_link):
+        
+        # get the transition probability.
         if hasattr(self.q, 'logpdf'):
             return self.q.logpdf(y_link.parameters)
         elif hasattr(self.q, 'log_pdf'):
