@@ -29,6 +29,7 @@ class IndependenceSampler:
     
     def __init__(self, q):
         
+        # set the proposal distribution.
         self.q = q
         
     def setup_proposal(self, **kwargs):
@@ -38,10 +39,14 @@ class IndependenceSampler:
         pass
         
     def make_proposal(self, link):
+        
+        # draw a random sample from the proposal distribution. 
         return self.q.rvs(1).flatten()
         
     def get_acceptance(self, proposal_link, previous_link):
         
+        # use different methods to get q(x), depending whether the proposal
+        # distribution is in scipy-format of TransportMaps-format.
         if hasattr(self.q, 'logpdf'):
             q_proposal = self.q.logpdf(proposal_link.parameters)
             q_previous = self.q.logpdf(proposal_link.parameters)
@@ -54,6 +59,8 @@ class IndependenceSampler:
         return np.exp(proposal_link.posterior - previous_link.posterior + q_previous - q_proposal)
         
     def get_q(self, x_link, y_link):
+        
+        # get the transition probability.
         if hasattr(self.q, 'logpdf'):
             return self.q.logpdf(y_link.parameters)
         elif hasattr(self.q, 'log_pdf'):
