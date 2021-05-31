@@ -45,16 +45,8 @@ class IndependenceSampler:
         
     def get_acceptance(self, proposal_link, previous_link):
         
-        # use different methods to get q(x), depending whether the proposal
-        # distribution is in scipy-format of TransportMaps-format.
-        if hasattr(self.q, 'logpdf'):
-            q_proposal = self.q.logpdf(proposal_link.parameters)
-            q_previous = self.q.logpdf(proposal_link.parameters)
-        elif hasattr(self.q, 'log_pdf'):
-            q_proposal = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
-            q_previous = self.q.log_pdf(np.expand_dims(proposal_link.parameters, axis=0))
-        else:
-            raise AttributeError('Proposal distribution has neither .logpdf() or log_pdf() method')
+        q_proposal = self.get_q(None, proposal_link)
+        q_previous = self.get_q(None, previous_link)
         
         return np.exp(proposal_link.posterior - previous_link.posterior + q_previous - q_proposal)
         
