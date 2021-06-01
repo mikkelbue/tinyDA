@@ -18,7 +18,7 @@ class DataDist(tm.Distributions.Distribution):
             raise ValueError("Quadrature not defined")
         return (x,w)
 
-def get_gaussian_transport_map(data, order=1, reg_alpha=1, initial_guess=None):
+def get_gaussian_transport_map(data, weights=None, order=1, initial_guess=None, optimize_kwargs=None):
     
     # get the dimension
     dim = data.shape[1]
@@ -29,7 +29,7 @@ def get_gaussian_transport_map(data, order=1, reg_alpha=1, initial_guess=None):
     L = tm.Maps.FrozenLinearDiagonalTransportMap(a, b)
     
     rho = tm.Distributions.GaussianDistribution(np.zeros(dim), np.eye(dim))
-    pi = DataDist(dim, data)
+    pi = DataDist(dim, data, weights)
     
     # create our transport map and the push distributions.
     S = tm.Default_IsotropicIntegratedSquaredTriangularTransportMap(dim, order, 'total')
@@ -37,8 +37,9 @@ def get_gaussian_transport_map(data, order=1, reg_alpha=1, initial_guess=None):
     push_SL_pi = tm.Distributions.PushForwardTransportMapDistribution(S, push_L_pi)
     
     # set up parameters for KL minimisation and optimise.
-    qtype = 0; qparams = 1; reg = {'type': 'L2', 'alpha': reg_alpha}; tol = 1e-3; ders = 2
-    push_SL_pi.minimize_kl_divergence(rho, qtype=qtype, qparams=qparams, regularization=reg, tol=tol, ders=ders, x0=initial_guess)
+    if optimize_kwargs is None:
+        optimize_kwargs = {'tol': 1e-3}
+    push_SL_pi.minimize_kl_divergence(rho, qtype=0, qparams=1, x0=initial_guess, **optimize_kwargs)
     
     # create a composite map
     SL = tm.Maps.CompositeMap(S, L)
@@ -46,7 +47,7 @@ def get_gaussian_transport_map(data, order=1, reg_alpha=1, initial_guess=None):
     
     return SL, coeffs
 
-def get_gaussian_transport_distribution(data, order=1, reg_alpha=1, initial_guess=None):
+def get_gaussian_transport_distribution(data, order=1, initial_guess=None, optimize_kwargs=None):
     
     # get the dimension
     dim = data.shape[1]
@@ -55,7 +56,7 @@ def get_gaussian_transport_distribution(data, order=1, reg_alpha=1, initial_gues
     rho = tm.Distributions.GaussianDistribution(np.zeros(dim), np.eye(dim))
     
     # get the transport map
-    SL, _ = get_gaussian_transport_map(data, order, reg_alpha, initial_guess)
+    SL, _ = get_gaussian_transport_map(data, order, initial_guess, optimize_kwargs)
     
     pullback_dist = tm.Distributions.PullBackTransportMapDistribution(SL, rho)
     

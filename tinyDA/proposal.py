@@ -511,7 +511,7 @@ class GaussianTransportMap:
     (set flag independence_sampler=True). See Parno and Marzouk (2017).
     '''
     
-    def __init__(self, kernel, order=1, t0=1000, period=100, independence_sampler=False, T0=None, reg_alpha=1, discard_fraction=0.9, k_history=None):
+    def __init__(self, kernel, order=1, t0=1000, period=100, independence_sampler=False, T0=None, discard_fraction=0.9, k_history=None, optimize_kwargs=None):
         
         try:
             print('Loaded TransportMaps v{}'.format(tm.__version__))
@@ -554,9 +554,6 @@ class GaussianTransportMap:
         # set the initial transport map
         self.T0 = T0
         
-        # set the regularisation parameter
-        self.reg_alpha = reg_alpha
-        
         # set the discard fraction
         self.discard_fraction = discard_fraction
         
@@ -564,6 +561,8 @@ class GaussianTransportMap:
         self.k_history = k_history
         if self.k_history is None:
             warnings.warn(' Using entire sampling history to generate transport map. This can be memory intensive.\n')
+            
+        self.optimize_kwargs = optimize_kwargs
         
         # initialise counter of how many times, adapt() has been called..
         self.t = 0
@@ -616,7 +615,7 @@ class GaussianTransportMap:
                 data = self.history[idx, :]
             
             # get the transport map and coefficients.
-            self.T, coeffs = get_gaussian_transport_map(data, self.order, self.reg_alpha, self.map_coeffs)
+            self.T, coeffs = get_gaussian_transport_map(data, order=self.order, initial_guess=self.map_coeffs, optimize_kwargs=self.optimize_kwargs)
             
             # expand coefficient dimension.
             self.map_coeffs = np.expand_dims(coeffs, axis=1)
