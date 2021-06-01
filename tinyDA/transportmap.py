@@ -47,7 +47,7 @@ def get_gaussian_transport_map(data, weights=None, order=1, initial_guess=None, 
     
     return SL, coeffs
 
-def get_gaussian_transport_distribution(data, order=1, initial_guess=None, optimize_kwargs=None):
+def get_gaussian_transport_distribution(data, weights=None, order=1, initial_guess=None, optimize_kwargs=None):
     
     # get the dimension
     dim = data.shape[1]
@@ -56,7 +56,7 @@ def get_gaussian_transport_distribution(data, order=1, initial_guess=None, optim
     rho = tm.Distributions.GaussianDistribution(np.zeros(dim), np.eye(dim))
     
     # get the transport map
-    SL, _ = get_gaussian_transport_map(data, order, initial_guess, optimize_kwargs)
+    SL, _ = get_gaussian_transport_map(data, weights, order, initial_guess, optimize_kwargs)
     
     pullback_dist = tm.Distributions.PullBackTransportMapDistribution(SL, rho)
     
