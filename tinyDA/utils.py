@@ -71,3 +71,29 @@ class ZeroMeanRecursiveSampleMoments:
         self.sigma = (self.t-1)/self.t * self.sigma + 1/self.t * np.outer(x, x)
 
         self.t += 1
+
+
+def get_MAP(link_factory, initial_parameters=None, method=None, options=None):
+    '''
+    Return the Maximum a Posteriori estimate of a link factory.
+    '''
+    
+    if initial_parameters is None:
+        initial_parameters = link_factory.prior.rvs()
+    
+    negative_log_posterior = lambda parameters: -link_factory.create_link(parameters).posterior
+    MAP = minimize(negative_log_posterior, initial_parameters, method=method, options=options)
+    return MAP['x']
+    
+
+def get_ML(link_factory, initial_parameters=None, method=None, options=None):
+    '''
+    Return the Maximum Likelihood estimate of a link factory.
+    '''
+    
+    if initial_parameters is None:
+        initial_parameters = link_factory.prior.rvs()
+    
+    negative_log_likelihood = lambda parameters: -link_factory.create_link(parameters).likelihood
+    ML = minimize(negative_log_likelihood, initial_parameters, method=method, options=options)
+    return ML['x']
