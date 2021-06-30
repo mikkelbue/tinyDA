@@ -1,13 +1,8 @@
 # external imports
 import warnings
-try:
-    import ray.util.multiprocessing as mp
-except ModuleNotFoundError:
-    import multiprocessing as mp
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
-from scipy.special import logsumexp
 
 # internal imports
 from .link import DummyLink
@@ -257,14 +252,14 @@ class AdaptiveMetropolis(GaussianRandomWalk):
                                                   np.zeros((self.d, self.d)),
                                                   sd=self.sd, 
                                                   epsilon=self.epsilon)
-        self.t += 1
         
     def adapt(self, **kwargs):
+        
+        super().adapt(**kwargs)
+        
         # AM is adaptive per definition. update the RecursiveSampleMoments
         # with the given parameters.
         self.AM_recursor.update(kwargs['parameters'])
-        
-        super().adapt(**kwargs)
         
         if self.t >= self.t0 and self.t%self.period == 0:
             self.C = self.AM_recursor.get_sigma()
@@ -332,15 +327,15 @@ class AdaptiveCrankNicolson(CrankNicolson):
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = u_j
         self.lamb_n = (self.x_n - u_j)**2
-        self.t += 1
 
     def adapt(self, **kwargs):
+        
+        super().adapt(**kwargs)
+        
         # ApCN is adaptive per definition. update the moments.
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
         self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
-        
-        super().adapt(**kwargs)
         
         # commpute the operator, if the initial adaptation is complete and
         # the period matches.
@@ -426,6 +421,11 @@ class SingleDreamZ(GaussianRandomWalk):
                 self.Z = prior.ppf(self.Z)
                 return
                 
+            except ModuleNotFoundError:
+                # if pyDOE is not installed, fall back on simple random sampling.
+                warnings.warn(' pyDOE module not found. Falling back on default Z-sampling method: \'random\'.\n')
+                pass
+                
             except AttributeError:
                 # if the prior is a multivariate_normal, it will not have a .ppf-method.
                 if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
@@ -433,26 +433,22 @@ class SingleDreamZ(GaussianRandomWalk):
                     for i in range(self.d):
                         self.Z[:, i] = stats.norm(loc=prior.mean[i], scale=prior.cov[i,i]).ppf(self.Z[:, i])
                     return
+                
                 else:
                     # if the prior does not have a .ppf-method, and it's not a multivariate gaussian, fall back on simple random sampling.
                     warnings.warn(' Prior does not have .ppf method. Falling back on default Z-sampling method: \'random\'.\n')
                     pass
-                    
-            except ModuleNotFoundError:
-                # if pyDOE is not installed, fall back on simple random sampling.
-                warnings.warn(' pyDOE module not found. Falling back on default Z-sampling method: \'random\'.\n')
-                pass
         
         # do simple random sampling from the prior.
         self.Z = prior.rvs(self.M)
         
     def adapt(self, **kwargs):
         
+        super().adapt(**kwargs)
+        
         # extend the archive.
         self.Z = np.vstack((self.Z, kwargs['parameters']))
         self.M = self.Z.shape[0]
-        
-        super().adapt(**kwargs)
         
         # adaptivity
         if self.adaptive:
@@ -498,93 +494,3 @@ class SingleDreamZ(GaussianRandomWalk):
         epsilon = np.random.normal(0, self.b_star, size=self.d)
         
         return link.parameters + subspace_indicator*((np.ones(self.d) + e)*gamma_DREAM*(Z_r1 - Z_r2) + epsilon)
-
-
-class MultipleTry:
-    
-    '''
-    Multiple-Try proposal, which will take any other TinyDA proposal
-    as a kernel. The parameter k sets the number of tries.
-    '''
-    
-    is_symmetric = True
-    
-    def __init__(self, kernel, k):
-        
-        # set the kernel
-        self.kernel = kernel
-        
-        # set the number of tries per proposal.
-        self.k = k
-        
-        if self.kernel.adaptive:
-            warnings.warn(' Using global adaptive scaling with MultipleTry proposal can be unstable.\n')
-            
-    def open_pool(self):
-        self.pool = mp.Pool(self.k)
-        
-    def close_pool(self):
-        self.pool.close()
-        
-    def setup_proposal(self, **kwargs):
-        
-        # initialise the kernel.
-        self.link_factory = kwargs['link_factory']
-        
-        # pass the kwargs to the kernel.
-        self.kernel.setup_proposal(**kwargs)
-        
-    def adapt(self, **kwargs):
-        
-        # this method is not adaptive in its own, but its kernel might be.
-        self.kernel.adapt(**kwargs)
-        
-    def make_proposal(self, link):
-        
-        # create proposals. this is fast so no paralellised.
-        proposals = [self.kernel.make_proposal(link) for i in range(self.k)]
-        
-        # get the links in parallel.
-        self.proposal_links = self.pool.map(self.link_factory.create_link, proposals)
-        
-        # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
-        if self.kernel.is_symmetric:
-            q_x_y = np.zeros(self.k)
-        else:
-            q_x_y = np.array([self.kernel.get_q(link, proposal_link) for proposal_link in self.proposal_links])
-        
-        # get the unnormalised weights.
-        self.proposal_weights = np.array([link.posterior+q for link, q in zip(self.proposal_links, q_x_y)])
-        
-        # unless all proposals are extremely unlikely, return one link according to the density.
-        if not np.isinf(self.proposal_weights).all():
-            return np.random.choice(self.proposal_links, p=np.exp(self.proposal_weights - logsumexp(self.proposal_weights))).parameters
-        # otherwise, just return a link at random (will be rejected anyway)
-        else:
-            return np.random.choice(self.proposal_links).parameters
-    
-    def get_acceptance(self, proposal_link, previous_link):
-        
-        # check if the proposal makes sense, if not return 0.
-        if np.isnan(proposal_link.posterior) or np.isinf(self.proposal_weights).all():
-            return 0
-        
-        else:
-            
-            # create reference proposals.this is fast so no paralellised.
-            references = [self.kernel.make_proposal(proposal_link) for i in range(self.k-1)]
-            
-            # get the links in parallel.
-            self.reference_links = self.pool.map(self.link_factory.create_link, references)
-            
-            # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
-            if self.kernel.is_symmetric:
-                q_y_x = np.zeros(self.k)
-            else:
-                q_y_x = np.array([self.kernel.get_q(proposal_link, reference_link) for reference_link in self.reference_links])
-            
-            # get the unnormalised weights.
-            self.reference_weights = np.array([link.posterior+q for link, q in zip(self.reference_links, q_y_x)])
-            
-            # get the acceptance probability.
-            return np.exp(logsumexp(self.proposal_weights) - logsumexp(self.reference_weights))

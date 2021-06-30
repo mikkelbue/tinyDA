@@ -7,6 +7,11 @@ from tqdm import tqdm
 from .proposal import *
 from .utils import *
 
+try:
+    from .ray import *
+except:
+    pass
+
 class Chain:
     
     '''
@@ -23,7 +28,7 @@ class Chain:
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
+        elif isinstance(proposal, MultipleTry):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
@@ -52,15 +57,17 @@ class Chain:
         # setup the proposal
         self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory)
         
-    def sample(self, iterations):
-        
-        if isinstance(self.proposal, MultipleTry):
-            self.proposal.open_pool()
+    def sample(self, iterations, progressbar=True):
         
         # start the iteration
-        pbar = tqdm(range(iterations))
+        if progressbar:
+            pbar = tqdm(range(iterations))
+        else:
+            pbar = range(iterations)
+        
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1 = %0.2f' % np.mean(self.accepted[-100:]))
+            if progressbar:
+                pbar.set_description('Running chain, \u03B1 = %0.2f' % np.mean(self.accepted[-100:]))
             
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
@@ -85,9 +92,7 @@ class Chain:
             self.proposal.adapt(parameters=self.chain[-1].parameters, 
                                 jumping_distance=self.chain[-1].parameters-self.chain[-2].parameters, 
                                 accepted=self.accepted)
-        
-        if isinstance(self.proposal, MultipleTry):
-            self.proposal.close_pool()
+                                
 
 class DAChain:
     
@@ -108,7 +113,7 @@ class DAChain:
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(proposal, MultipleTry) or isinstance(proposal, GaussianTransportMap):
+        elif isinstance(proposal, MultipleTry):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
@@ -176,15 +181,17 @@ class DAChain:
         
             self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
-    def sample(self, iterations):
-        
-        if isinstance(self.proposal, MultipleTry):
-            self.proposal.open_pool()
+    def sample(self, iterations, progressbar=True):
             
-        # begin iteration
-        pbar = tqdm(range(iterations))
+        # start the iteration
+        if progressbar:
+            pbar = tqdm(range(iterations))
+        else:
+            pbar = range(iterations)
+            
         for i in pbar:
-            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
+            if progressbar:
+                pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
             # subsample the coarse model.
             for j in range(self.subsampling_rate):
@@ -290,7 +297,4 @@ class DAChain:
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
                 self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
-        
-        if isinstance(self.proposal, MultipleTry):
-            self.proposal.close_pool()
             
