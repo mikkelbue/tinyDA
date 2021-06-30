@@ -17,7 +17,6 @@ It is fully imperative and easy to use!
 * Adaptive Metropolis (AM) - Haario et al. (2001)
 * Adaptive pCN - Hu and Yao (2016)
 * DREAM(Z) - Vrugt (2016)
-* Transport Map MCMC - Parno and Marzouk (2017)
 * Multiple-Try Metropolis (MTM) - Liu et al. (2000)
 
 ### Adaptive Error Models
@@ -33,7 +32,6 @@ It is fully imperative and easy to use!
 * SciPy
 * tqdm
 * [pyDOE](https://pythonhosted.org/pyDOE/) (optional)
-* [TransportMaps](http://transportmaps.mit.edu/docs/) (optional)
 
 ## Usage
 A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
