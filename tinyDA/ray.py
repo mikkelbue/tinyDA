@@ -4,6 +4,84 @@ import warnings
 import numpy as np
 from scipy.special import logsumexp
 
+from .chain import Chain, DAChain
+
+class ParallelChain:
+    def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+        
+        self.link_factory = link_factory
+        self.proposal = proposal
+        
+        self.n_chains = n_chains
+        self.initial_parameters = initial_parameters
+        
+        if self.initial_parameters is not None:
+            if type(self.initial_parameters) == list:
+                assert len(self.initial_parameters) == self.n_chains, 'If list of initial parameters is provided, it must have length n_chains'
+            else:
+                raise TypeError('Initial parameters must be a list')
+        else:
+            self.initial_parameters = list(self.link_factory.prior.rvs(self.n_chains))
+        
+        ray.init(ignore_reinit_error=True)
+        
+        self.remote_chains = [RemoteChain.remote(self.link_factory, 
+                                                 self.proposal, 
+                                                 initial_parameters) for initial_parameters in self.initial_parameters]
+        
+    def sample(self, iterations, progressbar=True):
+        
+        self.processes = [chain.sample.remote(iterations) for chain in self.remote_chains]
+        self.chains = [ray.get(process) for process in self.processes]
+        
+class ParallelDAChain(ParallelChain):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, n_chains=2, initial_parameters=None, adaptive_error_model=None, R=None):
+        
+        # internalise link factories and the proposal
+        self.link_factory_coarse = link_factory_coarse
+        self.link_factory_fine = link_factory_fine
+        self.proposal = proposal
+        self.subsampling_rate = subsampling_rate
+        
+        self.n_chains = n_chains
+        self.initial_parameters = initial_parameters
+        
+        self.adaptive_error_model = adaptive_error_model
+        self.R = R
+        
+        if self.initial_parameters is not None:
+            if type(self.initial_parameters) == list:
+                assert len(self.initial_parameters) == self.n_chains, 'If list of initial parameters is provided, it must have length n_chains'
+            else:
+                raise TypeError('Initial parameters must be a list')
+        else:
+            self.initial_parameters = list(self.link_factory_coarse.prior.rvs(self.n_chains))
+        
+        ray.init(ignore_reinit_error=True)
+        
+        self.remote_chains = [RemoteDAChain.remote(self.link_factory_coarse, 
+                                                   self.link_factory_fine, 
+                                                   self.proposal, 
+                                                   self.subsampling_rate, 
+                                                   initial_parameters, 
+                                                   self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
+        
+
+@ray.remote
+class RemoteChain(Chain):
+    def sample(self, iterations, progressbar=False):
+        super().sample(iterations, progressbar)
+        
+        return self.chain
+        
+@ray.remote
+class RemoteDAChain(DAChain):
+    def sample(self, iterations, progressbar=False):
+        super().sample(iterations, progressbar)
+        
+        return self.chain_fine
+
+
 class MultipleTry:
     
     '''

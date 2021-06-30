@@ -7,11 +7,6 @@ from tqdm import tqdm
 from .proposal import *
 from .utils import *
 
-try:
-    from .ray import *
-except:
-    pass
-
 class Chain:
     
     '''
@@ -28,7 +23,7 @@ class Chain:
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(proposal, MultipleTry):
+        elif hasattr(proposal, 'kernel'):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
@@ -113,7 +108,7 @@ class DAChain:
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
-        elif isinstance(proposal, MultipleTry):
+        elif hasattr(proposal, 'kernel'):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
