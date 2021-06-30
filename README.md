@@ -119,5 +119,5 @@ Some diagnostics are available in the diagnostics module. Please refer to their 
 
 # TODO
 * More user-friendly diagnostics
-* Parallel multi-chain sampling
+* ~~Parallel multi-chain sampling~~
 * Population-based proposals
