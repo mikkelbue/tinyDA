@@ -22,7 +22,7 @@ class Chain:
         if isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
-        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
         elif hasattr(proposal, 'kernel'):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
@@ -87,7 +87,8 @@ class Chain:
             self.proposal.adapt(parameters=self.chain[-1].parameters, 
                                 jumping_distance=self.chain[-1].parameters-self.chain[-2].parameters, 
                                 accepted=self.accepted)
-                                
+        if progressbar:
+            pbar.close()
 
 class DAChain:
     
@@ -107,7 +108,7 @@ class DAChain:
         if isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
-        # check the same if the CrankNicolson is nested in a MultipleTry or GaussianTransportMap proposal.
+        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
         elif hasattr(proposal, 'kernel'):
             if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
                 raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
@@ -292,4 +293,6 @@ class DAChain:
                     self.link_factory_coarse.likelihood.set_bias(self.model_diff, self.bias.get_sigma())
                 
                 self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
-            
+        
+        if progressbar:
+            pbar.close()

@@ -1,8 +1,9 @@
 import ray
 import warnings
-from itertools import compress
 
+from itertools import compress
 import numpy as np
+from tqdm import tqdm
 from scipy.special import logsumexp
 
 from .chain import Chain, DAChain
@@ -11,59 +12,100 @@ from .utils import *
 
 
 class ParallelChain:
+    '''
+    ParalleChain crates n_chains instances of tda.Chain and runs the chains in parallel.
+    '''
     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
         
+        # do not use MultipleTry proposal with ParallelChain, since that will create nested 
+        # instances in Ray, which will be competing for resources. This can be very slow.
+        # TODO: create better Ray implementation, that circumvents this.
+        if isinstance(proposal, MultipleTry):
+            raise TypeError('MultipleTry proposal cannot be used with ParallelChain')
+        
+        # if the proposal is pCN, Check if the proposal covariance is equal 
+        # to the prior covariance and if the prior is zero mean.
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # internalise the link factory and proposal.
         self.link_factory = link_factory
         self.proposal = proposal
         
+        # set the number of parallel chains and initial parameters.
         self.n_chains = n_chains
         self.initial_parameters = initial_parameters
         
+        # check if the given initial parameters are the right type and size.
         if self.initial_parameters is not None:
             if type(self.initial_parameters) == list:
                 assert len(self.initial_parameters) == self.n_chains, 'If list of initial parameters is provided, it must have length n_chains'
             else:
                 raise TypeError('Initial parameters must be a list')
+        # if no initial parameters were given, generate some from the prior.
         else:
             self.initial_parameters = list(self.link_factory.prior.rvs(self.n_chains))
         
+        # initialise Ray.
         ray.init(ignore_reinit_error=True)
         
+        # set up the parallel chains as Ray actors.
         self.remote_chains = [RemoteChain.remote(self.link_factory, 
                                                  self.proposal, 
                                                  initial_parameters) for initial_parameters in self.initial_parameters]
         
     def sample(self, iterations, progressbar=True):
         
+        # initialise sampling on the chains and fetch the results.
         self.processes = [chain.sample.remote(iterations) for chain in self.remote_chains]
         self.chains = [ray.get(process) for process in self.processes]
         
 
 class ParallelDAChain(ParallelChain):
+    '''
+    ParalleDAChain crates n_chains instances of tda.DAChain and runs the chains in parallel.
+    '''
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, n_chains=2, initial_parameters=None, adaptive_error_model=None, R=None):
         
-        # internalise link factories and the proposal
+        # do not use MultipleTry proposal with ParallelDAChain, since that will create nested 
+        # instances in Ray, which will be competing for resources. This can be very slow.
+        # TODO: create better Ray implementation, that circumvents this.
+        if isinstance(proposal, MultipleTry):
+            raise TypeError('MultipleTry proposal cannot be used with ParallelDAChain')
+        
+        # if the proposal is pCN, Check if the proposal covariance is equal 
+        # to the prior covariance and if the prior is zero mean.
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # internalise link factories, proposal and subsampling rate.
         self.link_factory_coarse = link_factory_coarse
         self.link_factory_fine = link_factory_fine
         self.proposal = proposal
         self.subsampling_rate = subsampling_rate
         
+        # set the number of parallel chains and initial parameters.
         self.n_chains = n_chains
         self.initial_parameters = initial_parameters
         
+        # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
         self.R = R
         
+        # check if the given initial parameters are the right type and size.
         if self.initial_parameters is not None:
             if type(self.initial_parameters) == list:
                 assert len(self.initial_parameters) == self.n_chains, 'If list of initial parameters is provided, it must have length n_chains'
             else:
                 raise TypeError('Initial parameters must be a list')
+        # if no initial parameters were given, generate some from the prior.
         else:
             self.initial_parameters = list(self.link_factory_coarse.prior.rvs(self.n_chains))
         
+        # initialise Ray.
         ray.init(ignore_reinit_error=True)
         
+         # set up the parallel DA chains as Ray actors.
         self.remote_chains = [RemoteDAChain.remote(self.link_factory_coarse, 
                                                    self.link_factory_fine, 
                                                    self.proposal, 
@@ -74,20 +116,25 @@ class ParallelDAChain(ParallelChain):
 class FetchingDAChain:
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, fetching_rate=1, initial_parameters=None):
         
+        # do not use MultipleTry proposal with FetchingDAChain, since that will create nested 
+        # instances in Ray, which will be competing for resources. This can be very slow.
+        # TODO: create better Ray implementation, that circumvents this.
+        if isinstance(proposal, MultipleTry):
+            raise TypeError('MultipleTry proposal cannot be used with FetchingDAChain')
+        
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
-        if isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
-        # internalise link factories and the proposal
+        # internalise link factories proposal, subsampling rate and fetching rate.
         self.link_factory_coarse = link_factory_coarse
         self.link_factory_fine = link_factory_fine
         self.proposal = proposal
         self.subsampling_rate = subsampling_rate
         self.fetching_rate = fetching_rate
         
-        # set up lists to hold coarse and fine links, as well as acceptance
-        # accounting
+        # set up lists to hold coarse and fine links, as well as acceptance accounting.
         self.chain_coarse = []
         self.accepted_coarse = []
         self.is_coarse = []
@@ -106,40 +153,57 @@ class FetchingDAChain:
         # setup the proposal
         self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory_coarse)
         
+        # initialise Ray.
         ray.init(ignore_reinit_error=True)
-            
+        
+        # set up the coarse and fine workers.
         self.coarse_workers = [RemoteSubchainFactory.remote(self.link_factory_coarse, self.subsampling_rate, self.fetching_rate) for i in range(self.fetching_rate+1)]
         self.fine_workers = [RemoteLinkFactory.remote(self.link_factory_fine) for i in range(self.fetching_rate)]
         
+        # create an initial coarse link.
         initial_coarse_link = self.link_factory_coarse.create_link(self.initial_parameters)
-            
+        
+        # initialise a coarse subchain and a find link from the initial parameters.
         coarse_process = self.coarse_workers[0].run.remote(initial_coarse_link, self.proposal)
         fine_process = self.fine_workers[0].create_link.remote(self.initial_parameters)
         
+        # get the initial coarse section, and fine link.
         self.coarse_section = ray.get(coarse_process)
         self.chain_fine.append(ray.get(fine_process))
         self.accepted_fine.append(True)
         
     def sample(self, iterations):
         
-        while len(self.chain_fine) < iterations:
+        # start iteration.
+        pbar = tqdm(total=iterations)
+        
+        # the true number of fetching iterations is unknown, so we run until the fine chain is long enough.
+        while True:
             
-            print('Progress: {0}/{1}, {2:.2f}%'.format(len(self.chain_fine), iterations, len(self.chain_fine)/iterations*100), end='\r')
+            # update the progressbar
+            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
+            # get all the coarse links that are proper proposals.
             nodes = [link for link, is_coarse in zip(self.coarse_section['chain'], self.coarse_section['is_coarse']) if not is_coarse]
             
+            # initialise coarse subchains and fine evaluations.
             coarse_process = [coarse_worker.run.remote(node, self.proposal) for coarse_worker, node in zip(self.coarse_workers, nodes)]
             fine_process = [fine_worker.create_link.remote(node.parameters) for fine_worker, node in zip(self.fine_workers, nodes[1:])]
+            
+            # get the results.
             coarse_sections = ray.get(coarse_process); fine_links = ray.get(fine_process)
             
+            # set the perfect fetch switch.
             self.perfect_fetch.append(True)
             
-            for j in range(self.fetching_rate):
+            # iterate through the fine links.
+            for i in range(self.fetching_rate):
                 
-                alpha = np.exp(fine_links[j].posterior - self.chain_fine[-1].posterior + nodes[j].posterior - nodes[j+1].posterior)
+                # perform Metropolis adjustment..
+                alpha = np.exp(fine_links[i].posterior - self.chain_fine[-1].posterior + nodes[i].posterior - nodes[i+1].posterior)
                  
                 if np.random.random() < alpha:
-                    self.chain_fine.append(fine_links[j])
+                    self.chain_fine.append(fine_links[i])
                     self.accepted_fine.append(True)
                 else:
                     self.chain_fine.append(self.chain_fine[-1])
@@ -147,23 +211,36 @@ class FetchingDAChain:
                     self.perfect_fetch[-1] = False
                     break
                     
-            if self.perfect_fetch[-1]:
-                fine_length = self.fetching_rate
-            else:
-                fine_length = j
+            fine_length = i + 1
             
-            coarse_length = (j+1)*(self.subsampling_rate+1)
+            # extend the coarse chain according to the accepted fine links
+            coarse_length = fine_length*(self.subsampling_rate+1)
             self.chain_coarse.extend(self.coarse_section['chain'][:coarse_length])
             self.accepted_coarse.extend(self.coarse_section['accepted'][:coarse_length])
             self.is_coarse.extend(self.coarse_section['is_coarse'][:coarse_length])
             
-            for j in range(coarse_length):
-                if self.is_coarse[-coarse_length+j]:
-                    self.proposal.adapt(parameters=self.chain_coarse[-coarse_length+j].parameters, 
-                                        jumping_distance=self.chain_coarse[-coarse_length+j].parameters-self.chain_coarse[-coarse_length+j-1].parameters, 
-                                        accepted=list(compress(self.accepted_coarse[:-coarse_length+j], self.is_coarse[:-coarse_length+j])))
-                
-            self.coarse_section = coarse_sections[fine_length]
+            # get the correct section for next iteration.
+            if self.perfect_fetch[-1]:
+                self.coarse_section = coarse_sections[fine_length]
+            else:
+                self.coarse_section = coarse_sections[fine_length-1]
+            
+            # adapt the proposal using only the "proper" coarse links.
+            for i in range(coarse_length):
+                if self.is_coarse[-coarse_length+i]:
+                    self.proposal.adapt(parameters=self.chain_coarse[-coarse_length+i].parameters, 
+                                        jumping_distance=self.chain_coarse[-coarse_length+i].parameters-self.chain_coarse[-coarse_length+i-1].parameters, 
+                                        accepted=list(compress(self.accepted_coarse[:-coarse_length+i], self.is_coarse[:-coarse_length+i])))
+            
+            # update the progress bar.
+            pbar.update(fine_length)
+            
+            # break if the fine chain is long enough.
+            if len(self.chain_fine) >= iterations:
+                break
+        
+        # close the progress bar.
+        pbar.close()
 
 class MultipleTry:
     
