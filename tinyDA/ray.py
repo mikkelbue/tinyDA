@@ -114,8 +114,102 @@ class ParallelDAChain(ParallelChain):
                                                    self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
                                                    
 class PopulationChain:
-     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
-         pass
+    def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+                 # do not use MultipleTry proposal with ParallelChain, since that will create nested 
+        # instances in Ray, which will be competing for resources. This can be very slow.
+        # TODO: create better Ray implementation, that circumvents this.
+        if isinstance(proposal, MultipleTry):
+            raise TypeError('MultipleTry proposal cannot be used with PopulationChain')
+        
+        # if the proposal is pCN, Check if the proposal covariance is equal 
+        # to the prior covariance and if the prior is zero mean.
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
+        
+        # internalise the link factory and proposal.
+        self.link_factory = link_factory
+        self.proposal = proposal
+        
+        # set the number of parallel chains and initial parameters.
+        self.n_chains = n_chains
+        
+        # initialise a list, which holds the links.
+        self.chains = [[] for i in range(self.n_chains)]
+        
+        # initialise a list, which holds boolean acceptance values.
+        self.accepted = [[] for i in range(self.n_chains)]
+        
+        self.initial_parameters = initial_parameters
+        
+        # check if the given initial parameters are the right type and size.
+        if self.initial_parameters is not None:
+            if type(self.initial_parameters) == list:
+                assert len(self.initial_parameters) == self.n_chains, 'If list of initial parameters is provided, it must have length n_chains'
+            else:
+                raise TypeError('Initial parameters must be a list')
+        # if no initial parameters were given, generate some from the prior.
+        else:
+            self.initial_parameters = list(self.link_factory.prior.rvs(self.n_chains))
+        
+        # initialise Ray.
+        ray.init(ignore_reinit_error=True)
+        
+        # set up the parallel chains as Ray actors.
+        self.link_factories = [RemoteLinkFactory.remote(self.link_factory) for i in range(self.n_chains)]
+        
+        # append a link with the initial parameters (this will automatically
+        # compute the model output, and the relevant probabilties.
+        processes = [link_factory.create_link.remote(initial_parameters) for link_factory, initial_parameters in zip(self.link_factories, self.initial_parameters)]
+        [chain.append(ray.get(process)) for chain, process in zip(self.chains, processes)]
+        [accept.append(True) for accept in self.accepted]
+        
+        # setup the proposal
+        self.proposal.setup_proposal(parameters=self.initial_parameters[0], link_factory=self.link_factory)
+        
+    def sample(self, iterations, progressbar=True):
+        
+        # start the iteration
+        if progressbar:
+            pbar = tqdm(range(iterations))
+        else:
+            pbar = range(iterations)
+        
+        for i in pbar:
+            
+            if progressbar:
+                
+                acceptance = ['{:.2f}'.format(np.mean(self.accepted[i][-100:])) for i in range(self.n_chains)]
+                pbar.set_description('Running chains, \u03B1 = {}'.format(acceptance))
+            
+            # draw a new proposal, given the previous parameters.
+            proposals = [self.proposal.make_proposal(chain[-1]) for chain in self.chains]
+            
+            # create a link from that proposal
+            processes = [link_factory.create_link.remote(proposal) for link_factory, proposal in zip(self.link_factories, proposals)]
+            
+            for i in range(self.n_chains):
+                
+                proposal_link = ray.get(processes[i])
+            
+                # compute the acceptance probability, which is unique to
+                # the proposal.
+                alpha = self.proposal.get_acceptance(proposal_link, self.chains[i][-1])
+            
+                # perform Metropolis adjustment.
+                if np.random.random() < alpha:
+                    self.chains[i].append(proposal_link)
+                    self.accepted[i].append(True)
+                else:
+                    self.chains[i].append(self.chains[i][-1])
+                    self.accepted[i].append(False)
+            
+                # adapt the proposal. if the proposal is set to non-adaptive,
+                # this has no effect.
+                self.proposal.adapt(parameters=self.chains[i][-1].parameters, 
+                                    jumping_distance=self.chains[i][-1].parameters-self.chains[i][-2].parameters, 
+                                    accepted=self.accepted[i])
+        if progressbar:
+            pbar.close()
 
 class FetchingDAChain:
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, fetching_rate=1, initial_parameters=None):

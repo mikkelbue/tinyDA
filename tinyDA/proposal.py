@@ -335,7 +335,7 @@ class AdaptiveCrankNicolson(CrankNicolson):
         # ApCN is adaptive per definition. update the moments.
         u_j = np.inner(kwargs['parameters'], self.e.T)
         self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
-        self.lamb_n =  self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
+        self.lamb_n = self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
         
         # commpute the operator, if the initial adaptation is complete and
         # the period matches.
@@ -451,7 +451,7 @@ class SingleDreamZ(GaussianRandomWalk):
         self.M = self.Z.shape[0]
         
         # adaptivity
-        if self.adaptive:
+        if self.adaptive and self.t%self.period == 0:
             
             # compute new multinomial distribution according to the normalised jumping distance.
             self.DeltaCR[self.mCR] = self.DeltaCR[self.mCR] + (kwargs['jumping_distance']**2/np.std(self.Z, axis=0)**2).sum()
