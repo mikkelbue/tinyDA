@@ -90,10 +90,6 @@ class ParallelDAChain(ParallelChain):
         self.n_chains = n_chains
         self.initial_parameters = initial_parameters
         
-        # set the adaptive error model
-        self.adaptive_error_model = adaptive_error_model
-        self.R = R
-        
         # check if the given initial parameters are the right type and size.
         if self.initial_parameters is not None:
             if type(self.initial_parameters) == list:
@@ -103,6 +99,10 @@ class ParallelDAChain(ParallelChain):
         # if no initial parameters were given, generate some from the prior.
         else:
             self.initial_parameters = list(self.link_factory_coarse.prior.rvs(self.n_chains))
+        
+        # set the adaptive error model
+        self.adaptive_error_model = adaptive_error_model
+        self.R = R
         
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -117,7 +117,8 @@ class ParallelDAChain(ParallelChain):
                                                    
 class PopulationChain:
     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
-                 # do not use MultipleTry proposal with ParallelChain, since that will create nested 
+        
+        # do not use MultipleTry proposal with ParallelChain, since that will create nested 
         # instances in Ray, which will be competing for resources. This can be very slow.
         # TODO: create better Ray implementation, that circumvents this.
         if isinstance(proposal, MultipleTry):
@@ -287,11 +288,11 @@ class FetchingDAChain:
             nodes = [link for link, is_coarse in zip(self.coarse_section['chain'], self.coarse_section['is_coarse']) if not is_coarse]
             
             # initialise coarse subchains and fine evaluations.
-            coarse_process = [coarse_worker.run.remote(node, self.proposal) for coarse_worker, node in zip(self.coarse_workers, nodes)]
-            fine_process = [fine_worker.create_link.remote(node.parameters) for fine_worker, node in zip(self.fine_workers, nodes[1:])]
+            coarse_processes = [coarse_worker.run.remote(node, self.proposal) for coarse_worker, node in zip(self.coarse_workers, nodes)]
+            fine_processes = [fine_worker.create_link.remote(node.parameters) for fine_worker, node in zip(self.fine_workers, nodes[1:])]
             
             # get the results.
-            coarse_sections = ray.get(coarse_process); fine_links = ray.get(fine_process)
+            coarse_sections = ray.get(coarse_processes); fine_links = ray.get(fine_processes)
             
             # set the perfect fetch switch.
             self.perfect_fetch.append(True)
