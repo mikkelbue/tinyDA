@@ -13,7 +13,7 @@ from .utils import *
 
 class ParallelChain:
     '''
-    ParalleChain crates n_chains instances of tda.Chain and runs the chains in parallel.
+    ParallelChain crates n_chains instances of tda.Chain and runs the chains in parallel.
     '''
     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
         
@@ -57,8 +57,10 @@ class ParallelChain:
     def sample(self, iterations, progressbar=True):
         
         # initialise sampling on the chains and fetch the results.
-        self.processes = [chain.sample.remote(iterations) for chain in self.remote_chains]
-        self.chains = [ray.get(process) for process in self.processes]
+        processes = [chain.sample.remote(iterations) for chain in self.remote_chains]
+        results = ray.get(processes)
+        self.chains = [result['chain'] for result in results]
+        self.accepted = [result['accepted'] for result in results]
         
 
 class ParallelDAChain(ParallelChain):
@@ -435,14 +437,22 @@ class RemoteChain(Chain):
     def sample(self, iterations, progressbar=False):
         super().sample(iterations, progressbar)
         
-        return self.chain
+        return {'chain': self.chain, 'accepted': self.accepted}
         
 @ray.remote
 class RemoteDAChain(DAChain):
     def sample(self, iterations, progressbar=False):
         super().sample(iterations, progressbar)
         
-        return self.chain_fine
+        return {'chain': self.chain_fine, 'accepted': self.accepted_fine}
+
+@ray.remote
+class RemoteLinkFactory:
+    def __init__(self, link_factory):
+        self.link_factory = link_factory
+        
+    def create_link(self, parameters):
+        return self.link_factory.create_link(parameters)
 
 @ray.remote
 class RemoteSubchainFactory:
@@ -489,10 +499,3 @@ class RemoteSubchainFactory:
             
         return {'chain': chain, 'accepted': accepted, 'is_coarse': is_coarse}
 
-@ray.remote
-class RemoteLinkFactory:
-    def __init__(self, link_factory):
-        self.link_factory = link_factory
-        
-    def create_link(self, parameters):
-        return self.link_factory.create_link(parameters)
