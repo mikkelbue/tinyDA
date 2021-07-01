@@ -273,16 +273,18 @@ class FetchingDAChain:
         self.chain_fine.append(ray.get(fine_process))
         self.accepted_fine.append(True)
         
-    def sample(self, iterations):
+    def sample(self, iterations, progressbar=True):
         
-        # start iteration.
-        pbar = tqdm(total=iterations)
+        # start the iteration
+        if progressbar:
+            pbar = tqdm(total=iterations)
         
         # the true number of fetching iterations is unknown, so we run until the fine chain is long enough.
         while True:
             
             # update the progressbar
-            pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
+            if progressbar:
+                pbar.set_description('Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}'.format(np.mean(self.accepted_coarse[-int(100*self.subsampling_rate):]), np.mean(self.accepted_fine[-100:])))
             
             # get all the coarse links that are proper proposals.
             nodes = [link for link, is_coarse in zip(self.coarse_section['chain'], self.coarse_section['is_coarse']) if not is_coarse]
@@ -334,14 +336,16 @@ class FetchingDAChain:
                                         accepted=list(compress(self.accepted_coarse[:-coarse_length+i], self.is_coarse[:-coarse_length+i])))
             
             # update the progress bar.
-            pbar.update(fine_length)
+            if progressbar:    
+                pbar.update(fine_length)
             
             # break if the fine chain is long enough.
             if len(self.chain_fine) >= iterations:
                 break
         
         # close the progress bar.
-        pbar.close()
+        if progressbar:
+            pbar.close()
 
 class MultipleTry:
     
