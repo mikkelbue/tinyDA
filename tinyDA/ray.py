@@ -75,7 +75,7 @@ class ParallelDAChain(ParallelChain):
         
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
-        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # internalise link factories, proposal and subsampling rate.
@@ -112,6 +112,10 @@ class ParallelDAChain(ParallelChain):
                                                    self.subsampling_rate, 
                                                    initial_parameters, 
                                                    self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
+                                                   
+class PopulationChain:
+     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+         pass
 
 class FetchingDAChain:
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, fetching_rate=1, initial_parameters=None):
@@ -124,7 +128,7 @@ class FetchingDAChain:
         
         # if the proposal is pCN, Check if the proposal covariance is equal 
         # to the prior covariance and if the prior is zero mean.
-        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
+        elif isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
         
         # internalise link factories proposal, subsampling rate and fetching rate.
