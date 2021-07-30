@@ -56,7 +56,7 @@ If using a Gaussian likelihood, we recommend using the `tinyDA` implementation, 
 ### tinyDA.LinkFactory
 At the heart of the TinyDA sampler sits what we call a `LinkFactory`, which is responsible for:
 1. Calling the model with some parameters (a proposal) and collecting the model output.
-2. Evaluating the prior density of the parameters, and the likelihood of the model output, given the perameters.
+2. Evaluating the prior density of the parameters, and the likelihood of the model output, given the parameters.
 3. Constructing `tda.Link` instances that hold information for each sample.
 
 <br/>
