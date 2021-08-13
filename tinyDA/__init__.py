@@ -10,5 +10,5 @@ from .utils import *
 try:
     from .ray import *
 except ModuleNotFoundError:
-    print('Ray is not installed. Multiprocessing features are not available')
+    print('Ray module not found. Multiprocessing features are not available')
     pass

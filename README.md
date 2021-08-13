@@ -1,4 +1,4 @@
-<p align="center"><img src="./misc/tinyDA.png" width="500"></p>
+<p align="center"><img src="https://github.com/mikkelbue/tinyDA/blob/main/misc/tinyDA.png" width="500"></p>
 
 # tinyDA
 Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
@@ -60,7 +60,7 @@ At the heart of the TinyDA sampler sits what we call a `LinkFactory`, which is r
 3. Constructing `tda.Link` instances that hold information for each sample.
 
 <br/>
-<p align="center"><img src="./misc/flowchart.png" width="600"></p>
+<p align="center"><img src="https://github.com/mikkelbue/tinyDA/blob/main/misc/flowchart.png" width="600"></p>
 <br/>
 
 The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` or `tda.BlackBoxLinkFactory`. The former allows for computing the model output directly from the input parameters, using pure Python or whichever external library you want to call. The `evaluate_model()` method must thus be overwritten:
@@ -101,23 +101,27 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 
 ### Sampling
 The Delayed Acceptance sampler can then be initalised and run, simply with:
-```
+```python
 my_chain = tda.DAChain(my_link_factory_coarse, my_link_factory_fine, my_proposal, subsampling_rate)
 my_chain.sample(n_samples)
 ```
 If you decide you need more samples, you can just call `tda.DAChain.sample()` again, since all samples and tuning parameters are cached:
-```
+```python
 my_chain.sample(additional_n_samples)
 ```
 
 ### Postprocessing
-The entire sampling history is then stored in `my_chain.chain_fine`, and you can extract an array of parameters by doing something like:
+The entire sampling history is then stored in `my_chain`, and you can extract an array of samples by doing:
 ```python
-parameters = np.array([link.parameters for link in my_chain.chain_fine])
+samples_fine = tda.get_parameters(my_chain)
+samples_coarse = tda.get_parameters(my_chain, level='coarse')
 ```
+
 Some diagnostics are available in the diagnostics module. Please refer to their respective docstrings for usage instructions.
 
 # TODO
-* More user-friendly diagnostics
 * ~~Parallel multi-chain sampling~~
-* Population-based proposals
+* ~~Population-based proposals~~
+* Multilevel Delayed Acceptance
+* More user-friendly diagnostics
+
