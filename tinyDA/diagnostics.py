@@ -1,4 +1,5 @@
 import pickle
+from itertools import compress
 
 import numpy as np
 import pandas as pd
@@ -7,13 +8,53 @@ import seaborn as sns
 
 from scipy.stats import norm, rankdata
 from scipy.ndimage import convolve
+
+def get_parameters(chain, level='fine'):
+    '''
+    Parameters
+    ----------
+    chain : tinyDA.Chain or tinyDA.DAChain
+        A chain object with samples.
+    level : str, optional
+        Which level to extract samples from. The default is 'fine'.
+    
+    Returns
+    ----------
+    numpy.ndarray
+        A numpy array with parameters as columns and samples as rows.
+    '''
+    
+    # if this is a single-level chain, just get the chain.
+    if hasattr(chain, 'chain'):
+        links = chain.chain
+        
+    # if it is a delayed acceptance chain, get the specified level.
+    elif level == 'fine':
+        links = chain.chain_fine
+    elif level == 'coarse':
+        links = compress(chain.chain_coarse, chain.is_coarse)
+    
+    # return an array of the parameters.
+    return np.array([link.parameters for link in links])
+    
         
 def plot_parameters(parameters, indices=[0, 1], burnin=0, plot_type='fractal_wyrm'):
-    
     '''
-    Plot either fractal wyrm plots (hairy caterpillars) or histograms of MCMC
-    parameters, given as a nxd array, where n is the number of samples and d is
-    the parameter dimension. The second argument is the parameter indices to plot (list).
+    Plot either fractal wyrm plots (traceplots, hairy caterpillars, etc.) 
+    or histograms of MCMC parameters, given as a nxd array, where n is 
+    the number of samples and d is the parameter dimension.
+    
+    Parameters
+    ----------
+    parameters : numpy.ndarray
+        A numpy array with parameters as columns and samples as rows.
+    indices : list, optional
+        Which parameter indices to plot. The default is [0,1].
+    burnin : int, optional
+        The burnin length. The default is 0.
+    plot_type : str, optional
+        The plot type. Can be 'fractal_wyrm' (traceplot) or 'histogram'. 
+        The default is 'fractal_wyrm'.
     '''
     
     # get the dimensions of the plot.
@@ -42,8 +83,16 @@ def plot_parameter_matrix(parameters, indices=[0,1], burnin=0):
     
     '''
     Plot a pairs-plot with scatter and kde, given as a nxd array, where n 
-    is the number of samples and d is the parameter dimension. The second 
-    argument is the parameter indices to plot (list).
+    is the number of samples and d is the parameter dimension.
+    
+    Parameters
+    ----------
+    parameters : numpy.ndarray
+        A numpy array with parameters as columns and samples as rows.
+    indices : list, optional
+        Which parameter indices to plot. The default is [0,1].
+    burnin : int, optional
+        The burnin length. The default is 0.
     '''
     
     # plug parameters into dataframe and name the columns.
@@ -67,7 +116,22 @@ def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
     R-hat according to Vehtari et al. (2020). The first argument (parameters) 
     must be list of arrays, one from each chain. Each array must be nxd, 
     where n is the number of samples and d is the parameter dimension.
-    Second argument is a switch to turn on rank-normalisation.
+    
+    Parameters
+    ----------
+    parameters : list
+        A list of numpy arrays, one for each chain.
+    rank_normalised : bool, optional
+        Whether to rank-normalise the samples before computing R-hat. 
+        The default is False.
+    return_ess_stats : bool, optional
+        Whether to return s_m_sq, W and var_hat in place of R-hat. Used internally. 
+        The default is False.
+    
+    Returns
+    ----------
+    numpy.ndarray
+        A numpy array with the R-hat for each parameter.
     '''
 
     # rank normalise, if the switch is set.
@@ -113,7 +177,19 @@ def compute_ESS(parameters, rank_normalised=False):
     ESS according to Vehtari et al. (2020). The first argument (parameters) 
     must be list of arrays, one from each chain. Each array must be nxd, 
     where n is the number of samples and d is the parameter dimension.
-    Second argument is a switch to turn on rank-normalisation for bulk-ESS.
+    
+    Parameters
+    ----------
+    parameters : list
+        A list of numpy arrays, one for each chain.
+    rank_normalised : bool, optional
+        Whether to rank-normalise the samples before computing ESS. 
+        The default is False.
+    
+    Returns
+    ----------
+    numpy.ndarray
+        A numpy array with the ESS for each parameter.
     '''
     
     # rank normalise, if the switch is set.
@@ -165,6 +241,21 @@ def compute_ESS(parameters, rank_normalised=False):
     return np.array(ESS)
     
 def get_autocorrelation(x, T=None):
+    '''
+    Compute the autocorrelation function for a vector x.
+     
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The vector to compute the autocorrelation for.
+    T : int, optional
+        The truncation length. Default is None.
+    
+    Returns
+    ----------
+    numpy.ndarray
+        A numpy array with the autocorrelation for each lag.
+    '''
     
     # get the mean and the length.
     x = x - np.mean(x)
@@ -183,8 +274,24 @@ def get_autocorrelation(x, T=None):
         return rho[:T]
     
 def rank_normalise(parameters):
+    '''
+    Rank-normalise samples from multiple chains.
+     
+    Parameters
+    ----------
+    parameters : list
+        A list of numpy arrays, one for each chain.
     
-    # rank and compute the z-transform.
+    Returns
+    ----------
+    list
+        List of rank-normalised numpy arrays, one for each chain.
+    '''
+    
+    # get the number of samples in each chain.
+    n_samples = parameters[0].shape[0]
+    
+    # rank the data and compute the z-transform.
     my_norm = norm()
     r = rankdata(np.vstack(parameters), axis=0)
     z = my_norm.ppf((r - 3/8)/(r.shape[0] - 1/4))
@@ -192,12 +299,17 @@ def rank_normalise(parameters):
     # redistribute into the original chain-structure.
     z_list = []
     for i in range(len(parameters)):
-        z_list.append(z[i*parameters[0].shape[0]:(i+1)*parameters[0].shape[0],:])
+        z_list.append(z[i*n_samples:(i+1)*n_samples,:])
     
     return z_list
     
 
 def compute_ESS_wolff(x):
+    
+    '''
+    Legacy ESS function for a single MCMC chain. 
+    See Ulli Wolff (2006): Monte Carlo errors with less errors.
+    '''
     
     N = len(x)
         
