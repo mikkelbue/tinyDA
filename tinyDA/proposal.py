@@ -5,7 +5,6 @@ from scipy.linalg import sqrtm
 import scipy.stats as stats
 
 # internal imports
-from .link import DummyLink
 from .utils import RecursiveSampleMoments
 
 class Proposal:

@@ -4,10 +4,42 @@ from numpy.linalg import det, inv
 class Link:
     
     '''
-    The Link class contains all the attributes used by the MCMC.
+    The Link class holds all relevant information about an MCMC sample,
+    i.e. parameters, prior log-desnity, model output, log-likelihood and
+    possibly a Quntity of Interest (QoI)
+    
+    Attributes
+    ----------
+    parameters : numpy.ndarray
+        The parameters used to generate the sample
+    prior : float
+        The prior log-density
+    model_output : numpy.ndarray
+        The model output
+    likelihood : float
+        The log-likelihood of the data, given the parameters.
+    qoi
+        A Quantity of Interest.
+    posterior : float
+        The (unnormalised) posterior density.
     '''
     
     def __init__(self, parameters, prior, model_output, likelihood, qoi=None):
+        
+         '''
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            The parameters used to generate the sample
+        prior : float
+            The prior log-density
+        model_output : numpy.ndarray
+            The model output
+        likelihood : float
+            The log-likelihood of the data, given the parameters.
+        qoi : optional
+            A Quantity of Interest. Default is None
+        '''
         
         # internalise parameters.
         self.parameters = parameters
@@ -18,10 +50,6 @@ class Link:
         
         # compute the (unnormalised) posterior.
         self.posterior = self.prior + self.likelihood
-        
-class DummyLink(Link):
-    def __init__(self, parameters):
-        self.parameters = parameters
 
 class LinkFactory:
     
@@ -29,14 +57,57 @@ class LinkFactory:
     LinkFactory produces Links. The create_link method calls evaluate_model,
     which is really the key method in this class. It must be overwritten
     through inheritance to sample a problem.
+    
+    Attributes
+    ----------
+    prior : scipy.stats.rv_continuous
+        The prior distribution. Usually a scipy.stats.rv_continuous, but
+        the only requirement is that it has a logpdf method.
+    likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
+        The likelihood function. Usually a tinyDA.LogLike, but
+        the only requirement is that it has a logpdf method.
+        
+    Methods
+    -------
+    create_link(parameters)
+        Returns an instance of tinyDA.Link, given the parameters. Calling
+        the method with a numpy.ndarray of parameters triggers evaluation
+        of the prior density, the model and the likelihood.
+    update_link(link, bias=None)
+        This is a helper method that updates a link after the likelihood
+        function has been adaptively updated. Hence, it skips model evaluation
+        and only recomputes the likelihood.
+    evaluate_model(parameters)
+        This is the key method of the class. It must be overwritten through
+        inheritence to sample a given problem. Given some input parameters, 
+        it must return a tuple (model_ouput, qoi). The qoi can be None.
     '''
     
     def __init__(self, prior, likelihood):
+        '''
+        Parameters
+        ----------
+        prior : scipy.stats.rv_continuous
+            The prior distribution.
+        likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
+            The likelihood function.
+        '''
         # internatlise the distributions.
         self.prior = prior
         self.likelihood = likelihood
         
     def create_link(self, parameters):
+        '''
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            A numpy array of model parameters.
+            
+        Returns
+        ----------
+        tinyDA.Link
+            A TinyDA.Link with attributes corresponding to the input parameters.
+        '''
         
         # compute the prior of the parameters.
         prior = self.prior.logpdf(parameters)
@@ -50,6 +121,18 @@ class LinkFactory:
         return Link(parameters, prior, model_output, likelihood, qoi)
         
     def update_link(self, link, bias=None):
+        '''
+        Parameters
+        ----------
+        link : tinyDA.Link
+            A tinyDA.Link that should be updated, if the likelihood
+            function has been updated.
+            
+        Returns
+        ----------
+        tinyDA.Link
+            A TinyDA.Link with updated likelihood and posterior.
+        '''
         
         if bias is None:
             # recompute the likelihood.
@@ -60,6 +143,18 @@ class LinkFactory:
         return Link(link.parameters, link.prior, link.model_output, likelihood, link.qoi)
         
     def evaluate_model(self, parameters):
+        '''
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            A numpy array of model parameters.
+            
+        Returns
+        ----------
+        tuple
+            A tuple (model_output, qoi), where model_output is a numpy.ndarray,
+            and qoi can be anything, including None.
+        '''
         # model output must return model_output and qoi (can be None),
         # and must be adapted to the problem at hand.
         model_output = None
@@ -67,7 +162,60 @@ class LinkFactory:
         return model_output, qoi
         
 class BlackBoxLinkFactory(LinkFactory):
+    '''
+    Like LinkFactory, BlackBoxLinkFactory produces Links. This class addtionally
+    takes 'model' and 'datapoints' as input, allowing use with generic black box 
+    models. The model must have solve(parameters) and get_data(datapoints) methods.
+    
+    
+    Attributes
+    ----------
+    model : Object
+        A model object with methods solve(parameters) and get_data(datapoints)
+    datapoints : numpy.ndarray
+        An array of datapoints to feed to the model.
+    prior : scipy.stats.rv_continuous
+        The prior distribution. Usually a scipy.stats.rv_continuous, but
+        the only requirement is that it has a logpdf method.
+    likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
+        The likelihood function. Usually a tinyDA.LogLike, but
+        the only requirement is that it has a logpdf method.
+    get_qoi : bool
+        Whether the model should return a QoI (requires get_qoi method), 
+        or not. If not, the QoI is None.
+        
+    Methods
+    -------
+    create_link(parameters)
+        Returns an instance of tinyDA.Link, given the parameters. Calling
+        the method with a numpy.ndarray of parameters triggers evaluation
+        of the prior density, the model and the likelihood.
+    update_link(link, bias=None)
+        This is a helper method that updates a link after the likelihood
+        function has been adaptively updated. Hence, it skips model evaluation
+        and only recomputes the likelihood.
+    evaluate_model(parameters)
+        If the model object has methods solve(parameters) -> None and 
+        get_data(datapoints) -> numpy.ndarray, this method will return the
+        model output at the given datapoints and (possibly) the QoI.
+    '''
+    
     def __init__(self, model, datapoints, prior, likelihood, get_qoi=False):
+         '''
+        Parameters
+        ----------
+        model : Object
+            A model object with methods solve(parameters) and get_data(datapoints)
+        datapoints : numpy.ndarray
+            An array of datapoints to feed to the model.
+        prior : scipy.stats.rv_continuous
+            The prior distribution.
+        likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
+            The likelihood function.
+        get_qoi : bool, optional
+            Whether the model should return a QoI (requires get_qoi method), 
+            or not. If not, the QoI is None. Default is False.
+        '''
         
         # Internatlise the model and datapoints
         self.model = model
@@ -80,12 +228,24 @@ class BlackBoxLinkFactory(LinkFactory):
         self.get_qoi = get_qoi
     
     def evaluate_model(self, parameters):
+        '''
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            A numpy array of model parameters.
+            
+        Returns
+        ----------
+        tuple
+            A tuple (model_output, qoi), where model_output is a numpy.ndarray,
+            and qoi can be anything.
+        '''
         
         # solve the model using the parameters.
         self.model.solve(parameters)
         
         # get the model output at the datapoints.
-        output = self.model.get_data(self.datapoints)
+        model_output = self.model.get_data(self.datapoints)
         
         # get the quantity of interest.
         if self.get_qoi:
@@ -94,4 +254,4 @@ class BlackBoxLinkFactory(LinkFactory):
             qoi = None
             
         # return everything.
-        return output, qoi
+        return model_output, qoi
