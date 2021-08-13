@@ -1,4 +1,4 @@
-<p align="center"><img src="https://github.com/mikkelbue/tinyDA/blob/main/misc/tinyDA.png" width="500"></p>
+![](https://github.com/mikkelbue/tinyDA/blob/main/misc/tinyDA.png)
 
 # tinyDA
 Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
@@ -63,9 +63,7 @@ At the heart of the TinyDA sampler sits what we call a `LinkFactory`, which is r
 2. Evaluating the prior density of the parameters, and the likelihood of the model output, given the parameters.
 3. Constructing `tda.Link` instances that hold information for each sample.
 
-<br/>
-<p align="center"><img src="https://github.com/mikkelbue/tinyDA/blob/main/misc/flowchart.png" width="600"></p>
-<br/>
+![](https://github.com/mikkelbue/tinyDA/blob/main/misc/flowchart.png)
 
 The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` or `tda.BlackBoxLinkFactory`. The former allows for computing the model output directly from the input parameters, using pure Python or whichever external library you want to call. The `evaluate_model()` method must thus be overwritten:
 
