@@ -9,9 +9,9 @@ It is fully imperative and easy to use!
 
 ## Installation
 tinyDA can be installed from PyPI:
-'''
+```
 pip install tinyDA
-'''
+```
 
 ## Features
 
