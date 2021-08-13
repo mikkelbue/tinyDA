@@ -211,7 +211,7 @@ class AdaptiveLogLike(LogLike):
         self.cov_inverse = np.linalg.inv(self.cov + self.cov_bias)
         
     def logpdf(self, x):
-                '''
+        '''
         Parameters
         ----------
         x : numpy.ndarray

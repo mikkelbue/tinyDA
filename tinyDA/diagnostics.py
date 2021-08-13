@@ -20,19 +20,25 @@ def get_parameters(chain, level='fine'):
     
     Returns
     ----------
-    numpy.ndarray
-        A numpy array with parameters as columns and samples as rows.
+    list or numpy.ndarray
+        A (list of) numpy array(s) with parameters as columns and samples as rows.
     '''
-    
-    # if this is a single-level chain, just get the chain.
-    if hasattr(chain, 'chain'):
-        links = chain.chain
+    # if this is a parallel chain, get all the fine chains.
+    if hasattr(chain, 'chains'):
+        parameters = []
+        for c in chain.chains:
+            parameters.append(np.array([link.parameters for link in c]))
+        return parameters
         
-    # if it is a delayed acceptance chain, get the specified level.
-    elif level == 'fine':
-        links = chain.chain_fine
-    elif level == 'coarse':
-        links = compress(chain.chain_coarse, chain.is_coarse)
+    # if this is a single-level chain, just get the chain.
+    elif hasattr(chain, 'chain'):
+        links = chain.chain
+    else:
+        # if it is a delayed acceptance chain, get the specified level.
+        if level == 'fine':
+            links = chain.chain_fine
+        elif level == 'coarse':
+            links = compress(chain.chain_coarse, chain.is_coarse)
     
     # return an array of the parameters.
     return np.array([link.parameters for link in links])

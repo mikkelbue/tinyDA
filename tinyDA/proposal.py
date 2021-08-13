@@ -60,14 +60,13 @@ class IndependenceSampler(Proposal):
     is_symmetric = False
     
     def __init__(self, q):
-    '''
-    Parameters
-    ----------
-    q : scipy.stats.rv_continuous
-        A probability distribution to draw independent samples from. Usually a scipy disttribution,
-        but the only requirement is that it has .rvs() and .logpdf() methods.
-        
-    '''
+        '''
+        Parameters
+        ----------
+        q : scipy.stats.rv_continuous
+            A probability distribution to draw independent samples from. Usually a scipy disttribution,
+            but the only requirement is that it has .rvs() and .logpdf() methods.
+        '''
         
         # set the proposal distribution.
         self.q = q

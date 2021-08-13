@@ -181,7 +181,7 @@ class PopulationChain:
             
             if progressbar:
                 
-                acceptance = ['{:.2f}'.format(np.mean(self.accepted[i][-100:])) for i in range(self.n_chains)]
+                acceptance = [np.round(np.mean(self.accepted[i][-100:]), decimals=2) for i in range(self.n_chains)]
                 pbar.set_description('Running chains, \u03B1 = {}'.format(acceptance))
             
             # draw a new proposal, given the previous parameters.

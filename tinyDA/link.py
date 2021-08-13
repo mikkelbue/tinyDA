@@ -26,7 +26,7 @@ class Link:
     
     def __init__(self, parameters, prior, model_output, likelihood, qoi=None):
         
-         '''
+        '''
         Parameters
         ----------
         parameters : numpy.ndarray
@@ -201,7 +201,7 @@ class BlackBoxLinkFactory(LinkFactory):
     '''
     
     def __init__(self, model, datapoints, prior, likelihood, get_qoi=False):
-         '''
+        '''
         Parameters
         ----------
         model : Object
