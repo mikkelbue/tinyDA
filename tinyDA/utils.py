@@ -45,7 +45,7 @@ class RecursiveSampleMoments:
 
         self.t += 1
 
-class ZeroMeanRecursiveSampleMoments:
+class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
     """
     Iteratively constructs a sample covariance, with zero mean given input samples.
     It is a specialised version of RecursiveSampleMoments, used only in the state
@@ -61,6 +61,9 @@ class ZeroMeanRecursiveSampleMoments:
 
     def __call__(self):
         return self.sigma
+        
+    def get_mu(self):
+        pass
 
     def get_sigma(self):
         # Returns the current covariance value

@@ -1,3 +1,5 @@
+__version__ = "0.9.0"
+
 from .chain import *
 from .link import *
 from .distributions import *

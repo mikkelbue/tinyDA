@@ -8,15 +8,67 @@ import scipy.stats as stats
 from .link import DummyLink
 from .utils import RecursiveSampleMoments
 
-class IndependenceSampler:
+class Proposal:
+    '''
+    Base proposal. Only used for inheritance.
+    '''
+    
+    is_symmetric = False
+    
+    def __init__(self):
+        pass
+        
+    def setup_proposal(self, **kwargs):
+        pass
+        
+    def adapt(self, **kwargs):
+        pass
+        
+    def make_proposal(self, link):
+        pass
+                
+    def get_acceptance(self, proposal_link, previous_link):
+        pass
+        
+    def get_q(self, x_link, y_link):
+        pass
+
+class IndependenceSampler(Proposal):
     
     '''
     Independence sampler using a proposal distribution q(x).
+    
+    Attributes
+    ----------
+    q : scipy.stats.rv_continuous
+        A probability distribution to draw independent samples from. Usually a scipy disttribution,
+        but the only requirement is that it has .rvs() and .logpdf() methods.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        This proposal does not require any setup.
+    adapt(**kwargs)
+        This proposal is not adaptive.
+    make_proposal(link)
+        Generates an independent proposal from q.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
+    get_q(x_link, y_link)
+        Computes the transition probability from x_link to y_link.
     '''
     
     is_symmetric = False
     
     def __init__(self, q):
+    '''
+    Parameters
+    ----------
+    q : scipy.stats.rv_continuous
+        A probability distribution to draw independent samples from. Usually a scipy disttribution,
+        but the only requirement is that it has .rvs() and .logpdf() methods.
+        
+    '''
         
         # set the proposal distribution.
         self.q = q
@@ -50,15 +102,59 @@ class IndependenceSampler:
         # get the transition probability.:
         return self.q.logpdf(y_link.parameters)
 
-class GaussianRandomWalk:
+class GaussianRandomWalk(Proposal):
     
     '''
-    Standard MH random walk proposal.
+    Standard Random Walk Metropolis Hastings proposal.
+    
+    Attributes
+    ----------
+    C : np.ndarray
+        The covariance matrix of the proposal distribution.
+    d : int
+        The dimension of the target distribution.
+    scaling : float
+        The global scaling of the proposal.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been adapted.
+    t : int
+        How many times the adapt method has been called.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        This proposal does not require any setup.
+    adapt(**kwargs)
+        If adaptive=True, the proposal will adapt the global scaling.
+    make_proposal(link)
+        Generates a random walk proposal from the input link using the proposal covariance.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     is_symmetric = True
     
     def __init__(self, C, scaling=1, adaptive=False, gamma=1.01, period=100):
+        '''
+        Parameters
+        ----------
+        C : np.ndarray
+            The covariance matrix of the proposal distribution.
+        scaling : float, optional
+            The global scaling of the proposal. Default is 1.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling. Default is 1.01.
+        period : int, optional
+            How often to adapt the global scaling. Default is 100.
+        '''
         
         # check if covariance operator is a square numpy array.
         if not isinstance(C, np.ndarray):
@@ -133,13 +229,56 @@ class GaussianRandomWalk:
 class CrankNicolson(GaussianRandomWalk):
     
     ''' 
-    This is the preconditioned Crank Nicolson proposal, inheriting
-    from the  GaussianRandomWalk.
+    Preconditioned Crank Nicolson proposal. To use this proposal, the prior
+    must be of the type scipy.stats.multivariate_normal.
+    
+    Attributes
+    ----------
+    C : np.ndarray
+        The covariance matrix of the proposal distribution. This is set
+        to the prior covariance, as required by pCN.
+    d : int
+        The dimension of the target distribution.
+    scaling : float
+        The global scaling ("beta") of the proposal.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for the global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been adapted.
+    t : int
+        How many times the adapt method has been called.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        Sets the proposal covariance to the prior covariance, as required for pCN.
+    adapt(**kwargs)
+        If adaptive=True, the proposal will adapt the global scaling.
+    make_proposal(link)
+        Generates a pCN proposal from the input link using the proposal (prior) covariance.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     is_symmetric = False
     
-    def __init__(self, scaling=1, adaptive=False, gamma=1.01, period=100):
+    def __init__(self, scaling=0.1, adaptive=False, gamma=1.01, period=100):
+        '''
+        Parameters
+        ----------
+        scaling : float, optional
+            The global scaling ("beta") of the proposal. Default is 0.1.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling. Default is 1.01.
+        period : int, optional
+            How often to adapt the global scaling. Default is 100.
+        '''
         
         # set the scaling.
         self.scaling = scaling
@@ -189,10 +328,66 @@ class CrankNicolson(GaussianRandomWalk):
 class AdaptiveMetropolis(GaussianRandomWalk):
     
     '''
-    This is the Adaptive Metropolis proposal, according to Haario et al.
+    Adaptive Metropolis proposal, according to Haario et al. (2001)
+    
+    Attributes
+    ----------
+    C : np.ndarray
+        The covariance matrix of the proposal distribution.
+    d : int
+        The dimension of the target distribution.
+    scaling : float
+        The global scaling of the proposal.
+    sd : float
+        The AM scaling parameter.
+    epsilon : float
+        Parameter to prevent C from becoming singular.
+    t0 : int
+        When to start the adapting covariance matrix.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for the global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been globally adapted.
+    t : int
+        How many times the adapt method has been called.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        A tinyDA.RecursiveSampleMoments is initialised to adapt the proposal covariance.
+    adapt(**kwargs)
+        The tinyDA.RecursiveSampleMoments is adapted using the latest sample.
+        If adaptive=True, the proposal will also adapt the global scaling.
+    make_proposal(link)
+        Generates an Adaptive Metropolis proposal from the input link using the proposal covariance.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     def __init__(self, C0, sd=None, epsilon=1e-6, t0=0, period=100, adaptive=False, gamma=1.01):
+        
+        '''
+        Parameters
+        ----------
+        C0 : np.ndarray
+            The initial covariance matrix of the proposal distribution.
+        sd : None or float, optional
+            The AM scaling parameter. Default is None (compute from target dimensionality).
+        epsilon : float, optional
+            Parameter to prevent C from becoming singular. Must be small. Default is 1e-6.
+        t0 : int, optional
+            When to start adapting the covariance matrix. Default is 0 (start immediately).
+        period : int, optional
+            How often to adapt. Default is 100.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling. Default is 1.01.
+        '''
         
         # check if covariance operator is a square numpy array.
         if not isinstance(C0, np.ndarray):
@@ -269,10 +464,69 @@ class AdaptiveMetropolis(GaussianRandomWalk):
 class AdaptiveCrankNicolson(CrankNicolson):
     
     '''
-    Adaptive preconditioned Crank-Nicolson proposal, see Hu and Yao (2016).
+    Adaptive preconditioned Crank-Nicolson proposal, according to Hu and Yao (2016).
+    
+    Attributes
+    ----------
+    C : np.ndarray
+        The initial covariance matrix of the proposal distribution.
+    d : int
+        The dimension of the target distribution.
+    scaling : float
+        The global scaling ("beta") of the proposal.
+    J : int
+        The truncation index, i.e. only dimensions below this index will be adapted.
+    B : numpy.ndarray
+        The adapted covariance matrix of the proposal distribution.
+    L : numpy.ndarray
+        Precision matrix of the prior, i.e. the inverse of the initial covariance matrix.
+    operator : numpy.ndarray
+        The adaptive pCN scaling operator. To avoid recomputing the scaling operator
+        at each step, this array caches the result of sqrtm(eye(d) - beta**2*np.dot(B, L))
+    t0 : int
+        When to start adapting the covariance matrix.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for the global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been globally adapted.
+    t : int
+        How many times the adapt method has been called.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        Setup the proposal to allow adaption according to Hu and Yao (2016).
+    adapt(**kwargs)
+        Use the latest sample to update the adaptive pCN operator.
+        If adaptive=True, the proposal will also adapt the global scaling.
+    make_proposal(link)
+        Generates an adaptive pCN proposal from the input link using the proposal covariance.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     def __init__(self, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01):
+        '''
+        Parameters
+        ----------
+        scaling : float, optional
+            The global scaling ("beta") of the proposal. Default is 0.1.
+        J : None or int, optional
+            The truncation index, i.e. only dimensions below this index will be adapted.
+            Default is None (adapt all dimensions).
+        t0 : int, optional
+            When to start adapting the covariance matrix. Default is 0 (start immediately).
+        period : int, optional
+            How often to adapt. Default is 100.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling. Default is 1.01.
+        '''
         
         # set the scaling.
         self.scaling = scaling
@@ -337,7 +591,7 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.x_n = self.t/(self.t+1)*self.x_n + 1/(self.t+1)*u_j
         self.lamb_n = self.t/(self.t+1)*self.lamb_n + 1/(self.t+1)*(self.x_n - u_j)**2
         
-        # commpute the operator, if the initial adaptation is complete and
+        # compute the operator, if the initial adaptation is complete and
         # the period matches.
         if self.t >= self.t0 and self.t%self.period == 0:
             self.lamb[:self.J] = self.lamb_n[:self.J]
@@ -360,9 +614,82 @@ class SingleDreamZ(GaussianRandomWalk):
     
     '''
     Dream(Z) proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016).
+    
+    Attributes
+    ----------
+    M0 : int
+        Size of the initial archive.
+    d : int
+        The dimension of the target distribution.
+    scaling : float
+        The global scaling of the proposal.
+    delta : int
+        Number of sample pairs from the archive to use to compute the jumping direction.
+    b : float
+        Upper and lower bound for the uniform pertubation distribution, i.e. e ~ U(-b,b).
+    b_star : float
+        Scale for the Gaussian pertubation distribution, i.e. epsilon ~ N(0, b_star).
+    Z_method : str
+        How to draw the initial archive. 
+        Can be 'random' for simple random sampling or 'lhs' for latin hypercube sampling.
+    nCR : int
+        Size of the crossover probability distribution.
+    adaptive : bool
+        Whether to adapt the global scaling and crossover distribution of the proposal.
+    gamma : float
+        The adaptivity coefficient for global adaptive scaling.
+    period : int
+        How often to adapt the global scaling and crossover probabilities.
+    k : int
+        How many times the proposal has been adapted.
+    t : int
+        How many times the adapt method has been called.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        The proposal creates the initial archive from samples from the prior, 
+        using the specified Z-method. If set to "lhs" and pyDOE is not available, 
+        it will fall back to simple random sampling.
+    adapt(**kwargs)
+        If adaptive=True, the proposal will adapt the global scaling and the
+        crossover distribution.
+    make_proposal(link)
+        Generates a SingleDreamZ proposal.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     def __init__(self, M0, delta=1, b=5e-2, b_star=1e-6, Z_method='random', nCR=3, adaptive=False, gamma=1.01, period=100):
+        
+        '''
+        Parameters
+        ----------
+        M0 : np.ndarray
+            Size of the initial archive.
+        delta : int, optional
+            Number of sample pairs from the archive to use to compute the jumping direction. 
+            Default is 1.
+        b : float, optional
+            Upper and lower bound for the uniform pertubation distribution, i.e. e ~ U(-b,b).
+            Default is 5e-2.
+        b_star : float, optional
+            Scale for the Gaussian pertubation distribution, i.e. epsilon ~ N(0, b_star).
+            Must be small. Default is 1e-6.
+        Z_method : str, optional
+            How to draw the initial archive. 
+            Can be 'random' for simple random sampling or 'lhs' for latin hypercube sampling.
+            Default is 'random'.
+        nCR : int, optional
+            Size of the crossover probability distribution. Default is 3.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal and crossover distribution. 
+            Default is False.
+        gamma : float, optional
+            The adaptivity coefficient for global adaptive scaling. Default is 1.01.
+        period : int, optional
+            How often to adapt the global scaling and crossover distribution. Default is 100.
+        '''
         
         warnings.warn(' SingleDreamZ is an EXPERIMENTAL proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016), but using only a single chain.\n')
         

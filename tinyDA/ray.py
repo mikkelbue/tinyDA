@@ -347,7 +347,7 @@ class FetchingDAChain:
         if progressbar:
             pbar.close()
 
-class MultipleTry:
+class MultipleTry(Proposal):
     
     '''
     Multiple-Try proposal, which will take any other TinyDA proposal
