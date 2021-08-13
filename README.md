@@ -7,7 +7,11 @@ This is intended as a simple, lightweight implementation, with minimal dependenc
 
 It is fully imperative and easy to use!
 
-### This is still a work in progress.
+## Installation
+tinyDA can be installed from PyPI:
+'''
+pip install tinyDA
+'''
 
 ## Features
 
