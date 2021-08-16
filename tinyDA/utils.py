@@ -192,6 +192,59 @@ class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
         self.sigma = (self.t-1)/self.t * self.sigma + 1/self.t * np.outer(x, x)
 
         self.t += 1
+        
+class RandomFourierGaussianDensity:
+    def __init__(self, sigma, n_mc, dim, lmbda=1e-3):
+        
+        # internalise parameters
+        self.sigma = sigma
+        self.n_mc = n_mc
+        self.dim = dim
+        self.lmbda = lmbda
+        
+        # get Monte Carlo integration points.
+        self.omega = np.random.normal(scale=self.sigma**-2, size=(self.dim, self.n_mc))
+        self.u = np.random.uniform(0, 2*np.pi, size=self.n_mc)
+        
+        # set the initial parameters
+        self.theta = np.zeros(n_mc)
+        
+        # initialise unnormlised objective matrices.
+        self.b_bar = np.zeros(self.n_mc)
+        self.C_bar = np.zeros((self.n_mc, self.n_mc))
+        
+        # initialise counter
+        self.t = 0
+        
+    def phi(self, x):
+        return np.sqrt(2/self.n_mc)*np.cos(np.dot(x, self.omega) + self.u)
+
+    def dphi(self, x, d):
+        return -np.sqrt(2/self.n_mc)*np.sin(np.dot(x, self.omega) + self.u) * self.omega[d,:]
+
+    def ddphi(self, x, d):
+        return -np.sqrt(2/self.n_mc)*np.cos(np.dot(x, self.omega) + self.u) * self.omega[d,:]**2
+    
+    def update(self, x):
+        
+        self.t += 1
+        
+        for d in range(self.dim):
+            self.b_bar += self.ddphi(x, d)
+            
+            temp = self.dphi(x, d)
+            self.C_bar += np.outer(temp, temp) 
+        
+    def fit(self):
+        b = -1/self.t*self.b_bar
+        C = 1/self.t*self.C_bar
+        self.theta = np.linalg.solve(C + self.lmbda*np.eye(self.n_mc), b)
+            
+    def get_gradient(self, x):
+        gradient = np.zeros((self.dim, self.n_mc))
+        for d in range(self.dim):
+            gradient[d,:] = self.dphi(x, d)
+        return np.dot(gradient, self.theta)
 
 
 def get_MAP(link_factory, initial_parameters=None, **kwargs):

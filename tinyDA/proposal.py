@@ -5,7 +5,7 @@ from scipy.linalg import sqrtm
 import scipy.stats as stats
 
 # internal imports
-from .utils import RecursiveSampleMoments
+from .utils import RecursiveSampleMoments, RandomFourierGaussianDensity
 
 class Proposal:
     '''
@@ -607,6 +607,86 @@ class AdaptiveCrankNicolson(CrankNicolson):
         
     def get_q(self, x_link, y_link):
         return stats.multivariate_normal.logpdf(y_link.parameters, mean=np.dot(self.operator, x_link.parameters), cov=self.scaling**2*self.B)
+        
+class KMALA(GaussianRandomWalk):
+    def __init__(self, scaling=0.1, t0=100, period=100, adaptive=False, gamma=1.01, **kernel_kwargs):
+        
+        # set the scaling.
+        self.scaling = scaling
+        
+        # set the beginning of adaptation
+        self.t0 = t0
+        
+        # adaptivity period (delay between adapting)
+        self.period = period
+        
+        # set adaptivity.
+        self.adaptive = adaptive
+        
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            
+            # adaptivity scaling.
+            self.gamma = gamma
+
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+        
+        # initialise counter of how many times, adapt() has been called..
+        self.t = 0
+        
+        self.kernel_kwargs = kernel_kwargs
+    
+    def setup_proposal(self, **kwargs):
+        
+        # extract the dimensionality.
+        self.d = kwargs['link_factory'].prior.dim
+        
+        # set the distribution mean to zero.
+        self._mean = np.zeros(self.d)
+        self._C = np.eye(self.d)
+        
+        self.kernel = RandomFourierGaussianDensity(dim=self.d, **self.kernel_kwargs)
+
+    def adapt(self, **kwargs):
+        
+        self.t += 1
+        
+        # if adaptive, run the adaptivity routines.
+        if self.adaptive:
+            
+            # make sure the periodicity is respected
+            if self.t%self.period == 0:
+                
+                # compute the acceptance rate during the previous period.
+                acceptance_rate = np.mean(kwargs['accepted'][-self.period:])
+                # set the scaling so that the acceptance rate will converge to 0.24.
+                self.scaling = np.exp(np.log(self.scaling) + self.gamma**-self.k*(acceptance_rate-0.57))
+                # increase adaptivity counter for diminishing adaptivity.
+                self.k += 1
+        else:
+            pass
+        
+        self.kernel.update(kwargs['parameters'])
+        
+        if self.t >= self.t0 and self.t%self.period == 0:
+            self.kernel.fit()
+        else:
+            pass
+            
+    def make_proposal(self, link):
+        return link.parameters + 0.5*self.scaling**2*self.kernel.get_gradient(link.parameters) + self.scaling*np.random.multivariate_normal(self._mean, self._C)
+                
+    def get_acceptance(self, proposal_link, previous_link):
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:
+            # get the acceptance probability.
+            return np.exp(proposal_link.posterior + self.get_q(previous_link, proposal_link) - previous_link.posterior - self.get_q(proposal_link, previous_link))
+        
+        
+    def get_q(self, x_link, y_link):
+        return -0.5/self.scaling**2 * np.linalg.norm(y_link.parameters - x_link.parameters - 0.5*self.scaling**2*self.kernel.get_gradient(x_link.parameters))**2
 
 class SingleDreamZ(GaussianRandomWalk):
     
