@@ -77,7 +77,7 @@ class MyLinkFactory(tda.LinkFactory):
 my_link_factory = MyLinkFactory(my_prior, my_loglike)
 ```
 
-The latter allows for feeding some model object to the `LinkFactory` at initialisation, which is then assigned as a class attribute. This is useful for e.g. PDE solvers. Your model must return ordered data when called (e.g. via a `__call__(self, parameters)` method), and there is no need to overwrite `evaluate_model()`. This is what happend under the hood:
+The latter allows for feeding some model object to the `LinkFactory` at initialisation, which is then assigned as a class attribute. This is useful for e.g. PDE solvers. Your model must return ordered data when called (e.g. via a `__call__(self, parameters)` method), and there is no need to overwrite `evaluate_model()`. This is what happens under the hood:
 ```python
 class MyLinkFactory(tda.BlackBoxLinkFactory):
     def evaluate_model(self, parameters):
