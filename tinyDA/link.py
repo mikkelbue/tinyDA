@@ -170,10 +170,9 @@ class BlackBoxLinkFactory(LinkFactory):
     
     Attributes
     ----------
-    model : Object
-        A model object with methods solve(parameters) and get_data(datapoints)
-    datapoints : numpy.ndarray
-        An array of datapoints to feed to the model.
+    model : Object or function
+        A model object or function that returns model output. If model is 
+        an object, it must have a __call__ method.
     prior : scipy.stats.rv_continuous
         The prior distribution. Usually a scipy.stats.rv_continuous, but
         the only requirement is that it has a logpdf method.
@@ -200,14 +199,13 @@ class BlackBoxLinkFactory(LinkFactory):
         model output at the given datapoints and (possibly) the QoI.
     '''
     
-    def __init__(self, model, datapoints, prior, likelihood, get_qoi=False):
+    def __init__(self, model, prior, likelihood, get_qoi=False):
         '''
         Parameters
         ----------
-        model : Object
-            A model object with methods solve(parameters) and get_data(datapoints)
-        datapoints : numpy.ndarray
-            An array of datapoints to feed to the model.
+        model : Object or function
+            A model object or function that returns model output. If model is 
+            an object, it must have a __call__ method.
         prior : scipy.stats.rv_continuous
             The prior distribution.
         likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
@@ -217,9 +215,8 @@ class BlackBoxLinkFactory(LinkFactory):
             or not. If not, the QoI is None. Default is False.
         '''
         
-        # Internatlise the model and datapoints
+        # Internatlise the model
         self.model = model
-        self.datapoints = datapoints
         
         # internatlise the distributions.
         self.prior = prior
@@ -240,12 +237,10 @@ class BlackBoxLinkFactory(LinkFactory):
             A tuple (model_output, qoi), where model_output is a numpy.ndarray,
             and qoi can be anything.
         '''
+
         
-        # solve the model using the parameters.
-        self.model.solve(parameters)
-        
-        # get the model output at the datapoints.
-        model_output = self.model.get_data(self.datapoints)
+        # get the model output.
+        model_output = self.model(parameters)
         
         # get the quantity of interest.
         if self.get_qoi:
