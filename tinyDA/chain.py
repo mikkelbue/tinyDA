@@ -85,6 +85,7 @@ class Chain:
         self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory)
         
     def sample(self, iterations, progressbar=True):
+        
         '''
         Parameters
         ----------
@@ -179,6 +180,7 @@ class DAChain:
     '''
     
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
+        
         '''
         Parameters
         ----------

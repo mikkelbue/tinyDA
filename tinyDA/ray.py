@@ -12,10 +12,51 @@ from .utils import *
 
 
 class ParallelChain:
+    
     '''
-    ParallelChain crates n_chains instances of tda.Chain and runs the chains in parallel.
+    ParallelChain creates n_chains instances of tinyDA.Chain and runs the chains in parallel.
+    It is initialsed with a LinkFactory (which holds the model and the distributions, and 
+    returns Links), and a proposal (transition kernel).
+    
+    Attributes
+    ----------
+    link_factory : tinyDA.LinkFactory
+        A link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for MCMC proposals.
+    n_chains : int
+        Number of parallel chains.
+    initial_parameters : list
+        Starting points for the MCMC samplers
+    remote_chains : list
+        List of Ray actors, each running an independent MCMC sampler.
+    chains : list
+        List of lists containing samples ("Links") in the MCMC chains.
+    accepted : list
+        List of lists of bool, signifying whether a proposal was accepted or not.
+        
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
     '''
+
     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+        
+        '''
+        Parameters
+        ----------
+        link_factory : tinyDA.LinkFactory
+            A link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for MCMC proposals.
+        n_chains : int, optional
+            Number of independent MCMC samplers. Default is 2.
+        initial_parameters : list, optional
+            Starting points for the MCMC samplers, default is None (random draws from prior).
+        '''
         
         # do not use MultipleTry proposal with ParallelChain, since that will create nested 
         # instances in Ray, which will be competing for resources. This can be very slow.
@@ -56,6 +97,15 @@ class ParallelChain:
         
     def sample(self, iterations, progressbar=True):
         
+        '''
+        Parameters
+        ----------
+        iterations : int
+            Number of MCMC samples to generate.
+        progressbar : bool, optional
+            Whether to draw a progressbar, default is True.
+        '''
+        
         # initialise sampling on the chains and fetch the results.
         processes = [chain.sample.remote(iterations) for chain in self.remote_chains]
         results = ray.get(processes)
@@ -64,10 +114,71 @@ class ParallelChain:
         
 
 class ParallelDAChain(ParallelChain):
+    
     '''
-    ParalleDAChain crates n_chains instances of tda.DAChain and runs the chains in parallel.
+    ParalleDAChain creates n_chains instances of tinyDA.DAChain and runs the 
+    chains in parallel. It takes a coarse and a fine link factory as input, 
+    as well as a proposal, which applies to the coarse level only.
+    
+    Attributes
+    ----------
+    link_factory_coarse : tinyDA.LinkFactory
+        A "coarse" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    link_factory_fine : tinyDA.LinkFactory
+        A "fine" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for coarse MCMC proposals.
+    subsampling_rate : int
+        The subsampling rate for the coarse chain.
+    n_chains : int
+        Number of parallel chains.
+    initial_parameters : list
+            Starting points for the MCMC samplers.
+    adaptive_error_model : str or None
+        The adaptive error model, see e.g. Cui et al. (2019).
+    R : numpy.ndarray
+        Restriction matrix for the adaptive error model.
+    remote_chains : list
+        List of Ray actors, each running an independent DA MCMC sampler.
+    chains : list
+        List of lists containing samples ("Links") in the fine MCMC chains.
+    accepted : list
+        List of lists of bool, signifying whether a proposal was accepted or not.
+        
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
     '''
+    
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, n_chains=2, initial_parameters=None, adaptive_error_model=None, R=None):
+        
+        '''
+        Parameters
+        ----------
+        link_factory_coarse : tinyDA.LinkFactory
+            A "coarse" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        link_factory_fine : tinyDA.LinkFactory
+            A "fine" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for coarse MCMC proposals.
+        subsampling_rate : int, optional
+            The subsampling rate for the coarse chain. The default is 1, resulting in "classic" DA MCMC..
+        n_chains : int, optional
+            Number of independent MCMC samplers. Default is 2.
+        initial_parameters : list, optional
+            Starting points for the MCMC samplers, default is None (random draws from prior).
+        adaptive_error_model : str or None, optional
+            The adaptive error model, see e.g. Cui et al. (2019). Default is None (no error model),
+            options are 'state-independent' or 'state-dependent'. If an error model is used, the
+            likelihood MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        R : numpy.ndarray, optional
+            Restriction matrix for the adaptive error model. Default is None (identity matrix).
+        '''
         
         # do not use MultipleTry proposal with ParallelDAChain, since that will create nested 
         # instances in Ray, which will be competing for resources. This can be very slow.
@@ -116,7 +227,56 @@ class ParallelDAChain(ParallelChain):
                                                    self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
                                                    
 class PopulationChain:
+    
+    '''
+    PopulationChain creates n_chains instances of tinyDA.Chain and runs 
+    the chains in parallel. Unlike tinyDA.ParallelChain, the proposal is 
+    shared between all chains, and adapted to all chains at each step.
+    This is primarily intended for use in conjunction with the 
+    tinyDA.SingleDreamZ proposal. It is initialsed with a LinkFactory 
+    (which holds the model and the distributions, and returns Links), 
+    and a proposal (transition kernel).
+    
+    Attributes
+    ----------
+    link_factory : tinyDA.LinkFactory
+        A link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for MCMC proposals.
+    n_chains : int
+        Number of parallel chains.
+    chains : list
+        List of lists containing samples ("Links") in the MCMC chains.
+    accepted : list
+        List of lists of bool, signifying whether a proposal was accepted or not.
+    initial_parameters : list
+        Starting points for the MCMC samplers
+    link_factories : list
+        List of Ray actors, each containing the link factory.
+    
+        
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
+    '''
+    
     def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+        
+        '''
+        Parameters
+        ----------
+        link_factory : tinyDA.LinkFactory
+            A link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for MCMC proposals.
+        n_chains : int, optional
+            Number of independent MCMC samplers. Default is 2.
+        initial_parameters : list, optional
+            Starting points for the MCMC samplers, default is None (random draws from prior).
+        '''
         
         # do not use MultipleTry proposal with ParallelChain, since that will create nested 
         # instances in Ray, which will be competing for resources. This can be very slow.
@@ -171,6 +331,15 @@ class PopulationChain:
         
     def sample(self, iterations, progressbar=True):
         
+        '''
+        Parameters
+        ----------
+        iterations : int
+            Number of MCMC samples to generate.
+        progressbar : bool, optional
+            Whether to draw a progressbar, default is True.
+        '''
+        
         # start the iteration
         if progressbar:
             pbar = tqdm(range(iterations))
@@ -215,7 +384,75 @@ class PopulationChain:
             pbar.close()
 
 class FetchingDAChain:
+    
+    '''
+    FetchingDAChain is an EXPERIMENTAL sampler, that fetches multiple coarse
+    links for parallel evaluation on the fine level.
+    
+    Attributes
+    ----------
+    link_factory_coarse : tinyDA.LinkFactory
+        A "coarse" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    link_factory_fine : tinyDA.LinkFactory
+        A "fine" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for coarse MCMC proposals.
+    subsampling_rate : int
+        The subsampling rate for the coarse chain.
+    fetching_rate : int
+        The fetching rate (number of coarse samples to fetch).
+    initial_parameters : numpy.ndarray
+        Starting point for the MCMC sampler
+    chain_coarse : list
+        Samples ("Links") in the coarse MCMC chain.
+    accepted_coarse : list
+        List of bool, signifying whether a coarse proposal was accepted or not.
+    is_coarse : list
+        List of bool, signifying whether a coarse link was generated by the coarse sampler or not.
+    chain_fine : list
+        Samples ("Links") in the fine MCMC chain.
+    accepted_fine : list
+        List of bool, signifying whether a fine proposal was accepted or not.
+    perfect_fetch : list
+        List of bool, signifying whether all fine links of each fetch were accepted.
+    coarse_workers : list
+        List of Ray actors, each running coarse subchains.
+    fine_workers : list
+        List of Ray actors, each containing a LinkFactory.
+    coarse_section : list
+        The current coarse subchain.
+
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
+    '''
+    
     def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, fetching_rate=1, initial_parameters=None):
+        
+        '''
+        Parameters
+        ----------
+        link_factory_coarse : tinyDA.LinkFactory
+            A "coarse" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        link_factory_fine : tinyDA.LinkFactory
+            A "fine" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for coarse MCMC proposals.
+        subsampling_rate : int, optional
+            The subsampling rate for the coarse chain. The default is 1, resulting in "classic" DA MCMC.
+        initial_parameters : numpy.ndarray, optional
+            Starting point for the MCMC sampler, default is None (random draw from prior).
+        fetching_rate : int, optional
+            The fetching rate (number of coarse samples to fetch). Default is 1.
+            
+        '''
+        
+        warnings.warn(' FetchingDAChain is an EXPERIMENTAL sampler. Do NOT use for production.\n')
         
         # do not use MultipleTry proposal with FetchingDAChain, since that will create nested 
         # instances in Ray, which will be competing for resources. This can be very slow.
@@ -274,6 +511,15 @@ class FetchingDAChain:
         self.accepted_fine.append(True)
         
     def sample(self, iterations, progressbar=True):
+        
+        '''
+        Parameters
+        ----------
+        iterations : int
+            Number of MCMC samples to generate.
+        progressbar : bool, optional
+            Whether to draw a progressbar, default is True.
+        '''
         
         # start the iteration
         if progressbar:
@@ -350,13 +596,41 @@ class FetchingDAChain:
 class MultipleTry(Proposal):
     
     '''
-    Multiple-Try proposal, which will take any other TinyDA proposal
-    as a kernel. The parameter k sets the number of tries.
+    Multiple-Try proposal (Liu et al. 2000), which will take any other 
+    TinyDA proposal as a kernel. If the kernel is symmetric, it uses MTM(II), 
+    otherwise it uses MTM(I). The parameter k sets the number of tries.
+    
+    Attributes
+    ----------
+    kernel : tinyDA.Proposal
+        The kernel of the Multiple-Try proposal (another proposal).
+    k : int
+        Number of mutiple tries.
+        
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        Initialises the kernel, and the remote LinkFactories.
+    adapt(**kwargs)
+        Adapts the kernel.
+    make_proposal(link)
+        Generates a Multiple Try proposal, using the kernel.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the previous link.
     '''
     
     is_symmetric = True
     
     def __init__(self, kernel, k):
+        
+        '''
+        Parameters
+        ----------
+        kernel : tinyDA.Proposal
+            The kernel of the Multiple-Try proposal (another proposal)
+        k : int
+            Number of mutiple tries.
+        '''
         
         # set the kernel
         self.kernel = kernel
