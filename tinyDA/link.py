@@ -194,9 +194,7 @@ class BlackBoxLinkFactory(LinkFactory):
         function has been adaptively updated. Hence, it skips model evaluation
         and only recomputes the likelihood.
     evaluate_model(parameters)
-        If the model object has methods solve(parameters) -> None and 
-        get_data(datapoints) -> numpy.ndarray, this method will return the
-        model output at the given datapoints and (possibly) the QoI.
+        Returns the model outout (and possibly a QoI), given input parameters.
     '''
     
     def __init__(self, model, prior, likelihood, get_qoi=False):

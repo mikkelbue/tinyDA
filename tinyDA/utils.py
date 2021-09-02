@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 class RecursiveSampleMoments:
+    
     '''
     Iteratively constructs a sample mean and covariance, given input samples.
     Used to capture an estimate of the mean and covariance of the bias of an MLDA
@@ -118,6 +119,7 @@ class RecursiveSampleMoments:
         self.t += 1
 
 class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
+    
     '''
     Iteratively constructs a sample covariance, with zero mean given input samples.
     It is a specialised version of RecursiveSampleMoments, used only in the state
@@ -195,6 +197,7 @@ class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
 
 
 def get_MAP(link_factory, initial_parameters=None, **kwargs):
+    
     '''
     Returns the Maximum a Posteriori estimate of a link factory.
     
@@ -223,6 +226,7 @@ def get_MAP(link_factory, initial_parameters=None, **kwargs):
     
 
 def get_ML(link_factory, initial_parameters=None, **kwargs):
+    
     '''
     Returns the Maximum Likelihood estimate of a link factory.
     

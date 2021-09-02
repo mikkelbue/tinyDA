@@ -194,17 +194,17 @@ class AdaptiveLogLike(LogLike):
         # set the initial bias.
         self.bias = np.zeros(self.mean.shape[0])
         
-    def set_bias(self, bias, covariance_bias):
+    def set_bias(self, mean_bias, covariance_bias):
         '''
         Parameters
         ----------
-        bias : numpy.ndarray
+        mean_bias : numpy.ndarray
             The mean of the bias.
         covariance_bias : numpy.ndarray
             The covariance of the bias.
         '''
         # set the bias and the covariance of the bias.
-        self.bias = bias
+        self.bias = mean_bias
         self.cov_bias = covariance_bias
         
         # precompute the inverse.
@@ -232,6 +232,9 @@ class AdaptiveLogLike(LogLike):
         ----------
         x : numpy.ndarray
             Input array, to be evaluated by the likelihood function.
+            
+        bias : numpy.ndarray
+            A custom bias to add to the input array.
         
         Returns
         ----------
