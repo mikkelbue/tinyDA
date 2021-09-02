@@ -6,7 +6,7 @@
 tinyDA
 ==================================
 
-tinyDA is a Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
+tinyDA is a Delayed Acceptance MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
 
 This is intended as a simple, lightweight implementation, with minimal dependencies, i.e. nothing beyond the SciPy stack. 
 
