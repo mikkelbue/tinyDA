@@ -58,8 +58,6 @@ def plot_parameters(parameters, indices=[0, 1], plot_type='fractal_wyrm'):
         A numpy array with parameters as columns and samples as rows.
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
-    burnin : int, optional
-        The burnin length. The default is 0.
     plot_type : str, optional
         The plot type. Can be 'fractal_wyrm' (traceplot) or 'histogram'. 
         The default is 'fractal_wyrm'.
@@ -102,8 +100,6 @@ def plot_parameter_matrix(parameters, indices=[0,1]):
         A numpy array with parameters as columns and samples as rows.
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
-    burnin : int, optional
-        The burnin length. The default is 0.
     '''
     
     if type(parameters) == list:
