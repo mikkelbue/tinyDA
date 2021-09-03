@@ -9,7 +9,7 @@ import seaborn as sns
 from scipy.stats import norm, rankdata
 from scipy.ndimage import convolve
 
-def get_parameters(chain, level='fine'):
+def get_parameters(chain, level='fine', burnin=0):
     '''
     Parameters
     ----------
@@ -17,6 +17,8 @@ def get_parameters(chain, level='fine'):
         A chain object with samples.
     level : str, optional
         Which level to extract samples from. The default is 'fine'.
+    burnin : int, optional
+        The burnin length. The default is 0.
     
     Returns
     ----------
@@ -27,7 +29,7 @@ def get_parameters(chain, level='fine'):
     if hasattr(chain, 'chains'):
         parameters = []
         for c in chain.chains:
-            parameters.append(np.array([link.parameters for link in c]))
+            parameters.append(np.array([link.parameters for link in c[burnin:]]))
         return parameters
         
     # if this is a single-level chain, just get the chain.
@@ -41,10 +43,10 @@ def get_parameters(chain, level='fine'):
             links = compress(chain.chain_coarse, chain.is_coarse)
     
     # return an array of the parameters.
-    return np.array([link.parameters for link in links])
+    return np.array([link.parameters for link in links[burnin:]])
     
         
-def plot_parameters(parameters, indices=[0, 1], burnin=0, plot_type='fractal_wyrm'):
+def plot_parameters(parameters, indices=[0, 1], plot_type='fractal_wyrm'):
     '''
     Plot either fractal wyrm plots (traceplots, hairy caterpillars, etc.) 
     or histograms of MCMC parameters, given as a nxd array, where n is 
@@ -63,6 +65,9 @@ def plot_parameters(parameters, indices=[0, 1], burnin=0, plot_type='fractal_wyr
         The default is 'fractal_wyrm'.
     '''
     
+    if type(parameters) == list:
+        parameters = np.vstack(parameters)
+    
     # get the dimensions of the plot.
     n_cols = len(indices)
     n_rows = 1
@@ -75,17 +80,17 @@ def plot_parameters(parameters, indices=[0, 1], burnin=0, plot_type='fractal_wyr
         
         # plot fractal wyrm.
         if plot_type=='fractal_wyrm':
-            axes[i].plot(parameters[burnin:,par_i], color='c')
+            axes[i].plot(parameters[:,par_i], color='c')
         
         # plot histogram.
         elif plot_type=='histogram':
-            axes[i].hist(parameters[burnin:,par_i], color='c')
+            axes[i].hist(parameters[:,par_i], color='c')
         
         # otherwise, plot fractal wyrm.    
         else:
-            axes[i].plot(parameters[burnin:,par_i], color='c')
+            axes[i].plot(parameters[:,par_i], color='c')
     
-def plot_parameter_matrix(parameters, indices=[0,1], burnin=0):
+def plot_parameter_matrix(parameters, indices=[0,1]):
     
     '''
     Plot a pairs-plot with scatter and kde, given as a nxd array, where n 
@@ -101,10 +106,13 @@ def plot_parameter_matrix(parameters, indices=[0,1], burnin=0):
         The burnin length. The default is 0.
     '''
     
+    if type(parameters) == list:
+        parameters = np.vstack(parameters)
+    
     # plug parameters into dataframe and name the columns.
     df_param = pd.DataFrame()
     for i, par_i in enumerate(indices):
-        df_param['$\\theta_{}$'.format(par_i)] = parameters[burnin:,par_i]
+        df_param['$\\theta_{}$'.format(par_i)] = parameters[:,par_i]
     
     #cmap = sns.cubehelix_palette(dark=0, light=1.1, rot=-.4, as_cmap=True)
     

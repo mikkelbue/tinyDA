@@ -208,7 +208,10 @@ class AdaptiveLogLike(LogLike):
         self.cov_bias = covariance_bias
         
         # precompute the inverse.
-        self.cov_inverse = np.linalg.inv(self.cov + self.cov_bias)
+        if np.all(self.cov_bias < 1e-9):
+            pass
+        else:
+            self.cov_inverse = np.linalg.inv(self.cov + self.cov_bias)
         
     def logpdf(self, x):
         '''
