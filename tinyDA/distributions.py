@@ -132,7 +132,10 @@ class LogLike:
         self.cov = covariance
         
         # precompute the inverse of the covariance.
-        self.cov_inverse = np.linalg.inv(self.cov)
+        if np.count_nonzero(self.cov - np.diag(np.diag(self.cov))) == 0:
+            self.cov_inverse = np.diag(1/np.diag(self.cov))
+        else:
+            self.cov_inverse = np.linalg.inv(self.cov)
         
     def logpdf(self, x):
         '''

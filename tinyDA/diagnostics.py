@@ -40,7 +40,7 @@ def get_parameters(chain, level='fine', burnin=0):
         if level == 'fine':
             links = chain.chain_fine
         elif level == 'coarse':
-            links = compress(chain.chain_coarse, chain.is_coarse)
+            links = list(compress(chain.chain_coarse, chain.is_coarse))
     
     # return an array of the parameters.
     return np.array([link.parameters for link in links[burnin:]])
@@ -108,7 +108,7 @@ def plot_parameter_matrix(parameters, indices=[0,1]):
     # plug parameters into dataframe and name the columns.
     df_param = pd.DataFrame()
     for i, par_i in enumerate(indices):
-        df_param['$\\theta_{}$'.format(par_i)] = parameters[:,par_i]
+        df_param['$\\theta_{{{}}}$'.format(par_i)] = parameters[:,par_i]
     
     #cmap = sns.cubehelix_palette(dark=0, light=1.1, rot=-.4, as_cmap=True)
     
