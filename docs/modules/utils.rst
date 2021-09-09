@@ -4,6 +4,14 @@ Utils
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+   
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.get_MAP
+    tinyDA.get_ML
+    tinyDA.RecursiveSampleMoments
+    tinyDA.ZeroMeanRecursiveSampleMoments
 
 Maximum A Posteriori estimate
 -----------------------------

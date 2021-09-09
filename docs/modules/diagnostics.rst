@@ -4,6 +4,16 @@ Diagnostics
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+   
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.get_parameters
+    tinyDA.plot_parameters
+    tinyDA.plot_parameter_matrix
+    tinyDA.compute_R_hat
+    tinyDA.compute_ESS
+    
 
 Get parameter samples from sampler
 ----------------------------------

@@ -5,6 +5,17 @@ Proposals
    :maxdepth: 2
    :caption: Contents:
    
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.IndependenceSampler
+    tinyDA.GaussianRandomWalk
+    tinyDA.AdaptiveMetropolis
+    tinyDA.CrankNicolson
+    tinyDA.AdaptiveCrankNicolson
+    tinyDA.SingleDreamZ
+    tinyDA.MultipleTry
+   
 Independence Sampler
 --------------------
 

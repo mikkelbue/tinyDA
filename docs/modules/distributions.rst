@@ -7,6 +7,13 @@ Distributions
 
 TinyDA is designed to make use of distributions from ``scipy.stats``. Hence, only tinyDA-specific distributions are documented here.
 
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.CompositePrior
+    tinyDA.LogLike
+    tinyDA.AdaptiveLogLike
+
 Composite Prior
 ---------------
 

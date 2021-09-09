@@ -4,6 +4,15 @@ Samplers
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+   
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.Chain
+    tinyDA.DAChain
+    tinyDA.ParallelChain
+    tinyDA.ParallelDAChain
+    tinyDA.PopulationChain
 
 Single-level Chain
 ------------------

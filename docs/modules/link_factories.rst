@@ -5,6 +5,12 @@ Link Factories
    :maxdepth: 2
    :caption: Contents:
    
+.. autosummary::
+    :nosignatures:
+    
+    tinyDA.LinkFactory
+    tinyDA.BlackBoxLinkFactory
+   
 Link Factory
 ------------
 

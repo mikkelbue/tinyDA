@@ -11,6 +11,11 @@ from scipy.ndimage import convolve
 
 def get_parameters(chain, level='fine', burnin=0):
     '''
+    Returns a numpy array or list of numpy arrays containing the samples
+    from the input chain. If the input is a single independent chain, it 
+    returns a numpy array. If the input is a parallel chain, it returns a
+    list with an array for each independent chain.
+    
     Parameters
     ----------
     chain : tinyDA.Chain or tinyDA.DAChain
@@ -46,21 +51,21 @@ def get_parameters(chain, level='fine', burnin=0):
     return np.array([link.parameters for link in links[burnin:]])
     
         
-def plot_parameters(parameters, indices=[0, 1], plot_type='fractal_wyrm'):
+def plot_parameters(parameters, indices=[0, 1], plot_type='trace'):
     '''
-    Plot either fractal wyrm plots (traceplots, hairy caterpillars, etc.) 
-    or histograms of MCMC parameters, given as a nxd array, where n is 
-    the number of samples and d is the parameter dimension.
+    Plot either traceplots or histograms of MCMC samples. The input must
+    be a nxd array or list of nxd arrays, where n is the number of samples 
+    and d is the parameter dimension.
     
     Parameters
     ----------
-    parameters : numpy.ndarray
-        A numpy array with parameters as columns and samples as rows.
+    parameters : list or numpy.ndarray
+        A numpy array or list of numpy arrays with parameters as columns 
+        and samples as rows.
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
     plot_type : str, optional
-        The plot type. Can be 'fractal_wyrm' (traceplot) or 'histogram'. 
-        The default is 'fractal_wyrm'.
+        The plot type. Can be 'trace or 'histogram'. The default is 'trace'.
     '''
     
     if type(parameters) == list:
@@ -77,7 +82,7 @@ def plot_parameters(parameters, indices=[0, 1], plot_type='fractal_wyrm'):
         axes[i].set_title('Theta_{}'.format(par_i))
         
         # plot fractal wyrm.
-        if plot_type=='fractal_wyrm':
+        if plot_type=='trace':
             axes[i].plot(parameters[:,par_i], color='c')
         
         # plot histogram.
@@ -91,13 +96,15 @@ def plot_parameters(parameters, indices=[0, 1], plot_type='fractal_wyrm'):
 def plot_parameter_matrix(parameters, indices=[0,1]):
     
     '''
-    Plot a pairs-plot with scatter and kde, given as a nxd array, where n 
-    is the number of samples and d is the parameter dimension.
+    Plot a pairs-plot with scatter and kde. The input must be a nxd array 
+    or list of nxd arrays, where n is the number of samples  and d is the 
+    parameter dimension.
     
     Parameters
     ----------
-    parameters : numpy.ndarray
-        A numpy array with parameters as columns and samples as rows.
+    parameters : list or numpy.ndarray
+        A numpy array or list of numpy arrays with parameters as columns 
+        and samples as rows.
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
     '''

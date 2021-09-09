@@ -54,9 +54,12 @@ class Link:
 class LinkFactory:
     
     '''
-    LinkFactory produces Links. The create_link method calls evaluate_model,
-    which is really the key method in this class. It must be overwritten
-    through inheritance to sample a problem.
+    LinkFactory connects the prior, likelihood and model to produce MCMC 
+    samples (Links). The create_link-method calls evaluate_model, which 
+    is the key method in this class. It must be overwritten through 
+    inheritance to sample a problem and takes a numpy array of model 
+    parameters as input and outputs a tuple of model output F(theta), 
+    Quantity of Interest (qoi). The qoi can be None.
     
     Attributes
     ----------
@@ -163,9 +166,12 @@ class LinkFactory:
         
 class BlackBoxLinkFactory(LinkFactory):
     '''
-    Like LinkFactory, BlackBoxLinkFactory produces Links. This class addtionally
-    takes 'model' and 'datapoints' as input, allowing use with generic black box 
-    models. The model must have solve(parameters) and get_data(datapoints) methods.
+    BlackBoxLinkFactory is a type of LinkFactory, specifically intended for
+    use with a black box model. It works the same way as the LinkFactory, but
+    addtionally takes 'model' as input, allowing use with generic black box models. 
+    The model must be either a function that returns the model output F(theta),
+    or an object with an equivalent __call__-method. If a Quantity of Interest
+    is required, the model must be an object with an additional get_qoi-method.
     
     
     Attributes
