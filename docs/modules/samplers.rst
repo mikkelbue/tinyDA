@@ -10,9 +10,6 @@ Samplers
     
     tinyDA.Chain
     tinyDA.DAChain
-    tinyDA.ParallelChain
-    tinyDA.ParallelDAChain
-    tinyDA.PopulationChain
 
 Single-level Chain
 ------------------
@@ -26,30 +23,6 @@ Delayed Acceptance Chain
 ------------------------
 
 .. autoclass:: tinyDA.DAChain
-    :members:
-    
-    .. automethod:: __init__
-
-Parallel Single-level Chain
----------------------------
-
-.. autoclass:: tinyDA.ParallelChain
-    :members:
-    
-    .. automethod:: __init__
-
-Parallel Delayed Acceptance Chain
----------------------------------
-
-.. autoclass:: tinyDA.ParallelDAChain
-    :members:
-    
-    .. automethod:: __init__
-
-Population Single-level Chain
------------------------------
-
-.. autoclass:: tinyDA.PopulationChain
     :members:
     
     .. automethod:: __init__
