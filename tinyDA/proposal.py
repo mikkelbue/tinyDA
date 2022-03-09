@@ -57,8 +57,6 @@ class IndependenceSampler(Proposal):
         Computes the transition probability from x_link to y_link.
     '''
     
-    is_symmetric = False
-    
     def __init__(self, q):
         '''
         Parameters
@@ -779,7 +777,7 @@ class SingleDreamZ(GaussianRandomWalk):
         if self.adaptive and self.t%self.period == 0:
             
             # compute new multinomial distribution according to the normalised jumping distance.
-            self.DeltaCR[self.mCR] = self.DeltaCR[self.mCR] + (kwargs['jumping_distance']**2/np.std(self.Z, axis=0)**2).sum()
+            self.DeltaCR[self.mCR] = self.DeltaCR[self.mCR] + (kwargs['jumping_distance']**2/np.var(self.Z, axis=0)).sum()
             self.LCR[self.mCR] = self.LCR[self.mCR] + 1
             
             if np.all(self.LCR > 0):

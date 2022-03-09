@@ -49,16 +49,6 @@ class Chain:
             Starting point for the MCMC sampler, default is None (random draw from prior).
         '''
         
-        # if the proposal is pCN, Check if the proposal covariance is equal 
-        # to the prior covariance and if the prior is zero mean.
-        if isinstance(proposal, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
-            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
-        
-        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
-        elif hasattr(proposal, 'kernel'):
-            if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory.prior, stats._multivariate.multivariate_normal_frozen):
-                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
-        
         # internalise the link factory and the proposal
         self.link_factory = link_factory
         self.proposal = proposal
@@ -203,16 +193,6 @@ class DAChain:
         R : numpy.ndarray, optional
             Restriction matrix for the adaptive error model. Default is None (identity matrix).
         '''
-        
-        # if the proposal is pCN, Check if the proposal covariance is equal 
-        # to the prior covariance and if the prior is zero mean.
-        if isinstance(proposal, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
-            raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
-        
-        # check the same if the CrankNicolson is nested in a MultipleTry proposal.
-        elif hasattr(proposal, 'kernel'):
-            if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory_coarse.prior, stats._multivariate.multivariate_normal_frozen):
-                raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
         
         # internalise link factories and the proposal
         self.link_factory_coarse = link_factory_coarse

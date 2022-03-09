@@ -1,5 +1,6 @@
 __version__ = '0.9.3'
 
+from .sampler import sample
 from .chain import *
 from .link import *
 from .distributions import *
@@ -11,4 +12,3 @@ try:
     from .ray import *
 except ModuleNotFoundError:
     print('Ray module not found. Multiprocessing features are not available')
-    pass

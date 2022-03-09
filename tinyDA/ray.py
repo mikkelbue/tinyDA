@@ -5,7 +5,206 @@ from itertools import compress
 import numpy as np
 from scipy.special import logsumexp
 
+from .chain import Chain, DAChain
 from .proposal import *
+
+class ParallelChain:
+
+    '''
+    ParallelChain creates n_chains instances of tinyDA.Chain and runs the chains in parallel.
+    It is initialsed with a LinkFactory (which holds the model and the distributions, and
+    returns Links), and a proposal (transition kernel).
+
+    Attributes
+    ----------
+    link_factory : tinyDA.LinkFactory
+        A link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for MCMC proposals.
+    n_chains : int
+        Number of parallel chains.
+    initial_parameters : list
+        Starting points for the MCMC samplers
+    remote_chains : list
+        List of Ray actors, each running an independent MCMC sampler.
+    chains : list
+        List of lists containing samples ("Links") in the MCMC chains.
+    accepted : list
+        List of lists of bool, signifying whether a proposal was accepted or not.
+
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
+    '''
+
+    def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+
+        '''
+        Parameters
+        ----------
+        link_factory : tinyDA.LinkFactory
+            A link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for MCMC proposals.
+        n_chains : int, optional
+            Number of independent MCMC samplers. Default is 2.
+        initial_parameters : list, optional
+            Starting points for the MCMC samplers, default is None (random draws from prior).
+        '''
+
+        # internalise the link factory and proposal.
+        self.link_factory = link_factory
+        self.proposal = proposal
+
+        # set the number of parallel chains and initial parameters.
+        self.n_chains = n_chains
+
+        # set the initial parameters.
+        if initial_parameters is not None:
+            self.initial_parameters = initial_parameters
+        # if no initial parameters were given, generate some from the prior.
+        else:
+            self.initial_parameters = list(self.link_factory.prior.rvs(self.n_chains))
+
+        # initialise Ray.
+        ray.init(ignore_reinit_error=True)
+
+        # set up the parallel chains as Ray actors.
+        self.remote_chains = [RemoteChain.remote(self.link_factory,
+                                                 self.proposal,
+                                                 initial_parameters) for initial_parameters in self.initial_parameters]
+
+    def sample(self, iterations, progressbar=False):
+
+        '''
+        Parameters
+        ----------
+        iterations : int
+            Number of MCMC samples to generate.
+        progressbar : bool, optional
+            Whether to draw a progressbar, default is False, since Ray
+            and tqdm do not play very well together.
+        '''
+
+        # initialise sampling on the chains and fetch the results.
+        processes = [chain.sample.remote(iterations, progressbar) for chain in self.remote_chains]
+        self.chains = ray.get(processes)
+
+
+class ParallelDAChain(ParallelChain):
+
+    '''
+    ParalleDAChain creates n_chains instances of tinyDA.DAChain and runs the
+    chains in parallel. It takes a coarse and a fine link factory as input,
+    as well as a proposal, which applies to the coarse level only.
+
+    Attributes
+    ----------
+    link_factory_coarse : tinyDA.LinkFactory
+        A "coarse" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    link_factory_fine : tinyDA.LinkFactory
+        A "fine" link factory responsible for communation between prior, likelihood and model.
+        It also generates instances of tinyDA.Link (sample objects).
+    proposal : tinyDA.Proposal
+        Transition kernel for coarse MCMC proposals.
+    subsampling_rate : int
+        The subsampling rate for the coarse chain.
+    n_chains : int
+        Number of parallel chains.
+    initial_parameters : list
+            Starting points for the MCMC samplers.
+    adaptive_error_model : str or None
+        The adaptive error model, see e.g. Cui et al. (2019).
+    R : numpy.ndarray
+        Restriction matrix for the adaptive error model.
+    remote_chains : list
+        List of Ray actors, each running an independent DA MCMC sampler.
+    chains : list
+        List of lists containing samples ("Links") in the fine MCMC chains.
+    accepted : list
+        List of lists of bool, signifying whether a proposal was accepted or not.
+
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
+    '''
+
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, n_chains=2, initial_parameters=None, adaptive_error_model=None, R=None):
+
+        '''
+        Parameters
+        ----------
+        link_factory_coarse : tinyDA.LinkFactory
+            A "coarse" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        link_factory_fine : tinyDA.LinkFactory
+            A "fine" link factory responsible for communation between prior, likelihood and model.
+            It also generates instances of tinyDA.Link (sample objects).
+        proposal : tinyDA.Proposal
+            Transition kernel for coarse MCMC proposals.
+        subsampling_rate : int, optional
+            The subsampling rate for the coarse chain. The default is 1, resulting in "classic" DA MCMC..
+        n_chains : int, optional
+            Number of independent MCMC samplers. Default is 2.
+        initial_parameters : list, optional
+            Starting points for the MCMC samplers, default is None (random draws from prior).
+        adaptive_error_model : str or None, optional
+            The adaptive error model, see e.g. Cui et al. (2019). Default is None (no error model),
+            options are 'state-independent' or 'state-dependent'. If an error model is used, the
+            likelihood MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        R : numpy.ndarray, optional
+            Restriction matrix for the adaptive error model. Default is None (identity matrix).
+        '''
+
+        # internalise link factories, proposal and subsampling rate.
+        self.link_factory_coarse = link_factory_coarse
+        self.link_factory_fine = link_factory_fine
+        self.proposal = proposal
+        self.subsampling_rate = subsampling_rate
+
+        # set the number of parallel chains and initial parameters.
+        self.n_chains = n_chains
+
+        # set the initial parameters.
+        if initial_parameters is not None:
+            self.initial_parameters = initial_parameters
+        # if no initial parameters were given, generate some from the prior.
+        else:
+            self.initial_parameters = list(self.link_factory_coarse.prior.rvs(self.n_chains))
+
+        # set the adaptive error model
+        self.adaptive_error_model = adaptive_error_model
+        self.R = R
+
+        # initialise Ray.
+        ray.init(ignore_reinit_error=True)
+
+         # set up the parallel DA chains as Ray actors.
+        self.remote_chains = [RemoteDAChain.remote(self.link_factory_coarse,
+                                                   self.link_factory_fine,
+                                                   self.proposal,
+                                                   self.subsampling_rate,
+                                                   initial_parameters,
+                                                   self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
+
+@ray.remote
+class RemoteChain(Chain):
+    def sample(self, iterations, progressbar):
+        super().sample(iterations, progressbar)
+
+        return self.chain
+
+@ray.remote
+class RemoteDAChain(DAChain):
+    def sample(self, iterations, progressbar):
+        super().sample(iterations, progressbar)
+
+        return self.chain_coarse, self.chain_fine
 
 class MultipleTry(Proposal):
     
