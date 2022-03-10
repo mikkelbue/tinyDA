@@ -204,7 +204,7 @@ class RemoteDAChain(DAChain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
 
-        return self.chain_coarse, self.chain_fine
+        return list(compress(self.chain_coarse, self.is_coarse)), self.chain_fine
 
 class MultipleTry(Proposal):
     
@@ -276,7 +276,7 @@ class MultipleTry(Proposal):
         
         # get the links in parallel.
         proposal_processes = [link_factory.create_link.remote(proposal) for proposal, link_factory in zip(proposals, self.link_factories)]
-        self.proposal_links = [ray.get(proposal_process) for proposal_process in proposal_processes]
+        self.proposal_links = ray.get(proposal_processes)
         
         # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
         if self.kernel.is_symmetric:
@@ -288,7 +288,7 @@ class MultipleTry(Proposal):
         self.proposal_weights = np.array([link.posterior+q for link, q in zip(self.proposal_links, q_x_y)])
         self.proposal_weights[np.isnan(self.proposal_weights)] = -np.inf 
         
-        # if all posteriors are -Inf, return a random onw.
+        # if all posteriors are -Inf, return a random one.
         if np.isinf(self.proposal_weights).all():
             return np.random.choice(self.proposal_links).parameters
         
@@ -309,7 +309,7 @@ class MultipleTry(Proposal):
             
             # get the links in parallel.
             reference_processes = [link_factory.create_link.remote(reference) for reference, link_factory in zip(references, self.link_factories)]
-            self.reference_links = [ray.get(reference_process) for reference_process in reference_processes]
+            self.reference_links = ray.get(reference_processes)
             
             # if kernel is symmetric, use MTM(II), otherwise use MTM(I).
             if self.kernel.is_symmetric:

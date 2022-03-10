@@ -1,4 +1,8 @@
+import warnings
+from itertools import compress
+
 from .chain import *
+from .proposal import *
 
 # check if ray is available and set a flag.
 try:
@@ -30,12 +34,14 @@ def sample(link_factory,
     
     # raise a warning if there are more than two levels (not implemented yet).
     if n_levels > 2:
-        raise NotImplementedError('MLDA sampling has not been implemented yet. Please input 1 or 2 LinkFactory instances')
+        raise NotImplementedError('MLDA sampling has not been implemented yet. Please input list of 1 or 2 LinkFactory instances')
         
     # do not use MultipleTry proposal with parallel sampling, since that will create nested 
     # instances in Ray, which will be competing for resources. This can be very slow.
     if isinstance(proposal, MultipleTry):
         force_sequential = True
+        if n_chains > 1:
+            warnings.warn(' MultipleTry proposal is not compatible with parallel sampling. Switching to sequential mode...\n')
 
     # if the proposal is pCN, make sure that the prior is multivariate normal.
     if isinstance(proposal, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
@@ -45,6 +51,9 @@ def sample(link_factory,
     elif hasattr(proposal, 'kernel'):
         if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
+            
+    if adaptive_error_model == 'state-dependent' and subsampling_rate > 1:
+        warnings.warn(' Using a state-dependent error model for subsampling rates larger than 1 is not guaranteed to be ergodic. \n')
             
     # check if the given initial parameters are the right type and size.
     if initial_parameters is not None:
@@ -60,7 +69,7 @@ def sample(link_factory,
     # "vanilla" MCMC
     if n_levels == 1:
         # sequential sampling.
-        if not ray_is_available or chains==1 or force_sequential:
+        if not ray_is_available or n_chains == 1 or force_sequential:
             samples = _sample_sequential(link_factory, proposal, iterations, n_chains, initial_parameters)
         # parallel sampling.
         else:
@@ -69,7 +78,7 @@ def sample(link_factory,
     # delayed acceptance MCMC.
     elif n_levels == 2:
         # sequential sampling.
-        if not ray_is_available or chains=1 or force_sequential:
+        if not ray_is_available or n_chains == 1 or force_sequential:
             samples = _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R)
         # parallel sampling.
         else:
@@ -87,23 +96,29 @@ def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_par
     # initialise the chains and sample, sequentially.
     chains = []
     for i in range(n_chains):
-        print('Sampling chain {}/{}'.format(i, n_chains))
-        chains.append(Chain(link_factory, proposal, initial_parameters[i]))
+        print('Sampling chain {}/{}'.format(i+1, n_chains))
+        chains.append(Chain(link_factory[0], proposal, initial_parameters[i]))
         chains[i].sample(iterations)
-
+    
+    info = {'sampler': 'MH', 'n_chains': n_chains, 'iterations': iterations+1}
+    chains = {'chain_{}'.format(i): chain.chain for i, chain in enumerate(chains)}
+    
     # return the samples.
-    return {'chain_{}'.format(i): chain.chain for i, chain in enumerate(chains)}
+    return {**info, **chains}
     
 def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_parameters, force_progress_bar):
     
     print('Sampling {} chains in parallel'.format(n_chains))
     
     # create a parallel sampling instance and sample.
-    chains = ParallelChain(link_factory, proposal, n_chains, initial_parameters)
+    chains = ParallelChain(link_factory[0], proposal, n_chains, initial_parameters)
     chains.sample(iterations, force_progress_bar)
     
+    info = {'sampler': 'MH', 'n_chains': n_chains, 'iterations': iterations+1}
+    chains = {'chain_{}'.format(i): chain for i, chain in enumerate(chains.chains)}
+    
     # return the samples.
-    return {'chain_{}'.format(i): chain for i, chain in enumerate(chains.chains)}
+    return {**info, **chains}
     
 def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R):
     
@@ -114,26 +129,30 @@ def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_
     # initialise the chains and sample, sequentially.
     chains = []
     for i in range(n_chains):
-        print('Sampling chain {}/{}'.format(i, n_chains))
+        print('Sampling chain {}/{}'.format(i+1, n_chains))
         chains.append(DAChain(link_factory[0], link_factory[1], proposal, subsampling_rate, initial_parameters[i], adaptive_error_model, R))
         chains[i].sample(iterations, )
     
+    info = {'sampler': 'DA', 'n_chains': n_chains, 'iterations': iterations+1, 'subsampling_rate': subsampling_rate}
+    
     # collect and return the samples.
-    chains_coarse = {'chain_coarse_{}'.format(i): chain.chain_coarse for i, chain in enumerate(chains)}
+    chains_coarse = {'chain_coarse_{}'.format(i): list(compress(chain.chain_coarse, chain.is_coarse)) for i, chain in enumerate(chains)}
     chains_fine = {'chain_fine_{}'.format(i): chain.chain_fine for i, chain in enumerate(chains)}
         
-    return {**chains_coarse, **chains_fine}
+    return {**info, **chains_coarse, **chains_fine}
 
 def _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar):
     
     print('Sampling {} chains in parallel'.format(n_chains))
     
     # create a parallel sampling instance and sample.
-    chains = ParallelDAChain(link_factory_coarse, link_factory_fine, proposal, subsampling_rate, n_chains, initial_parameters, adaptive_error_model, R)
+    chains = ParallelDAChain(link_factory[0], link_factory[1], proposal, subsampling_rate, n_chains, initial_parameters, adaptive_error_model, R)
     chains.sample(iterations, force_progress_bar)
+    
+    info = {'sampler': 'DA', 'n_chains': n_chains, 'iterations': iterations+1, 'subsampling_rate': subsampling_rate}
     
     # collect and return the samples.
     chains_coarse = {'chain_coarse_{}'.format(i): chain[0] for i, chain in enumerate(chains.chains)}
     chains_fine = {'chain_fine_{}'.format(i): chain[1] for i, chain in enumerate(chains.chains)}
         
-    return {**chains_coarse, **chains_fine}
+    return {**info, **chains_coarse, **chains_fine}

@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import pickle
 from itertools import compress
 
@@ -6,10 +9,51 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import xarray as xr
+import arviz as az
+
 from scipy.stats import norm, rankdata
 from scipy.ndimage import convolve
 
-def get_parameters(chain, level='fine', burnin=0):
+def to_inference_data(chain, level='fine', burnin=0):
+    
+    attributes = ['parameters', 'model_output', 'qoi', 'stats']
+    
+    inference_arrays = []
+    
+    for attr in attributes:
+        inference_arrays.append(to_xarray(get_samples(chain, attr, level, burnin)))
+
+    idata = az.InferenceData(posterior=inference_arrays[0],
+                             posterior_predictive=inference_arrays[1],
+                             qoi=inference_arrays[2],
+                             sample_stats=inference_arrays[3])
+                             
+    return idata
+
+def to_xarray(samples):
+    
+    if samples['attribute'] == 'parameters':
+        keys = ['theta_{}'.format(i) for i in range(samples['dimension'])]
+    elif samples['attribute'] == 'model_output':
+        keys = ['obs_{}'.format(i) for i in range(samples['dimension'])]
+    elif samples['attribute'] == 'qoi':
+        keys = ['qoi_{}'.format(i) for i in range(samples['dimension'])]
+    elif samples['attribute'] == 'stats':
+        keys = ['prior', 'likelihood', 'posterior']
+    
+    data_vars = {}
+    for i in range(samples['dimension']):
+        theta = np.array([samples['chain_{}'.format(j)][:,i] for j in range(samples['n_chains'])])
+        data_vars[keys[i]] = (['chain', 'draw'], theta)
+    
+    dataset = xr.Dataset(data_vars=data_vars,
+                         coords=dict(chain=('chain', list(range(samples['n_chains']))),
+                                     draw=('draw', list(range(samples['iterations'])))))
+    
+    return dataset
+
+def get_samples(chain, attribute='parameters', level='fine', burnin=0):
     '''
     Returns a numpy array or list of numpy arrays containing the samples
     from the input chain. If the input is a single independent chain, it 
@@ -20,38 +64,65 @@ def get_parameters(chain, level='fine', burnin=0):
     ----------
     chain : tinyDA.Chain or tinyDA.DAChain
         A chain object with samples.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output' or'qoi') to 
+        extract. The default is 'parameters'.
     level : str, optional
-        Which level to extract samples from. The default is 'fine'.
+        Which level to extract samples from ('fine', 'coarse'). 
+        The default is 'fine'.
     burnin : int, optional
         The burnin length. The default is 0.
     
     Returns
     ----------
-    list or numpy.ndarray
-        A (list of) numpy array(s) with parameters as columns and samples as rows.
+    dict
+        A dict of numpy array(s) with the parameters or the qoi as columns 
+        and samples as rows.
     '''
-    # if this is a parallel chain, get all the fine chains.
-    if hasattr(chain, 'chains'):
-        parameters = []
-        for c in chain.chains:
-            parameters.append(np.array([link.parameters for link in c[burnin:]]))
-        return parameters
-        
-    # if this is a single-level chain, just get the chain.
-    elif hasattr(chain, 'chain'):
-        links = chain.chain
-    else:
-        # if it is a delayed acceptance chain, get the specified level.
-        if level == 'fine':
-            links = chain.chain_fine
-        elif level == 'coarse':
-            links = list(compress(chain.chain_coarse, chain.is_coarse))
+    samples = {'sampler': chain['sampler'],
+               'n_chains': chain['n_chains'], 
+               'attribute': attribute}
     
-    # return an array of the parameters.
-    return np.array([link.parameters for link in links[burnin:]])
-    
+    if chain['sampler'] == 'MH':
+        if attribute == 'parameters':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.parameters for link in chain['chain_{}'.format(i)][burnin:]])
+        elif attribute == 'model_output':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.model_output for link in chain['chain_{}'.format(i)][burnin:]])
+        elif attribute == 'qoi':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.qoi for link in chain['chain_{}'.format(i)][burnin:]])
+        elif attribute == 'stats':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([np.array([link.prior, link.likelihood, link.posterior]) for link in chain['chain_{}'.format(i)][burnin:]])
         
-def plot_parameters(parameters, indices=[0, 1], plot_type='trace'):
+    elif chain['sampler'] == 'DA':
+        samples['level'] = level
+        if attribute == 'parameters':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.parameters for link in chain['chain_{}_{}'.format(level, i)][burnin:]])
+        elif attribute == 'model_output':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.model_output for link in chain['chain_{}_{}'.format(level, i)][burnin:]])
+        elif attribute == 'qoi':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.qoi for link in chain['chain_{}_{}'.format(level, i)][burnin:]])
+        elif attribute == 'stats':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([np.array([link.prior, link.likelihood, link.posterior]) for link in chain['chain_{}_{}'.format(level, i)][burnin:]])
+    
+    for i in range(chain['n_chains']):
+        if samples['chain_{}'.format(i)].ndim == 1:
+            samples['chain_{}'.format(i)] = samples['chain_{}'.format(i)][..., np.newaxis]
+    
+    samples['iterations'] = samples['chain_0'].shape[0]
+    samples['dimension'] = samples['chain_0'].shape[1]
+    
+    return samples
+    
+
+def plot_samples(samples, indices=[0, 1], plot_type='trace'):
     '''
     Plot either traceplots or histograms of MCMC samples. The input must
     be a nxd array or list of nxd arrays, where n is the number of samples 
@@ -59,17 +130,15 @@ def plot_parameters(parameters, indices=[0, 1], plot_type='trace'):
     
     Parameters
     ----------
-    parameters : list or numpy.ndarray
-        A numpy array or list of numpy arrays with parameters as columns 
-        and samples as rows.
+    samples : dict
+        A dict with numpy array(s) containing samples.
     indices : list, optional
-        Which parameter indices to plot. The default is [0,1].
+        Which indices to plot. The default is [0,1].
     plot_type : str, optional
         The plot type. Can be 'trace or 'histogram'. The default is 'trace'.
     '''
     
-    if type(parameters) == list:
-        parameters = np.vstack(parameters)
+    samples = np.vstack([samples['chain_{}'.format(i)] for i in range(samples['n_chains'])])
     
     # get the dimensions of the plot.
     n_cols = len(indices)
@@ -83,17 +152,17 @@ def plot_parameters(parameters, indices=[0, 1], plot_type='trace'):
         
         # plot fractal wyrm.
         if plot_type=='trace':
-            axes[i].plot(parameters[:,par_i], color='c')
+            axes[i].plot(samples[:,par_i], color='c')
         
         # plot histogram.
         elif plot_type=='histogram':
-            axes[i].hist(parameters[:,par_i], color='c')
+            axes[i].hist(samples[:,par_i], color='c')
         
         # otherwise, plot fractal wyrm.    
         else:
-            axes[i].plot(parameters[:,par_i], color='c')
+            axes[i].plot(samples[:,par_i], color='c')
     
-def plot_parameter_matrix(parameters, indices=[0,1]):
+def plot_sample_matrix(samples, indices=[0,1]):
     
     '''
     Plot a pairs-plot with scatter and kde. The input must be a nxd array 
@@ -102,20 +171,18 @@ def plot_parameter_matrix(parameters, indices=[0,1]):
     
     Parameters
     ----------
-    parameters : list or numpy.ndarray
-        A numpy array or list of numpy arrays with parameters as columns 
-        and samples as rows.
+    samples : dict
+        A dict with numpy array(s) containing samples.
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
     '''
     
-    if type(parameters) == list:
-        parameters = np.vstack(parameters)
+    samples = np.vstack([samples['chain_{}'.format(i)] for i in range(samples['n_chains'])])
     
     # plug parameters into dataframe and name the columns.
     df_param = pd.DataFrame()
     for i, par_i in enumerate(indices):
-        df_param['$\\theta_{{{}}}$'.format(par_i)] = parameters[:,par_i]
+        df_param['$\\theta_{{{}}}$'.format(par_i)] = samples[:,par_i]
     
     #cmap = sns.cubehelix_palette(dark=0, light=1.1, rot=-.4, as_cmap=True)
     
@@ -127,7 +194,7 @@ def plot_parameter_matrix(parameters, indices=[0,1]):
     for ax in g.axes[:,0]:
         ax.get_yaxis().set_label_coords(-0.4,0.5)
         
-def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
+def compute_R_hat(samples, rank_normalised=False, ess_auxiliary=False):
     
     '''
     R-hat according to Vehtari et al. (2020). The first argument (parameters) 
@@ -136,8 +203,8 @@ def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
     
     Parameters
     ----------
-    parameters : list
-        A list of numpy arrays, one for each chain.
+    samples : dict
+        A dict with numpy array(s) containing samples.
     rank_normalised : bool, optional
         Whether to rank-normalise the samples before computing R-hat. 
         The default is False.
@@ -150,23 +217,26 @@ def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
     numpy.ndarray
         A numpy array with the R-hat for each parameter.
     '''
+    
+    if not ess_auxiliary:
+        samples = [samples['chain_{}'.format(i)] for i in range(samples['n_chains'])]
 
     # rank normalise, if the switch is set.
     if rank_normalised:
-        parameters = rank_normalise(parameters)
+        samples = rank_normalise(samples)
     else:
         pass
     
     # get the number of chains and number of samples.
-    M = len(parameters)
-    N = parameters[0].shape[0]
+    M = len(samples)
+    N = samples[0].shape[0]
     
     # compute theta_bar and s_sq for each chain m.
     theta_bar_m = []
     s_m_sq = []
-    for i, par in enumerate(parameters):
-        theta_bar_m.append(par.mean(axis=0))
-        s_m_sq.append(1/(N-1) * ((par - theta_bar_m[i])**2).sum(axis=0))
+    for i, s in enumerate(samples):
+        theta_bar_m.append(s.mean(axis=0))
+        s_m_sq.append(1/(N-1) * ((s - theta_bar_m[i])**2).sum(axis=0))
     theta_bar_m = np.array(theta_bar_m)
     s_m_sq = np.array(s_m_sq)
     
@@ -183,12 +253,12 @@ def compute_R_hat(parameters, rank_normalised=False, return_ess_stats=False):
     # compute r_hat.
     r_hat = np.sqrt(var_hat/W)
     
-    if not return_ess_stats:
+    if not ess_auxiliary:
         return r_hat
     else:
         return s_m_sq, W, var_hat
     
-def compute_ESS(parameters, rank_normalised=False):
+def compute_ESS(samples, rank_normalised=False):
     
     '''
     ESS according to Vehtari et al. (2020). The first argument (parameters) 
@@ -197,8 +267,8 @@ def compute_ESS(parameters, rank_normalised=False):
     
     Parameters
     ----------
-    parameters : list
-        A list of numpy arrays, one for each chain.
+    samples : dict
+        A dict with numpy array(s) containing samples.
     rank_normalised : bool, optional
         Whether to rank-normalise the samples before computing ESS. 
         The default is False.
@@ -209,19 +279,21 @@ def compute_ESS(parameters, rank_normalised=False):
         A numpy array with the ESS for each parameter.
     '''
     
+    samples = [samples['chain_{}'.format(i)] for i in range(samples['n_chains'])]
+    
     # rank normalise, if the switch is set.
     if rank_normalised:
-        parameters = rank_normalise(parameters)
+        samples = rank_normalise(samples)
     else:
         pass
     
     # get the number of chains, number of samples, and parameter dimensionality.
-    M = len(parameters)
-    N = parameters[0].shape[0]
-    n_par = parameters[0].shape[1]
+    M = len(samples)
+    N = samples[0].shape[0]
+    n_par = samples[0].shape[1]
     
     # get s_m_sq, W, var_hat from the compute_R_hat function.
-    s_m_sq, W, var_hat = compute_R_hat(parameters, return_ess_stats=True)
+    s_m_sq, W, var_hat = compute_R_hat(samples, ess_auxiliary=True)
     
     # set up a list to hold the ESS for each parameter.
     ESS = []
@@ -234,7 +306,7 @@ def compute_ESS(parameters, rank_normalised=False):
         
         # compute the autocorrelation of the parameter for each chain.
         for j in range(M):
-            rho_t_m.append(get_autocorrelation(parameters[j][:,i]))
+            rho_t_m.append(get_autocorrelation(samples[j][:,i]))
         
         # make sure the autocorrelation of each chain has the same maximum lag.
         rho_t_m = np.array(rho_t_m)
@@ -290,13 +362,13 @@ def get_autocorrelation(x, T=None):
     else:
         return rho[:T]
     
-def rank_normalise(parameters):
+def rank_normalise(samples):
     '''
     Rank-normalise samples from multiple chains.
      
     Parameters
     ----------
-    parameters : list
+    samples : list
         A list of numpy arrays, one for each chain.
     
     Returns
@@ -306,16 +378,16 @@ def rank_normalise(parameters):
     '''
     
     # get the number of samples in each chain.
-    n_samples = parameters[0].shape[0]
+    n_samples = samples[0].shape[0]
     
     # rank the data and compute the z-transform.
     my_norm = norm()
-    r = rankdata(np.vstack(parameters), axis=0)
+    r = rankdata(np.vstack(samples), axis=0)
     z = my_norm.ppf((r - 3/8)/(r.shape[0] - 1/4))
     
     # redistribute into the original chain-structure.
     z_list = []
-    for i in range(len(parameters)):
+    for i in range(len(samples)):
         z_list.append(z[i*n_samples:(i+1)*n_samples,:])
     
     return z_list
