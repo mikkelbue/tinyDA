@@ -41,7 +41,7 @@ def sample(link_factory,
     if isinstance(proposal, MultipleTry):
         force_sequential = True
         if n_chains > 1:
-            warnings.warn(' MultipleTry proposal is not compatible with parallel sampling. Switching to sequential mode...\n')
+            warnings.warn(' MultipleTry proposal is not compatible with parallel sampling. Forcing sequential mode...\n')
 
     # if the proposal is pCN, make sure that the prior is multivariate normal.
     if isinstance(proposal, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
