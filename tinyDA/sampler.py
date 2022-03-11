@@ -64,6 +64,8 @@ def sample(link_factory,
             initial_parameters = [initial_parameters]*n_chains
         else:
             raise TypeError('Initial paramaters must be list, numpy array or None')
+    else:
+        initial_parameters = [None]*n_chains
             
     # start the appropriate sampling algorithm.
     # "vanilla" MCMC
@@ -88,10 +90,6 @@ def sample(link_factory,
 
 
 def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_parameters):
-    
-    # create a list of None to allow iteration.
-    if initial_parameters is None:
-        initial_parameters = [None]*n_chains
     
     # initialise the chains and sample, sequentially.
     chains = []
@@ -121,10 +119,6 @@ def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_param
     return {**info, **chains}
     
 def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R):
-    
-    # create a list of None to allow iteration.
-    if initial_parameters is None:
-        initial_parameters = [None]*n_chains
     
     # initialise the chains and sample, sequentially.
     chains = []

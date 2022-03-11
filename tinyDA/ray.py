@@ -63,11 +63,7 @@ class ParallelChain:
         self.n_chains = n_chains
 
         # set the initial parameters.
-        if initial_parameters is not None:
-            self.initial_parameters = initial_parameters
-        # if no initial parameters were given, generate some from the prior.
-        else:
-            self.initial_parameters = list(self.link_factory.prior.rvs(self.n_chains))
+        self.initial_parameters = initial_parameters
 
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -171,11 +167,7 @@ class ParallelDAChain(ParallelChain):
         self.n_chains = n_chains
 
         # set the initial parameters.
-        if initial_parameters is not None:
-            self.initial_parameters = initial_parameters
-        # if no initial parameters were given, generate some from the prior.
-        else:
-            self.initial_parameters = list(self.link_factory_coarse.prior.rvs(self.n_chains))
+        self.initial_parameters = initial_parameters
 
         # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
