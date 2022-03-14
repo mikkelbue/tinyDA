@@ -128,7 +128,11 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 ### Sampling
 After defining a proposal, a coarse link factory, `my_link_factory_coarse`, and a fine link factory `my_link_factory_fine`, the Delayed Acceptance sampler can be run using `tinyDA.sample()`:
 ```python
-my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], my_proposal, iterations=12000, n_chains=2, subsampling_rate=10)
+my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], 
+                       my_proposal, 
+                       iterations=12000, 
+                       n_chains=2, 
+                       subsampling_rate=10)
 ```
 
 ### Postprocessing
