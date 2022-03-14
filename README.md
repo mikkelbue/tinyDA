@@ -49,10 +49,14 @@ import tinyDA as tda
 
 from scipy.stats import multivariate_normal
 
+# set the prior mean and covariance.
 mean_prior = np.zeros(n_dim)
 cov_prior = np.eye(n_dim)
+
+# set the covariance of the likelihood.
 cov_likelihood = sigma**2*np.eye(data.shape[0])
 
+# initialise the prior distribution and likelihood.
 my_prior = multivariate_normal(mean_prior, cov_prior)
 my_loglike = tda.LogLike(data, cov_likelihood)
 ```
@@ -71,8 +75,11 @@ The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` o
 ```python
 class MyLinkFactory(tda.LinkFactory):
     def evaluate_model(self, parameters):
+        # simple linear regression
         output = parameters[0] + parameters[1]*x
+        # no quantity of interest beyond the parameters.
         qoi = None
+        # return both.
         return output, qoi
 
 my_link_factory = MyLinkFactory(my_prior, my_loglike)
@@ -101,8 +108,11 @@ my_link_factory = BlackBoxLinkFactory(my_model, my_prior, my_loglike, get_qoi=Tr
 ### Proposals
 A proposal is simply initialised with its parameters:
 ```python
+# set the covariance of the proposal.
 am_cov = np.eye(n_dim)
+# set the number of iterations before starting adaptation.
 am_t0 = 1000
+# set some adaptive metropolis tuning parameters.
 am_sd = 1
 am_epsilon = 1e-6
 my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_epsilon)
@@ -124,7 +134,7 @@ If you want to have a look at the coarse samples, you can pass an additional arg
 idata = tda.to_inference_data(my_chains, level='coarse', burnin=20000)
 ```
 
-The `idata' object can then be used with the ArviZ diagnostics suite to e.g. get MCMC statistics, plot the traces and so on.
+The `idata` object can then be used with the ArviZ diagnostics suite to e.g. get MCMC statistics, plot the traces and so on.
 
 # TODO
 * ~~Parallel multi-chain sampling~~
