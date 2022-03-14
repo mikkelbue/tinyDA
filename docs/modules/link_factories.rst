@@ -1,4 +1,4 @@
-Link Factories
+Link Factories and Links
 ==================================
 
 .. toctree::
@@ -10,19 +10,33 @@ Link Factories
     
     tinyDA.LinkFactory
     tinyDA.BlackBoxLinkFactory
+    tinyDA.Link
    
 Link Factory
-------------
+------------------
 
 .. autoclass:: tinyDA.LinkFactory
     :members:
     
     .. automethod:: __init__
-
-Black-Box Link Factory
+    
+Black Box Link Factory
 ----------------------
 
 .. autoclass:: tinyDA.BlackBoxLinkFactory
+    :members:
+    
+    .. automethod:: __init__
+
+The Link class
+------------------
+**Note:** The tinyDA.Link class is a container class used to store all relevant 
+sample information such as parameter values, model output and densities. It 
+is used by tinyDA under the hood and the user is as such never required to 
+directly utilize the class. The documentation is provided here only as a
+reference.
+
+.. autoclass:: tinyDA.Link
     :members:
     
     .. automethod:: __init__

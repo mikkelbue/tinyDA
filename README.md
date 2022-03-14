@@ -34,6 +34,7 @@ pip install tinyDA
 ### Dependencies:
 * NumPy
 * SciPy
+* ArviZ
 * tqdm
 * [pyDOE](https://pythonhosted.org/pyDOE/) (optional)
 * [Ray](https://docs.ray.io/en/master/) (multiprocessing, optional)
@@ -107,28 +108,25 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 ```
 
 ### Sampling
-The Delayed Acceptance sampler can then be initalised and run, simply with:
+The Delayed Acceptance sampler can then be run using `tinyDA.sample()`:
 ```python
-my_chain = tda.DAChain(my_link_factory_coarse, my_link_factory_fine, my_proposal, subsampling_rate)
-my_chain.sample(n_samples)
-```
-If you decide you need more samples, you can just call `tda.DAChain.sample()` again, since all samples and tuning parameters are cached:
-```python
-my_chain.sample(additional_n_samples)
-```
+my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], my_proposal, iterations=12000, n_chains=2, subsampling_rate=10)
 
 ### Postprocessing
-The entire sampling history is then stored in `my_chain`, and you can extract an array of samples by doing:
+The entire sampling history is now stored in `my_chains` in the form of a dictionary with tinyDA.Link instances. You can convert the output of `tinyDA.sample()` to an ArviZ InferenceData object with 
 ```python
-samples_fine = tda.get_parameters(my_chain)
-samples_coarse = tda.get_parameters(my_chain, level='coarse')
+idata = tda.to_inference_data(my_chains, burnin=2000)
+```
+If you want to have a look at the coarse samples, you can pass an additional argument:
+```python
+idata = tda.to_inference_data(my_chains, level='coarse', burnin=20000)
 ```
 
-Some diagnostics are available in the diagnostics module. Please refer to their respective docstrings for usage instructions.
+The `idata' object can then be used with the ArviZ diagnostics suite to e.g. get MCMC statistics, plot the traces and so on.
 
 # TODO
 * ~~Parallel multi-chain sampling~~
-* ~~Population-based proposals~~
+* ~~More user-friendly diagnostics~~
 * Multilevel Delayed Acceptance
-* More user-friendly diagnostics
+
 

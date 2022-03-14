@@ -31,8 +31,7 @@ Features
 
 **Diagnostics**
 
-- A bunch of plotting functions
-- Rank-normalised split-R and ESS
+- ArviZ compatibility
 
 Documentation
 -------------
@@ -40,11 +39,12 @@ Documentation
 .. toctree::
    :maxdepth: 1
    
-   modules/samplers
+   modules/sampler
    modules/link_factories
    modules/proposals
    modules/distributions
    modules/diagnostics
+   modules/chains
    modules/utils
 
 Examples
@@ -66,6 +66,7 @@ Install tinyDA by running:
 
 - NumPy
 - SciPy
+- ArviZ
 - tqdm
 - pyDOE (optional)
 - Ray (multiprocessing, optional)

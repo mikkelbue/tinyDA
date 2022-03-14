@@ -1,6 +1,8 @@
+# external imports
 import warnings
 from itertools import compress
 
+# internal imports
 from .chain import *
 from .proposal import *
 
@@ -21,6 +23,80 @@ def sample(link_factory,
            R=None,
            force_sequential=False,
            force_progress_bar=False):
+               
+    '''
+    Returns MCMC samples given a tinyDA.LinkFactory and a tinyDA.Proposal. 
+    This function takes as input a tinyDA.LinkFactory instance, or a list
+    of tinyDA.LinkFactory instances. If a single instance is provided,
+    standard single-level Metropolis-Hastings MCMC is completed. If a list
+    with two tinyDA.LinkFactory instances is provided, Delayed Acceptance
+    MCMC will be completed using the first list item as the coarse model
+    and the second list item as the fine model. The tinyDA.LinkFactory
+    instances wrap both the prior, likelihood and the forward model(s), and 
+    must be initialised first. A tinyDA.Proposal and the required number 
+    of MCMC iterations must also be provided to tinyDA.sample(). The function 
+    then returns a dictionary containing chain information and MCMC samples
+    in the form of tinyDA.Link instances. Use tinyDA.to_inference_data() to
+    convert the output to an arviz.InferenceData object.
+    
+    Parameters
+    ----------
+    link_factory : list or tinyDA.LinkFactory
+        A list of tinyDA.LinkFactory instances or a single instance. If
+        link_factory is a single tinyDA.LinkFactory or a list with one
+        tinyDA.LinkFactory instance, tinyDA.sample() will run standard 
+        single-level Metropolis-Hastings MCMC. If link_factory is a list 
+        containing two tinyDA.LinkFactory instances, tinyDA.sample() will 
+        run Delayed Acceptance MCMC with the first list item as the 
+        coarse model and the second list item as the fine model. 
+    proposal : tinyDA.Proposal
+        The MCMC proposal to be used for sampling. If running Delayed
+        Acceptance sampling, the proposal will be used as the coarse 
+        proposal.
+    iterations : int
+        Number of MCMC samples to generate.
+    n_chains : int, optional
+        Number of independent MCMC samplers. Default is 1.
+    initial_parameters : list or numpy.ndarray or None, optional
+        The parameters of the initial sample. If a list is provided, each
+        item will serve as the initial sample of the independent MCMC 
+        samplers. If a numpy.ndarray is provided, all MCMC sampler will
+        have the same initial sample. If None, each MCMC sampler will be
+        initialised with a random draw from the prior. Default is None.
+    subsampling_rate : int, optional
+        The subsampling rate or subchain length used for Delayed Acceptance
+        sampling. If running single-level MCMC, this parameter is ignored.
+        Default is 1, resulting in "classic" DA MCMC.
+    adaptive_error_model : str or None, optional
+        The adaptive error model, see e.g. Cui et al. (2019). If running 
+        single-level MCMC, this parameter is ignored. Default is None 
+        (no error model), options are 'state-independent' or 'state-dependent'. 
+        If an error model is used, the likelihood MUST have a set_bias() 
+        method, use e.g. tinyDA.AdaptiveLogLike.
+    R : numpy.ndarray or None, optional
+        Restriction matrix for the adaptive error model. If running 
+        single-level MCMC, this parameter is ignored. Default is None 
+        (identity matrix).
+    force_sequential : bool, optional
+        Whether to force sequential sampling, even if Ray is installed.
+        Default is False.
+    force_progress_bar : bool, optional
+        Whether to force printing of progress bar for parallel sampling.
+        This will result in "messy" progress bar output, unless Ray is
+        patched.
+        
+    Returns
+    ----------
+    dict
+        A dict with keys 'sampler' (which sampler was used, MH or DA), 
+        'n_chains' (the number of independent MCMC chains), 
+        'iterations' (the number of MCMC samples in each independent chain),
+        'subsampling_rate' (the Delayed Acceptance subsampling rate) and
+        'chain_1' ... 'chain_n' containing the MCMC samples from each 
+        independent chain in the form of tinyDA.Link instances. This dict
+        can be used as input for tinyDA.to_inference_data() to yield an 
+        arviz.InferenceData object.
+    '''
 
     # get the availability flag.
     global ray_is_available
@@ -90,6 +166,9 @@ def sample(link_factory,
 
 
 def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_parameters):
+    '''
+    Helper function for tinyDA.sample()
+    '''
     
     # initialise the chains and sample, sequentially.
     chains = []
@@ -105,6 +184,9 @@ def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_par
     return {**info, **chains}
     
 def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_parameters, force_progress_bar):
+    '''
+    Helper function for tinyDA.sample()
+    '''
     
     print('Sampling {} chains in parallel'.format(n_chains))
     
@@ -119,6 +201,9 @@ def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_param
     return {**info, **chains}
     
 def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R):
+    '''
+    Helper function for tinyDA.sample()
+    '''
     
     # initialise the chains and sample, sequentially.
     chains = []
@@ -136,6 +221,9 @@ def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_
     return {**info, **chains_coarse, **chains_fine}
 
 def _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar):
+    '''
+    Helper function for tinyDA.sample()
+    '''
     
     print('Sampling {} chains in parallel'.format(n_chains))
     

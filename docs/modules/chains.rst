@@ -1,4 +1,4 @@
-Samplers
+Chains
 ========
 
 .. toctree::

@@ -8,32 +8,38 @@ Diagnostics
 .. autosummary::
     :nosignatures:
     
-    tinyDA.get_parameters
-    tinyDA.plot_parameters
-    tinyDA.plot_parameter_matrix
+    tinyDA.to_inference_data
+    tinyDA.get_samples
+    tinyDA.to_xarray
+    tinyDA.plot_samples
+    tinyDA.plot_sample_matrix
     tinyDA.compute_R_hat
     tinyDA.compute_ESS
-    
 
-Get parameter samples from sampler
-----------------------------------
 
-.. autofunction:: tinyDA.get_parameters
+Convert tinyDA.sample() output to ArviZ InferenceData
+-----------------------------------------------------
+**Note:** ArviZ ships with a wealth of MCMC postprocessing tools. Use this
+function to convert output from tinyDA.sample() to an ArviZ InferenceData
+object, which allows for directly using the ArviZ diagnostics suite.
 
-Plot parameter samples
+.. autofunction:: tinyDA.to_inference_data
+
+Helper functions
 ----------------------
 
-.. autofunction:: tinyDA.plot_parameters
+.. autofunction:: tinyDA.get_samples
 
-.. autofunction:: tinyDA.plot_parameter_matrix
+.. autofunction:: tinyDA.to_xarray
 
-Compute R-hat
--------------
+Legacy functions
+----------------------
+
+.. autofunction:: tinyDA.plot_samples
+
+.. autofunction:: tinyDA.plot_sample_matrix
 
 .. autofunction:: tinyDA.compute_R_hat
-
-Compute Effective Sample Size
------------------------------
 
 .. autofunction:: tinyDA.compute_ESS
 

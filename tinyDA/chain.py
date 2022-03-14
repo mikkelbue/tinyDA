@@ -127,9 +127,9 @@ class Chain:
 class DAChain:
     
     '''
-    DAChain is a two-level Delayed Acceptance sampler with finite length
-    subchains. It takes a coarse and a fine link factory as input, as well
-    as a proposal, which applies to the coarse level only.
+    DAChain is a two-level Delayed Acceptance sampler. It takes a coarse 
+    and a fine link factory as input, as well as a proposal, which applies 
+    to the coarse level only.
     
     Attributes
     ----------
@@ -190,7 +190,7 @@ class DAChain:
             The adaptive error model, see e.g. Cui et al. (2019). Default is None (no error model),
             options are 'state-independent' or 'state-dependent'. If an error model is used, the
             likelihood MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        R : numpy.ndarray, optional
+        R : numpy.ndarray or None, optional
             Restriction matrix for the adaptive error model. Default is None (identity matrix).
         '''
         
