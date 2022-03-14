@@ -75,12 +75,15 @@ The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` o
 ```python
 class MyLinkFactory(tda.LinkFactory):
     def evaluate_model(self, parameters):
-        # simple linear regression
-        output = parameters[0] + parameters[1]*x
+        
+        # the model output is a simple linear regression
+        model_output = parameters[0] + parameters[1]*x
+        
         # no quantity of interest beyond the parameters.
         qoi = None
+        
         # return both.
-        return output, qoi
+        return model_output, qoi
 
 my_link_factory = MyLinkFactory(my_prior, my_loglike)
 ```
@@ -108,18 +111,22 @@ my_link_factory = BlackBoxLinkFactory(my_model, my_prior, my_loglike, get_qoi=Tr
 ### Proposals
 A proposal is simply initialised with its parameters:
 ```python
-# set the covariance of the proposal.
+# set the covariance of the proposal distribution.
 am_cov = np.eye(n_dim)
+
 # set the number of iterations before starting adaptation.
 am_t0 = 1000
+
 # set some adaptive metropolis tuning parameters.
 am_sd = 1
 am_epsilon = 1e-6
+
+# initialise the proposal.
 my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_epsilon)
 ```
 
 ### Sampling
-The Delayed Acceptance sampler can then be run using `tinyDA.sample()`:
+After defining a proposal, a coarse link factory, `my_link_factory_coarse`, and a fine link factory `my_link_factory_fine`, the Delayed Acceptance sampler can be run using `tinyDA.sample()`:
 ```python
 my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], my_proposal, iterations=12000, n_chains=2, subsampling_rate=10)
 ```
