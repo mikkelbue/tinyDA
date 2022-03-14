@@ -97,6 +97,7 @@ class BlackBoxLinkFactory(LinkFactory):
 
 my_link_factory = BlackBoxLinkFactory(my_model, my_prior, my_loglike, get_qoi=True)
 ```
+
 ### Proposals
 A proposal is simply initialised with its parameters:
 ```python
@@ -111,6 +112,7 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 The Delayed Acceptance sampler can then be run using `tinyDA.sample()`:
 ```python
 my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], my_proposal, iterations=12000, n_chains=2, subsampling_rate=10)
+```
 
 ### Postprocessing
 The entire sampling history is now stored in `my_chains` in the form of a dictionary with tinyDA.Link instances. You can convert the output of `tinyDA.sample()` to an ArviZ InferenceData object with 
