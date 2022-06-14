@@ -1,4 +1,5 @@
 # external imports
+import copy
 import warnings
 from itertools import compress
 import scipy.stats as stats
@@ -130,6 +131,8 @@ def sample(link_factory,
         if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
             
+    proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
+            
     if adaptive_error_model == 'state-dependent' and subsampling_rate > 1:
         warnings.warn(' Using a state-dependent error model for subsampling rates larger than 1 is not guaranteed to be ergodic. \n')
             
@@ -176,7 +179,7 @@ def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_par
     chains = []
     for i in range(n_chains):
         print('Sampling chain {}/{}'.format(i+1, n_chains))
-        chains.append(Chain(link_factory[0], proposal, initial_parameters[i]))
+        chains.append(Chain(link_factory[0], proposal[i], initial_parameters[i]))
         chains[i].sample(iterations)
     
     info = {'sampler': 'MH', 'n_chains': n_chains, 'iterations': iterations+1}
@@ -211,8 +214,8 @@ def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_
     chains = []
     for i in range(n_chains):
         print('Sampling chain {}/{}'.format(i+1, n_chains))
-        chains.append(DAChain(link_factory[0], link_factory[1], proposal, subsampling_rate, initial_parameters[i], adaptive_error_model, R))
-        chains[i].sample(iterations, )
+        chains.append(DAChain(link_factory[0], link_factory[1], proposal[i], subsampling_rate, initial_parameters[i], adaptive_error_model, R))
+        chains[i].sample(iterations)
     
     info = {'sampler': 'DA', 'n_chains': n_chains, 'iterations': iterations+1, 'subsampling_rate': subsampling_rate}
     

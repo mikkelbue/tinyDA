@@ -720,10 +720,6 @@ class SingleDreamZ(GaussianRandomWalk):
             self.period = period
             # initialise adaptivity counter for diminishing adaptivity.
             self.k = 0
-            
-            # DREAM-specifivc adaptivity
-            self.LCR = np.zeros(self.nCR)
-            self.DeltaCR = np.ones(self.nCR)
         
         self.t = 0
         
@@ -734,25 +730,26 @@ class SingleDreamZ(GaussianRandomWalk):
         # get the dimension and the initial scaling.
         self.d = prior.dim
         
+        # these adaptivity parameters need to be mutable, so are only
+        # initialised at setup.
+        if self.adaptive:
+            # DREAM-specific adaptivity
+            self.LCR = np.zeros(self.nCR)
+            self.DeltaCR = np.ones(self.nCR)
+        
         # draw initial archive with latin hypercube sampling.
         if self.Z_method == 'lhs':
             
             try:
-                # try to import pyDOE and transform the samples to the prior distribution.
-                from pyDOE import lhs
-                self.Z = lhs(self.d, samples=self.M)
+                lhs = stats.qmc.LatinHypercube(d=self.d)
+                self.Z = lhs.random(n=self.M)
                 self.Z = prior.ppf(self.Z)
                 return
-                
-            except ModuleNotFoundError:
-                # if pyDOE is not installed, fall back on simple random sampling.
-                warnings.warn(' pyDOE module not found. Falling back on default Z-sampling method: \'random\'.\n')
-                pass
                 
             except AttributeError:
                 # if the prior is a multivariate_normal, it will not have a .ppf-method.
                 if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
-                    # instead draw samples from indpendent normals, according to the prior means and variances.
+                    # instead draw samples from independent normals, according to the prior means and variances.
                     for i in range(self.d):
                         self.Z[:, i] = stats.norm(loc=prior.mean[i], scale=prior.cov[i,i]).ppf(self.Z[:, i])
                     return

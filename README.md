@@ -36,7 +36,6 @@ pip install tinyDA
 * SciPy
 * ArviZ
 * tqdm
-* [pyDOE](https://pythonhosted.org/pyDOE/) (optional)
 * [Ray](https://docs.ray.io/en/master/) (multiprocessing, optional)
 
 ## Usage

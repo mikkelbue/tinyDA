@@ -70,8 +70,8 @@ class ParallelChain:
 
         # set up the parallel chains as Ray actors.
         self.remote_chains = [RemoteChain.remote(self.link_factory,
-                                                 self.proposal,
-                                                 initial_parameters) for initial_parameters in self.initial_parameters]
+                                                 self.proposal[i],
+                                                 self.initial_parameters[i]) for i in range(self.n_chains)]
 
     def sample(self, iterations, progressbar=False):
 
@@ -179,10 +179,10 @@ class ParallelDAChain(ParallelChain):
          # set up the parallel DA chains as Ray actors.
         self.remote_chains = [RemoteDAChain.remote(self.link_factory_coarse,
                                                    self.link_factory_fine,
-                                                   self.proposal,
+                                                   self.proposal[i],
                                                    self.subsampling_rate,
-                                                   initial_parameters,
-                                                   self.adaptive_error_model, self.R) for initial_parameters in self.initial_parameters]
+                                                   self.initial_parameters[i],
+                                                   self.adaptive_error_model, self.R) for i in range(self.n_chains)]
 
 @ray.remote
 class RemoteChain(Chain):
