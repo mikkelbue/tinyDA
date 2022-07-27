@@ -25,7 +25,7 @@ author = 'Mikkel Bue Lykkegaard'
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '0.9.6'
+release = '0.9.7b1'
 
 
 # -- General configuration ---------------------------------------------------

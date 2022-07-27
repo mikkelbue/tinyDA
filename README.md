@@ -28,8 +28,7 @@ pip install tinyDA
 * State dependent - Cui et al. (2018)
 
 ### Diagnostics
-* A bunch of plotting functions
-* Rank-normalised split-<img src="https://latex.codecogs.com/gif.latex?\hat{R} " />  and ESS - Vehtari et al. (2020)
+* Convert tinyDA chain to ArviZ InferenceData object for near-unlimited diagnostics!
 
 ### Dependencies:
 * NumPy
@@ -146,9 +145,23 @@ idata = tda.to_inference_data(my_chains, level='coarse', burnin=20000)
 
 The `idata` object can then be used with the ArviZ diagnostics suite to e.g. get MCMC statistics, plot the traces and so on.
 
-# TODO
+## Contributing
+I (mikkelbue) am currently the sole contributor to this package. I have been using it in my own research, and have so far been developing it (mostly) for myself. 
+
+If you feel that it is missing some features, or that something could be improved, please do not hesitate to create a fork and submit a PR! If you want to help me improve the package, please have a look at the TODO list below and consider if something seems doable to you. I am currently working on a scientific paper that I plan to submit to JOSS, and would be happy for other people to get involved.
+
+If you would like to contribute, please consider the following:
+* I am hoping to keep the list of dependencies **short**, and would rather not include any additional large libraries, unless it is strongly warranted. Great things can be achieved using NumPy!
+* I am pretty good at converting theoretical methods into computer code, but I am not a software engineer. Any kind of CI, tests and improvements to the software infrastructure would be greatly appreciated!
+
+## TODO
 * ~~Parallel multi-chain sampling~~
 * ~~More user-friendly diagnostics~~
-* Multilevel Delayed Acceptance
+* ~~Multilevel Delayed Acceptance~~
+* Variance Reduction
+* MALA proposal
+* Wrapper for framework-agnostic adaptive coarse model
+* Embedded spaces for hierachical models
+* Tests
 
 

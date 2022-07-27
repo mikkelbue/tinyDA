@@ -1,4 +1,5 @@
 # external imports
+import warnings
 import numpy as np
 
 class CompositePrior:
@@ -97,7 +98,7 @@ class CompositePrior:
         return y
             
 
-class LogLike:
+class GaussianLogLike:
     '''
     LogLike is a minimal implementation of the (unnormalised) Gaussian
     likelihood function.
@@ -153,7 +154,7 @@ class LogLike:
         # compute the unnormalised likelihood.
         return -0.5*np.linalg.multi_dot(((x - self.mean).T, self.cov_inverse, (x - self.mean)))
         
-class AdaptiveLogLike(LogLike):
+class AdaptiveGaussianLogLike(GaussianLogLike):
     '''
     AdaptiveLogLike is a minimal implementation of the (unnormalised) Gaussian
     likelihood function, with bias-correction.
@@ -250,3 +251,11 @@ class AdaptiveLogLike(LogLike):
         
         # compute the unnormalised likelihood, with additional terms for offset, scaling, and rotation.
         return -0.5*np.linalg.multi_dot(((x + bias - self.mean).T, self.cov_inverse, (x + bias - self.mean)))
+
+def LogLike(*args, **kwargs):
+    warnings.warn(' LogLike has been deprecated. Please use GaussianLogLike.')
+    return GaussianLogLike(*args, **kwargs)
+
+def AdaptiveLogLike(*args, **kwargs):
+    warnings.warn(' AdaptiveLogLike has been deprecated. Please use AdaptiveGaussianLogLike.')
+    return AdaptiveGaussianLogLike(*args, **kwargs)
