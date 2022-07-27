@@ -15,6 +15,7 @@ Proposals
     tinyDA.AdaptiveCrankNicolson
     tinyDA.SingleDreamZ
     tinyDA.MultipleTry
+    tinyDA.MLDA
    
 Independence Sampler
 --------------------
@@ -70,4 +71,11 @@ Multiple-Try Metropolis
 .. autoclass:: tinyDA.MultipleTry
     :members:
     
+    .. automethod:: __init__
+
+MLDA
+----
+.. autoclass:: tinyDA.MLDA
+    :members:
+
     .. automethod:: __init__

@@ -817,18 +817,100 @@ class SingleDreamZ(GaussianRandomWalk):
 
 class MLDA(Proposal):
 
+    '''
+    MLDAChain is a Multilevel Delayed Acceptance sampler. It takes a list
+    of link factories of increasing level as input, as well as a proposal,
+    which applies to the coarsest level only.
+
+    Attributes
+    ----------
+    link_factory : tinyDA.LinkFactory
+        The current level link factory responsible for communation between
+        prior, likelihood and model. It also generates instances of
+        tinyDA.Link (sample objects).
+    level : int
+        The (numeric) level of the current level sampler.
+    proposal : tinyDA.MLDA or tinyDA.Proposal
+        Transition kernel for the next-coarser MCMC proposals.
+    subsampling_rate : int
+        The subsampling rate for the next-coarser chain.
+    initial_parameters : numpy.ndarray
+        Starting point for the MCMC sampler
+    chain : list
+        Samples ("Links") in the current level MCMC chain.
+    accepted : list
+        List of bool, signifying whether a proposal was accepted or not.
+    is_local : list
+        List of bool, signifying whether a link was created on the current
+        level or by correction according to the next-finer level.
+    adaptive_error_model : str or None
+        The adaptive error model used, see e.g. Cui et al. (2019).
+    R : numpy.ndarray
+        Restriction matrix for the adaptive error model on the current level.
+    bias : tinaDA.RecursiveSampleMoments
+        A recursive Gaussian error model that computes the sample moments
+        of the next-coarser bias.
+
+    Methods
+    ----------
+    setup_adaptive_error_model(biases, Rs)
+        Sets up the adaptive error model and passes the biases and restriction
+        matrices to the next-coarser level.
+    align_chain(parameters, accepted)
+        Makes sure the first link of the current level subchain is aligned
+        with the next-finer level.
+    make_mlda_proposal(subsampling_rate)
+        Generates a proposal by creating a subchain of length subsampling_rate
+        using MLDA and passing the final link to the next-finer level.
+    make_base_proposal(subsampling_rate)
+        Generates a proposal by creating a subchain of length subsampling_rate
+        using Metropolis-Hastings and passing the final link to the
+        next-finer level.
+    get_acceptance(proposal_link, previous_link)
+        Computes the MLDA acceptance probability given a proposal link
+        and the previous link.
+    '''
+
     is_symmetric = True
 
     def __init__(self, link_factories, proposal, subsampling_rates, initial_parameters, adaptive_error_model, R):
 
+        '''
+        Parameters
+        ----------
+        link_factories : list
+            List of instances of tinyDA.LinkFactory, in increasing order.
+        proposal : tinyDA.Proposal
+            Transition kernel for coarsest MCMC proposals.
+        subsampling_rates : list
+            List of subsampling rates. It must have length
+            len(link_factories) - 1, in increasing order.
+        initial_parameters : numpy.ndarray, optional
+            Starting point for the MCMC sampler, default is None (random
+            draw from prior).
+        adaptive_error_model : str or None, optional
+            The adaptive error model, see e.g. Cui et al. (2019). Default
+            is None (no error model), options are 'state-independent' or
+            'state-dependent'. If an error model is used, the likelihood
+            MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        R : list or None, optional
+            Restriction matrices for the adaptive error model. If list of
+            restriction matrices is given, it must have length
+            len(link_factories) - 1 and they must be in increasing order,
+            as the model hierachy. Default is None (identity matrices).
+        '''
+
+        # internalise the current level link factory and set the level.
         self.link_factory = link_factories[-1]
         self.level = len(link_factories) - 1
         self.initial_parameters = initial_parameters
 
+        # initialise lists for the links and the acceptance and localness histories.
         self.chain = []
         self.accepted = []
         self.is_local = []
 
+        # create a link from the initial parameters and write to the histories.
         self.chain.append(self.link_factory.create_link(self.initial_parameters))
         self.accepted.append(True)
         self.is_local.append(False)
@@ -836,83 +918,148 @@ class MLDA(Proposal):
         # set the adaptive error model as an attribute.
         self.adaptive_error_model = adaptive_error_model
 
+        # if this level is not the coarsest level.
         if self.level > 0:
 
+            # internalise the subsampling rate.
             self.subsampling_rate = subsampling_rates[-1]
+
+            # set MDLA as the proposal on the next-coarser level.
             self.proposal = MLDA(link_factories[:-1], proposal, subsampling_rates[:-1], self.initial_parameters, self.adaptive_error_model, R[:-1])
+
+            # set the current level make_proposal method to MLDA.
             self.make_proposal = self.make_mlda_proposal
 
+            # set up the adaptive error model.
             if self.adaptive_error_model is not None:
 
+                # set the restriction matrix for the current level.
                 self.R = R[-1]
 
+                # if no restriction matrix was given, create an identity matrix.
                 if self.R is None:
                     self.R = np.eye(self.chain[-1].model_output.shape[0])
 
                 # compute the difference between coarse and fine level.
                 self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
 
+                # set up the state-independent adaptive error model.
                 if self.adaptive_error_model == 'state-independent':
                     # for the state-independent error model, the bias is
                     # RecursiveSampleMoments, and the corrector is the mean
                     # of all sampled differences.
                     self.bias = RecursiveSampleMoments(self.model_diff, np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
 
+                # state-dependent error model has not been implemented, since
+                # it may not be ergodic.
                 elif self.adaptive_error_model == 'state-dependent':
                     pass
 
+        # if the current level is the coarsest one.
         elif self.level == 0:
 
+            # use the coarsest level proposal.
             self.proposal = proposal
+
+            # set up the proposal.
             self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory)
+
+            # set the current level make_proposal method to Metropolis-Hastings.
             self.make_proposal = self.make_base_proposal
 
-    def set_adaptive_error_model(self, biases, Rs):
+    def setup_adaptive_error_model(self, biases, Rs):
 
-            self.biases = [self.bias] + biases
-            self.Rs = [self.R] + Rs
+        '''
+        Parameters
+        ----------
+        biases : list
+            List of instances of tinyDA.RecursiveSampleMoments.
+        Rs: : list
+            List of restriction matrices.
+        '''
 
-            self.R_products = [np.eye(self.Rs[0].shape[0])] * len(self.biases)
+        # add the current level bias to the list.
+        self.biases = [self.bias] + biases
 
-            for i, R in enumerate(self.Rs[:-1]):
-                for j in range(i+1, len(self.Rs)):
-                    self.R_products[j] = np.dot(self.R_products[j], R)
+        # add the current level restriction matrix to the list.
+        self.Rs = [self.R] + Rs
 
-            mu_bias = np.sum([np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)], axis=0)
-            sigma_bias = np.sum([np.linalg.multi_dot((R, bias.get_sigma(), R.T)) for R, bias in zip(self.R_products, self.biases)], axis=0)
+        # set up a list of recursive product of the restriction matrices.
+        self.R_products = [np.eye(self.Rs[0].shape[0])] * len(self.biases)
 
-            self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
+        # compute the product of restriction matrices, as approptriate
+        # to each bias term.
+        for i, R in enumerate(self.Rs[:-1]):
+            for j in range(i+1, len(self.Rs)):
+                self.R_products[j] = np.dot(self.R_products[j], R)
 
-            if self.level > 1:
-                self.proposal.set_adaptive_error_model(self.biases, self.Rs)
+        # compute the total bias on the current level.
+        mu_bias = np.sum([np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)], axis=0)
+        sigma_bias = np.sum([np.linalg.multi_dot((R, bias.get_sigma(), R.T)) for R, bias in zip(self.R_products, self.biases)], axis=0)
 
-    def update_chain(self, parameters, accepted):
+        # set the bias on the next-coarser level.
+        self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
 
+        # update the first coarser link with the adaptive error model.
+        self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
+
+        # pass the list of biases and restriction matrices on the the next level.
+        if self.level > 1:
+            self.proposal.setup_adaptive_error_model(self.biases, self.Rs)
+
+    def align_chain(self, parameters, accepted):
+
+        '''
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            The latest accepted parameters on the next-finer level.
+        accepted : bool
+            Whether the passed parameters were accepted on the next-higher
+            level.
+        '''
+
+        # append the latest link on the current level matching the parameters.
         self.chain.append(next(filter(lambda link: np.all(link.parameters == parameters), self.chain[::-1])))
+
+        # add the acceptance bool to the history.
         self.accepted.append(accepted)
+
+        # the appended link is not local.
         self.is_local.append(False)
 
+        # perpetuate the correction downward in the model hierachy.
         if self.level > 1:
-            self.proposal.update_chain(parameters, accepted)
+            self.proposal.align_chain(parameters, accepted)
 
     def make_mlda_proposal(self, subsampling_rate):
 
+        '''
+        Parameters
+        ----------
+        subsampling rate : int
+            The number of samples drawn in the subchain.
+        '''
+
+        # iterate through the subsamples.
         for i in range(subsampling_rate):
 
+            # create a proposal from the next-lower level,
             proposal = self.proposal.make_proposal(self.subsampling_rate)
 
+            # if there were no acceptances on the next-lower level, repeat previous sample.
             if sum(self.proposal.accepted[-self.subsampling_rate:]) == 0:
                 self.chain.append(self.chain[-1])
                 self.accepted.append(False)
                 self.is_local.append(True)
 
+            # otherwise, evaluate the model.
             else:
 
                 # create a link from that proposal.
                 proposal_link = self.link_factory.create_link(proposal)
 
-                # compute the acceptance probability, which is unique to
-                # the proposal.
+                # compute the MLDA acceptance probability..
                 alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1], self.proposal.chain[-1], self.proposal.chain[-(self.subsampling_rate+1)])
 
                 # perform Metropolis adjustment.
@@ -925,8 +1072,10 @@ class MLDA(Proposal):
                     self.accepted.append(False)
                     self.is_local.append(True)
 
-            self.proposal.update_chain(self.chain[-1].parameters, self.accepted[-1])
+            # make sure the lower level chains are aligned with the current state.
+            self.proposal.align_chain(self.chain[-1].parameters, self.accepted[-1])
 
+            # apply the adaptive error model.
             if self.adaptive_error_model is not None:
 
                 # compute the difference between coarse and fine level.
@@ -939,20 +1088,26 @@ class MLDA(Proposal):
                     # of all sampled differences.
                     self.bias.update(self.model_diff)
 
+                    # compute the entire bias correction.
                     mu_bias = np.sum([np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)], axis=0)
                     sigma_bias = np.sum([np.linalg.multi_dot((R, bias.get_sigma(), R.T)) for R, bias in zip(self.R_products, self.biases)], axis=0)
 
+                    # update the next-coarser likelihood with the bias.
                     self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
 
+                # state-dependent error model has not been implemented.
                 elif self.adaptive_error_model == 'state-dependent':
                     pass
 
+                # update the latest link on the next-coarser level with the updated error model.
                 self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
 
+        # return the latest link.
         return self.chain[-1].parameters
 
     def make_base_proposal(self, subsampling_rate):
 
+        # iterate through the subsamples.
         for i in range(subsampling_rate):
 
             # draw a new proposal, given the previous parameters.
@@ -961,8 +1116,7 @@ class MLDA(Proposal):
             # create a link from that proposal.
             proposal_link = self.link_factory.create_link(proposal)
 
-            # compute the acceptance probability, which is unique to
-            # the proposal.
+            # compute the acceptance probability, according to the proposal.
             alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
 
             # perform Metropolis adjustment.
@@ -979,9 +1133,11 @@ class MLDA(Proposal):
             # this has no effect.
             self.proposal.adapt(parameters=self.chain[-1].parameters, 
                                 jumping_distance=self.chain[-1].parameters-self.chain[-2].parameters, 
-                                accepted=self.accepted)
 
+                                accepted=self.accepted)
+        # return the latest link.
         return self.chain[-1].parameters
 
     def get_acceptance(self, proposal_link, previous_link, proposal_link_below, previous_link_below):
+        # get the MDLA acceptance probability.
         return np.exp(proposal_link.posterior - previous_link.posterior + previous_link_below.posterior - proposal_link_below.posterior)

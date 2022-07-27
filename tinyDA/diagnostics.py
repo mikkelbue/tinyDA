@@ -234,7 +234,9 @@ def plot_samples(samples, indices=[0, 1], plot_type='trace'):
     plot_type : str, optional
         The plot type. Can be 'trace or 'histogram'. The default is 'trace'.
     '''
-    
+
+    warnings.warn(' plot_samples() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     samples = np.vstack([samples['chain_{}'.format(i)] for i in range(samples['n_chains'])])
     
     # get the dimensions of the plot.
@@ -273,7 +275,9 @@ def plot_sample_matrix(samples, indices=[0,1]):
     indices : list, optional
         Which parameter indices to plot. The default is [0,1].
     '''
-    
+
+    warnings.warn(' plot_sample_matrix() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     samples = np.vstack([samples['chain_{}'.format(i)] for i in range(samples['n_chains'])])
     
     # plug parameters into dataframe and name the columns.
@@ -315,7 +319,9 @@ def compute_R_hat(samples, rank_normalised=False, ess_auxiliary=False):
     numpy.ndarray
         A numpy array with the R-hat for each parameter.
     '''
-    
+
+    warnings.warn(' compute_R_hat() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     if not ess_auxiliary:
         samples = [samples['chain_{}'.format(i)] for i in range(samples['n_chains'])]
 
@@ -377,7 +383,9 @@ def compute_ESS(samples, rank_normalised=False):
     numpy.ndarray
         A numpy array with the ESS for each parameter.
     '''
-    
+
+    warnings.warn(' compute_ESS() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     samples = [samples['chain_{}'.format(i)] for i in range(samples['n_chains'])]
     
     # rank normalise, if the switch is set.
@@ -444,7 +452,9 @@ def get_autocorrelation(x, T=None):
     numpy.ndarray
         A numpy array with the autocorrelation for each lag.
     '''
-    
+
+    warnings.warn(' get_autocorrelation() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     # get the mean and the length.
     x = x - np.mean(x)
     N = len(x)
@@ -475,7 +485,9 @@ def rank_normalise(samples):
     list
         List of rank-normalised numpy arrays, one for each chain.
     '''
-    
+
+    warnings.warn(' rank_normalise() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     # get the number of samples in each chain.
     n_samples = samples[0].shape[0]
     
@@ -498,7 +510,9 @@ def compute_ESS_wolff(x):
     Legacy ESS function for a single MCMC chain. 
     See Ulli Wolff (2006): Monte Carlo errors with less errors.
     '''
-    
+
+    warnings.warn(' compute_ESS_wolff() has been deprecated. Please use to_inference_data() and ArviZ for posterior analysis.')
+
     N = len(x)
         
     x_mean = np.mean(x)

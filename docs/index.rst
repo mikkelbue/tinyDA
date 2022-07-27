@@ -68,7 +68,6 @@ Install tinyDA by running:
 - SciPy
 - ArviZ
 - tqdm
-- pyDOE (optional)
 - Ray (multiprocessing, optional)
 
 Contribute
