@@ -4,24 +4,24 @@
 #
 #    pip-compile --output-file=-
 #
-arviz==0.11.4
+arviz==0.12.1
     # via -r requirements.in
-cftime==1.6.0
+cftime==1.6.1
     # via netcdf4
 cycler==0.11.0
     # via matplotlib
-fonttools==4.30.0
+fonttools==4.34.4
     # via matplotlib
-kiwisolver==1.3.2
+kiwisolver==1.4.4
     # via matplotlib
-matplotlib==3.5.1
+matplotlib==3.5.2
     # via
     #   -r requirements.in
     #   arviz
     #   seaborn
-netcdf4==1.5.8
+netcdf4==1.6.0
     # via arviz
-numpy==1.22.3
+numpy==1.23.1
     # via
     #   -r requirements.in
     #   arviz
@@ -32,20 +32,21 @@ numpy==1.22.3
     #   scipy
     #   seaborn
     #   xarray
+    #   xarray-einstats
 packaging==21.3
     # via
     #   arviz
     #   matplotlib
     #   xarray
-pandas==1.4.1
+pandas==1.4.3
     # via
     #   -r requirements.in
     #   arviz
     #   seaborn
     #   xarray
-pillow==9.0.1
+pillow==9.2.0
     # via matplotlib
-pyparsing==3.0.7
+pyparsing==3.0.9
     # via
     #   matplotlib
     #   packaging
@@ -53,22 +54,27 @@ python-dateutil==2.8.2
     # via
     #   matplotlib
     #   pandas
-pytz==2021.3
+pytz==2022.1
     # via pandas
-scipy==1.8.0
+scipy==1.8.1
     # via
     #   -r requirements.in
     #   arviz
     #   seaborn
+    #   xarray-einstats
 seaborn==0.11.2
     # via -r requirements.in
 six==1.16.0
     # via python-dateutil
-tqdm==4.63.0
+tqdm==4.64.0
     # via -r requirements.in
-typing-extensions==3.10.0.2
+typing-extensions==4.3.0
     # via arviz
-xarray==2022.3.0
+xarray==2022.6.0
+    # via
+    #   arviz
+    #   xarray-einstats
+xarray-einstats==0.3.0
     # via arviz
 
 # The following packages are considered to be unsafe in a requirements file:
