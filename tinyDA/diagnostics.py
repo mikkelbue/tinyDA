@@ -182,6 +182,29 @@ def get_samples(chain, attribute='parameters', level='fine', burnin=0):
             for i in range(chain['n_chains']):
                 samples['chain_{}'.format(i)] = np.array([np.array([link.prior, link.likelihood, link.posterior]) for link in chain['chain_{}_{}'.format(level, i)][burnin:]])
     
+        # if the input is a Delayed Acceptance chain.
+    elif chain['sampler'] == 'MLDA':
+        # copy the subsampling rate across.
+        samples['subsampling_rates'] = chain['subsampling_rates']
+        # set the extraction level.
+        samples['level'] = level
+        # extract link parameters.
+        if attribute == 'parameters':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.parameters for link in chain['chain_l{}_{}'.format(level, i)][burnin:]])
+        # extract the model output.
+        elif attribute == 'model_output':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.model_output for link in chain['chain_l{}_{}'.format(level, i)][burnin:]])
+        # extract the quantity of interest.
+        elif attribute == 'qoi':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([link.qoi for link in chain['chain_l{}_{}'.format(level, i)][burnin:]])
+        # extract the stats, i.e. log-prior, log-likelihood and log-posterior.
+        elif attribute == 'stats':
+            for i in range(chain['n_chains']):
+                samples['chain_{}'.format(i)] = np.array([np.array([link.prior, link.likelihood, link.posterior]) for link in chain['chain_l{}_{}'.format(level, i)][burnin:]])
+
     # expand the dimension of the output, if the required attribute is one-dimensional.
     for i in range(chain['n_chains']):
         if samples['chain_{}'.format(i)].ndim == 1:

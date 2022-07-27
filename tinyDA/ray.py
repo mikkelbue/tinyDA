@@ -5,7 +5,7 @@ from itertools import compress
 import numpy as np
 from scipy.special import logsumexp
 
-from .chain import Chain, DAChain
+from .chain import Chain, DAChain, MLDAChain
 from .proposal import *
 
 class ParallelChain:
@@ -184,6 +184,36 @@ class ParallelDAChain(ParallelChain):
                                                    self.initial_parameters[i],
                                                    self.adaptive_error_model, self.R) for i in range(self.n_chains)]
 
+class ParallelMLDAChain(ParallelChain):
+
+
+    def __init__(self, link_factories, proposal, subsampling_rates=None, n_chains=2, initial_parameters=None, adaptive_error_model=None, R=None):
+
+        # internalise link factories, proposal and subsampling rate.
+        self.link_factories = link_factories
+        self.proposal = proposal
+        self.subsampling_rates = subsampling_rates
+
+        # set the number of parallel chains and initial parameters.
+        self.n_chains = n_chains
+
+        # set the initial parameters.
+        self.initial_parameters = initial_parameters
+
+        # set the adaptive error model
+        self.adaptive_error_model = adaptive_error_model
+        self.R = R
+
+        # initialise Ray.
+        ray.init(ignore_reinit_error=True)
+
+         # set up the parallel DA chains as Ray actors.
+        self.remote_chains = [RemoteMLDAChain.remote(self.link_factories,
+                                                     self.proposal[i],
+                                                     self.subsampling_rates,
+                                                     self.initial_parameters[i],
+                                                     self.adaptive_error_model, self.R) for i in range(self.n_chains)]
+
 @ray.remote
 class RemoteChain(Chain):
     def sample(self, iterations, progressbar):
@@ -197,6 +227,21 @@ class RemoteDAChain(DAChain):
         super().sample(iterations, progressbar)
 
         return list(compress(self.chain_coarse, self.is_coarse)), self.chain_fine
+
+@ray.remote
+class RemoteMLDAChain(MLDAChain):
+    def sample(self, iterations, progressbar):
+        super().sample(iterations, progressbar)
+
+        # collect and return the samples.
+        chains = [self.chain]
+
+        _current = self.proposal
+        for i in range(self.level):
+            chains.append(list(compress(_current.chain, _current.is_local)))
+            _current = _current.proposal
+
+        return chains[::-1]
 
 class MultipleTry(Proposal):
     
