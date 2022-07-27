@@ -236,11 +236,13 @@ class RemoteMLDAChain(MLDAChain):
         # collect and return the samples.
         chains = [self.chain]
 
+        # iterate through the levels.
         _current = self.proposal
         for i in range(self.level):
             chains.append(list(compress(_current.chain, _current.is_local)))
             _current = _current.proposal
 
+        # flip the list of chains and return it.
         return chains[::-1]
 
 class MultipleTry(Proposal):

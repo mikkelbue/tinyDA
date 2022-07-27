@@ -253,9 +253,15 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
         return -0.5*np.linalg.multi_dot(((x + bias - self.mean).T, self.cov_inverse, (x + bias - self.mean)))
 
 def LogLike(*args, **kwargs):
+    '''
+    Deprecation dummy.
+    '''
     warnings.warn(' LogLike has been deprecated. Please use GaussianLogLike.')
     return GaussianLogLike(*args, **kwargs)
 
 def AdaptiveLogLike(*args, **kwargs):
+    '''
+    Deprecation dummy.
+    '''
     warnings.warn(' AdaptiveLogLike has been deprecated. Please use AdaptiveGaussianLogLike.')
     return AdaptiveGaussianLogLike(*args, **kwargs)

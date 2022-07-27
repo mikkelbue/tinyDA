@@ -11,8 +11,8 @@ TinyDA is designed to make use of distributions from ``scipy.stats``. Hence, onl
     :nosignatures:
     
     tinyDA.CompositePrior
-    tinyDA.LogLike
-    tinyDA.AdaptiveLogLike
+    tinyDA.GaussianLogLike
+    tinyDA.AdaptiveGaussianLogLike
 
 Composite Prior
 ---------------
@@ -25,7 +25,7 @@ Composite Prior
 Gaussian Log-Likelihood
 -----------------------
 
-.. autoclass:: tinyDA.LogLike
+.. autoclass:: tinyDA.GaussianLogLike
     :members:
     
     .. automethod:: __init__
@@ -33,7 +33,7 @@ Gaussian Log-Likelihood
 Adaptive Gaussian Log-Likelihood
 --------------------------------
 
-.. autoclass:: tinyDA.AdaptiveLogLike
+.. autoclass:: tinyDA.AdaptiveGaussianLogLike
     :members:
     
     .. automethod:: __init__

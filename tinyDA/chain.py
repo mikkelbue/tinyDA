@@ -390,12 +390,76 @@ class DAChain:
 
 class MLDAChain:
 
+    '''
+    MLDAChain is a Multilevel Delayed Acceptance sampler. It takes a list
+    of link factories of increasing level as input, as well as a proposal,
+    which applies to the coarsest level only.
+
+    Attributes
+    ----------
+    link_factory : tinyDA.LinkFactory
+        The finest level link factory responsible for communation between
+        prior, likelihood and model. It also generates instances of
+        tinyDA.Link (sample objects).
+    level : int
+        The (numeric) level of the finest level sampler,
+    proposal : tinyDA.MLDA
+        MLDA transition kernel for the next-coarser MCMC proposals.
+    subsampling_rate : int
+        The subsampling rate for the next-coarser chain.
+    initial_parameters : numpy.ndarray
+        Starting point for the MCMC sampler
+    chain : list
+        Samples ("Links") in the finest level MCMC chain.
+    accepted : list
+        List of bool, signifying whether a proposal was accepted or not.
+    adaptive_error_model : str or None
+        The adaptive error model, see e.g. Cui et al. (2019).
+    R : numpy.ndarray
+        Restriction matrix for the adaptive error model on the finest level.
+    bias : tinaDA.RecursiveSampleMoments
+        A recursive Gaussian error model that computes the sample moments
+        of the next-coarser bias.
+
+    Methods
+    -------
+    sample(iterations)
+        Runs the MCMC for the specified number of iterations.
+
+    '''
+
     def __init__(self, link_factories, proposal, subsampling_rates, initial_parameters=None, adaptive_error_model=None, R=None):
 
-        # internalise the link factory and the proposal
+        '''
+        Parameters
+        ----------
+        link_factories : list
+            List of instances of tinyDA.LinkFactory, in increasing order.
+        proposal : tinyDA.Proposal
+            Transition kernel for coarsest MCMC proposals.
+        subsampling_rates : list
+            List of subsampling rates. It must have length
+            len(link_factories) - 1, in increasing order.
+        initial_parameters : numpy.ndarray, optional
+            Starting point for the MCMC sampler, default is None (random
+            draw from prior).
+        adaptive_error_model : str or None, optional
+            The adaptive error model, see e.g. Cui et al. (2019). Default
+            is None (no error model), options are 'state-independent' or
+            'state-dependent'. If an error model is used, the likelihood
+            MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        R : list or None, optional
+            Restriction matrices for the adaptive error model. If list of
+            restriction matrices is given, it must have length
+            len(link_factories) - 1 and they must be in increasing order,
+            as the model hierachy. Default is None (identity matrices).
+        '''
+
+        # internalise the finest link factory and set the level.
         self.link_factory = link_factories[-1]
         self.level = len(link_factories) - 1
 
+        # set the furrent level subsampling rate.
         self.subsampling_rate = subsampling_rates[-1]
 
         # initialise a list, which holds the links.
@@ -416,21 +480,31 @@ class MLDAChain:
         self.chain.append(self.link_factory.create_link(self.initial_parameters))
         self.accepted.append(True)
 
+        # make sure R can be passed recursively to MLDA proposal, if MLDAChain
+        # was initialised without tda.sample().
+        if R is None:
+            R = [None] * self.level
+
+        # set the effective proposal to MLDA which runs on the next-coarser level.
         self.proposal = MLDA(link_factories[:-1], proposal, subsampling_rates[:-1], self.initial_parameters, adaptive_error_model, R[:-1])
 
-        # set the adative error model as a. attribute.
+        # set the adative error model as an attribute.
         self.adaptive_error_model = adaptive_error_model
 
+        # set up the adaptive error model.
         if self.adaptive_error_model is not None:
 
+            # extract the finest-level restriction matrix from the list.
             self.R = R[-1]
 
+            # if no restriction matrix was given, create an identity matrix.
             if self.R is None:
                 self.R = np.eye(self.chain[-1].model_output.shape[0])
 
             # compute the difference between coarse and fine level.
             self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
 
+            # set up the state-independent adaptive error model.
             if self.adaptive_error_model == 'state-independent':
                 # for the state-independent error model, the bias is
                 # RecursiveSampleMoments, and the corrector is the mean
@@ -438,15 +512,20 @@ class MLDAChain:
                 self.bias = RecursiveSampleMoments(self.model_diff, np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
                 self.proposal.link_factory.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
 
+            # state-dependent error model has not been implemented, since
+            # it may not be ergodic.
             elif self.adaptive_error_model == 'state-dependent':
                 pass
 
+            # update the first coarser link with the adaptive error model.
             self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
 
+            # collect biases and restriction matrices in a list.
             self.biases = [self.bias]
             self.Rs = [self.R]
 
-            self.proposal.set_adaptive_error_model(self.biases, self.Rs)
+            # pass the bias models and restriction levels to the next-coarser level.
+            self.proposal.setup_adaptive_error_model(self.biases, self.Rs)
 
     def sample(self, iterations, progressbar=True):
 
@@ -494,14 +573,17 @@ class MLDAChain:
                     self.chain.append(self.chain[-1])
                     self.accepted.append(False)
 
-            self.proposal.update_chain(self.chain[-1].parameters, self.accepted[-1])
+            # make sure the next-coarser level is aligned.
+            self.proposal.align_chain(self.chain[-1].parameters, self.accepted[-1])
 
+            # apply the adaptive error model.
             if self.adaptive_error_model is not None:
 
                 # compute the difference between coarse and fine level.
                 if self.accepted[-1]:
                     self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
 
+                # update the state-independent adaptive error model.
                 if self.adaptive_error_model == 'state-independent':
                     # for the state-independent error model, the bias is
                     # RecursiveSampleMoments, and the corrector is the mean
@@ -509,9 +591,11 @@ class MLDAChain:
                     self.bias.update(self.model_diff)
                     self.proposal.link_factory.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
 
+                # state-dependent error model has not been implemented.
                 elif self.adaptive_error_model == 'state-dependent':
                     pass
 
+                # update the latest coarser link with the adaptive error model.
                 self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
 
         # close the progressbar if it was initialised.

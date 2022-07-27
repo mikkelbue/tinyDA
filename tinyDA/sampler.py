@@ -33,7 +33,10 @@ def sample(link_factories,
     standard single-level Metropolis-Hastings MCMC is completed. If a list
     with two tinyDA.LinkFactory instances is provided, Delayed Acceptance
     MCMC will be completed using the first list item as the coarse model
-    and the second list item as the fine model. The tinyDA.LinkFactory
+    and the second list item as the fine model. If a list with more than 
+    two instances of tda.LinkFactory is given, MLDA sampling is completed.
+    In this case, the list of link factories must be in increasing order,
+    with the coarsest model first and the finest model last. The tinyDA.LinkFactory
     instances wrap both the prior, likelihood and the forward model(s), and 
     must be initialised first. A tinyDA.Proposal and the required number 
     of MCMC iterations must also be provided to tinyDA.sample(). The function 
@@ -52,11 +55,11 @@ def sample(link_factories,
         run Delayed Acceptance MCMC with the first list item as the 
         coarse model and the second list item as the fine model. 
     proposal : tinyDA.Proposal
-        The MCMC proposal to be used for sampling. If running Delayed
-        Acceptance sampling, the proposal will be used as the coarse 
-        proposal.
+        The MCMC proposal to be used for sampling. If running (Multilevel) 
+        Delayed Acceptance sampling, the proposal will be used as the 
+        coarsest proposal.
     iterations : int
-        Number of MCMC samples to generate.
+        Number of MCMC samples to generate on the finest level.
     n_chains : int, optional
         Number of independent MCMC samplers. Default is 1.
     initial_parameters : list or numpy.ndarray or None, optional
@@ -65,20 +68,23 @@ def sample(link_factories,
         samplers. If a numpy.ndarray is provided, all MCMC sampler will
         have the same initial sample. If None, each MCMC sampler will be
         initialised with a random draw from the prior. Default is None.
-    subsampling_rate : int, optional
-        The subsampling rate or subchain length used for Delayed Acceptance
-        sampling. If running single-level MCMC, this parameter is ignored.
-        Default is 1, resulting in "classic" DA MCMC.
+    subsampling_rate : list or int, optional
+        The subsampling rate(s). If subsampling_rate is a list, it must have
+        length len(link_factories) - 1, in increasing order. If it is an int,
+        the same subsampling rate will be used for all levels. If running 
+        single-level MCMC, this parameter is ignored. Default is 1, 
+        resulting in "classic" DA MCMC for a two-level model.
     adaptive_error_model : str or None, optional
         The adaptive error model, see e.g. Cui et al. (2019). If running 
         single-level MCMC, this parameter is ignored. Default is None 
         (no error model), options are 'state-independent' or 'state-dependent'. 
         If an error model is used, the likelihood MUST have a set_bias() 
-        method, use e.g. tinyDA.AdaptiveLogLike.
-    R : numpy.ndarray or None, optional
-        Restriction matrix for the adaptive error model. If running 
-        single-level MCMC, this parameter is ignored. Default is None 
-        (identity matrix).
+        method, use e.g. tinyDA.AdaptiveGaussianLogLike.
+    R : list or numpy.ndarray or None, optional
+        Restriction matrix(-ces) for the adaptive error model. If list of
+        restriction matrices is given for MLDA sampler, they must be in 
+        increasing order as the model hierachy. If running single-level 
+        MCMC, this parameter is ignored. Default is None (identity matrix).
     force_sequential : bool, optional
         Whether to force sequential sampling, even if Ray is installed.
         Default is False.
@@ -279,7 +285,8 @@ def _sample_sequential_mlda(link_factories, proposal, iterations, n_chains, init
 
     # collect and return the samples.
     chains_all = {'chain_l{}_{}'.format(levels-1, i): chain.chain for i, chain in enumerate(chains)}
-
+    
+    # iterate through the different MLDA levels recursively.
     _current = [chain.proposal for chain in chains]
     for i in reversed(range(levels-1)):
         chains_all = {**chains_all, **{'chain_l{}_{}'.format(i, j): list(compress(chain.chain, chain.is_local)) for j, chain in enumerate(_current)}}
@@ -302,6 +309,7 @@ def _sample_parallel_mlda(link_factories, proposal, iterations, n_chains, initia
 
     info = {'sampler': 'MLDA', 'n_chains': n_chains, 'iterations': iterations+1, 'levels': levels, 'subsampling_rates': subsampling_rates}
 
+    # iterate through the different chains and MLDA levels recursively.
     chains_all = {}
     for i in range(n_chains):
         for j in range(levels):
