@@ -83,9 +83,9 @@ Contribute
 License
 -------
 
-The project is licensed under the GPLv3_ license.
+The project is licensed under the MIT_ license.
 
-.. _GPLv3: https://www.gnu.org/licenses/gpl-3.0.en.html
+.. _MIT: https://github.com/mikkelbue/tinyDA/blob/main/LICENSE
 
 References
 ----------
