@@ -41,7 +41,7 @@ Adaptive Metropolis
     .. automethod:: __init__
 
 preconditioned Crank-Nicolson
-------------------------------
+-----------------------------
 
 .. autoclass:: tinyDA.CrankNicolson
     :members:
@@ -49,7 +49,7 @@ preconditioned Crank-Nicolson
     .. automethod:: __init__
 
 Adaptive preconditioned Crank-Nicolson
----------------------------------------
+--------------------------------------
 
 .. autoclass:: tinyDA.AdaptiveCrankNicolson
     :members:

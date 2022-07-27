@@ -1,5 +1,5 @@
 Chains
-========
+======
 
 .. toctree::
    :maxdepth: 2

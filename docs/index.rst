@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 tinyDA
-==================================
+======
 
 tinyDA is a Delayed Acceptance MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
 
