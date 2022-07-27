@@ -65,14 +65,6 @@ DREAM(Z)
     
     .. automethod:: __init__
 
-Multiple-Try Metropolis
------------------------
-
-.. autoclass:: tinyDA.MultipleTry
-    :members:
-    
-    .. automethod:: __init__
-
 MLDA
 ----
 .. autoclass:: tinyDA.MLDA
