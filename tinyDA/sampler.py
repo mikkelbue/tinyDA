@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
     ray_is_available = False
 
-def sample(link_factory, 
+def sample(link_factories,
            proposal, 
            iterations, 
            n_chains=1, 
@@ -43,11 +43,11 @@ def sample(link_factory,
     
     Parameters
     ----------
-    link_factory : list or tinyDA.LinkFactory
+    link_factories : list or tinyDA.LinkFactory
         A list of tinyDA.LinkFactory instances or a single instance. If
-        link_factory is a single tinyDA.LinkFactory or a list with one
+        link_factories is a single tinyDA.LinkFactory or a list with one
         tinyDA.LinkFactory instance, tinyDA.sample() will run standard 
-        single-level Metropolis-Hastings MCMC. If link_factory is a list 
+        single-level Metropolis-Hastings MCMC. If link_factories is a list
         containing two tinyDA.LinkFactory instances, tinyDA.sample() will 
         run Delayed Acceptance MCMC with the first list item as the 
         coarse model and the second list item as the fine model. 
@@ -104,15 +104,11 @@ def sample(link_factory,
     global ray_is_available
     
     # put the link factory in a list, so that it can be indexed.
-    if not isinstance(link_factory, list):
-        link_factory = [link_factory]
+    if not isinstance(link_factories, list):
+        link_factories = [link_factories]
         
     # set the number of levels.
-    n_levels = len(link_factory)
-    
-    # raise a warning if there are more than two levels (not implemented yet).
-    if n_levels > 2:
-        raise NotImplementedError('MLDA sampling has not been implemented yet. Please input list of 1 or 2 LinkFactory instances')
+    n_levels = len(link_factories)
         
     # do not use MultipleTry proposal with parallel sampling, since that will create nested 
     # instances in Ray, which will be competing for resources. This can be very slow.
@@ -123,15 +119,20 @@ def sample(link_factory,
                 warnings.warn(' MultipleTry proposal is not compatible with parallel sampling. Forcing sequential mode...\n')
 
     # if the proposal is pCN, make sure that the prior is multivariate normal.
-    if isinstance(proposal, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
+    if isinstance(proposal, CrankNicolson) and not isinstance(link_factories[0].prior, stats._multivariate.multivariate_normal_frozen):
         raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN proposal')
     
     # check the same if the CrankNicolson is nested in a MultipleTry proposal.
     elif hasattr(proposal, 'kernel'):
-        if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factory[0].prior, stats._multivariate.multivariate_normal_frozen):
+        if isinstance(proposal.kernel, CrankNicolson) and not isinstance(link_factories[0].prior, stats._multivariate.multivariate_normal_frozen):
             raise TypeError('Prior must be of type scipy.stats.multivariate_normal for pCN kernel')
             
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
+
+    # raise a warning if there are more than two levels (not implemented yet).
+    if n_levels > 2 and adaptive_error_model == 'state-dependent':
+         warnings.warn(' A state-dedependent adaptive error model for MLDA has not been implemented yet, defaulting to state-independent AEM...')
+         adaptive_error_model = 'state-independent'
             
     if adaptive_error_model == 'state-dependent' and subsampling_rate > 1:
         warnings.warn(' Using a state-dependent error model for subsampling rates larger than 1 is not guaranteed to be ergodic. \n')
@@ -141,7 +142,7 @@ def sample(link_factory,
         if type(initial_parameters) == list:
             assert len(initial_parameters) == n_chains, 'If list of initial parameters is provided, it must have length n_chains'
         elif type(initial_parameters) == np.ndarray:
-            assert link_factory[0].prior.rvs().size == initial_parameters.size, 'If an array of initial parameters is provided, it must have the same dimension as the prior'
+            assert link_factories[0].prior.rvs().size == initial_parameters.size, 'If an array of initial parameters is provided, it must have the same dimension as the prior'
             initial_parameters = [initial_parameters]*n_chains
         else:
             raise TypeError('Initial paramaters must be list, numpy array or None')
@@ -153,24 +154,40 @@ def sample(link_factory,
     if n_levels == 1:
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
-            samples = _sample_sequential(link_factory, proposal, iterations, n_chains, initial_parameters)
+            samples = _sample_sequential(link_factories, proposal, iterations, n_chains, initial_parameters)
         # parallel sampling.
         else:
-            samples = _sample_parallel(link_factory, proposal, iterations, n_chains, initial_parameters, force_progress_bar)
+            samples = _sample_parallel(link_factories, proposal, iterations, n_chains, initial_parameters, force_progress_bar)
     
     # delayed acceptance MCMC.
     elif n_levels == 2:
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
-            samples = _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R)
+            samples = _sample_sequential_da(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R)
         # parallel sampling.
         else:
-            samples = _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar)
+            samples = _sample_parallel_da(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar)
+
+    elif n_levels > 2:
+
+        if isinstance(subsampling_rate, list):
+            subsampling_rates = subsampling_rate
+        elif isinstance(subsampling_rate, int):
+            subsampling_rates = [subsampling_rate] * (len(link_factories)-1)
+        if R is None:
+            R = [None] * (len(link_factories)-1)
+
+        # sequential sampling.
+        if not ray_is_available or n_chains == 1 or force_sequential:
+            samples = _sample_sequential_mlda(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rates, adaptive_error_model, R)
+        # parallel sampling.
+        else:
+            samples = _sample_parallel_mlda(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rates, adaptive_error_model, R, force_progress_bar)
     
     return samples
 
 
-def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_parameters):
+def _sample_sequential(link_factories, proposal, iterations, n_chains, initial_parameters):
     '''
     Helper function for tinyDA.sample()
     '''
@@ -179,7 +196,7 @@ def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_par
     chains = []
     for i in range(n_chains):
         print('Sampling chain {}/{}'.format(i+1, n_chains))
-        chains.append(Chain(link_factory[0], proposal[i], initial_parameters[i]))
+        chains.append(Chain(link_factories[0], proposal[i], initial_parameters[i]))
         chains[i].sample(iterations)
     
     info = {'sampler': 'MH', 'n_chains': n_chains, 'iterations': iterations+1}
@@ -188,7 +205,7 @@ def _sample_sequential(link_factory, proposal, iterations, n_chains, initial_par
     # return the samples.
     return {**info, **chains}
     
-def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_parameters, force_progress_bar):
+def _sample_parallel(link_factories, proposal, iterations, n_chains, initial_parameters, force_progress_bar):
     '''
     Helper function for tinyDA.sample()
     '''
@@ -196,7 +213,7 @@ def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_param
     print('Sampling {} chains in parallel'.format(n_chains))
     
     # create a parallel sampling instance and sample.
-    chains = ParallelChain(link_factory[0], proposal, n_chains, initial_parameters)
+    chains = ParallelChain(link_factories[0], proposal, n_chains, initial_parameters)
     chains.sample(iterations, force_progress_bar)
     
     info = {'sampler': 'MH', 'n_chains': n_chains, 'iterations': iterations+1}
@@ -205,7 +222,7 @@ def _sample_parallel(link_factory, proposal, iterations, n_chains, initial_param
     # return the samples.
     return {**info, **chains}
     
-def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R):
+def _sample_sequential_da(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R):
     '''
     Helper function for tinyDA.sample()
     '''
@@ -214,7 +231,7 @@ def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_
     chains = []
     for i in range(n_chains):
         print('Sampling chain {}/{}'.format(i+1, n_chains))
-        chains.append(DAChain(link_factory[0], link_factory[1], proposal[i], subsampling_rate, initial_parameters[i], adaptive_error_model, R))
+        chains.append(DAChain(link_factories[0], link_factories[1], proposal[i], subsampling_rate, initial_parameters[i], adaptive_error_model, R))
         chains[i].sample(iterations)
     
     info = {'sampler': 'DA', 'n_chains': n_chains, 'iterations': iterations+1, 'subsampling_rate': subsampling_rate}
@@ -225,7 +242,7 @@ def _sample_sequential_da(link_factory, proposal, iterations, n_chains, initial_
         
     return {**info, **chains_coarse, **chains_fine}
 
-def _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar):
+def _sample_parallel_da(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rate, adaptive_error_model, R, force_progress_bar):
     '''
     Helper function for tinyDA.sample()
     '''
@@ -233,7 +250,7 @@ def _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_pa
     print('Sampling {} chains in parallel'.format(n_chains))
     
     # create a parallel sampling instance and sample.
-    chains = ParallelDAChain(link_factory[0], link_factory[1], proposal, subsampling_rate, n_chains, initial_parameters, adaptive_error_model, R)
+    chains = ParallelDAChain(link_factories[0], link_factories[1], proposal, subsampling_rate, n_chains, initial_parameters, adaptive_error_model, R)
     chains.sample(iterations, force_progress_bar)
     
     info = {'sampler': 'DA', 'n_chains': n_chains, 'iterations': iterations+1, 'subsampling_rate': subsampling_rate}
@@ -243,3 +260,51 @@ def _sample_parallel_da(link_factory, proposal, iterations, n_chains, initial_pa
     chains_fine = {'chain_fine_{}'.format(i): chain[1] for i, chain in enumerate(chains.chains)}
         
     return {**info, **chains_coarse, **chains_fine}
+
+def _sample_sequential_mlda(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rates, adaptive_error_model, R):
+    '''
+    Helper function for tinyDA.sample()
+    '''
+
+    levels = len(link_factories)
+
+    # initialise the chains and sample, sequentially.
+    chains = []
+    for i in range(n_chains):
+        print('Sampling chain {}/{}'.format(i+1, n_chains))
+        chains.append(MLDAChain(link_factories, proposal[i], subsampling_rates, initial_parameters[i], adaptive_error_model, R))
+        chains[i].sample(iterations)
+
+    info = {'sampler': 'MLDA', 'n_chains': n_chains, 'iterations': iterations+1, 'levels': levels, 'subsampling_rates': subsampling_rates}
+
+    # collect and return the samples.
+    chains_all = {'chain_l{}_{}'.format(levels-1, i): chain.chain for i, chain in enumerate(chains)}
+
+    _current = [chain.proposal for chain in chains]
+    for i in reversed(range(levels-1)):
+        chains_all = {**chains_all, **{'chain_l{}_{}'.format(i, j): list(compress(chain.chain, chain.is_local)) for j, chain in enumerate(_current)}}
+        _current = [chain.proposal for chain in _current]
+
+    return {**info, **chains_all}
+
+def _sample_parallel_mlda(link_factories, proposal, iterations, n_chains, initial_parameters, subsampling_rates, adaptive_error_model, R, force_progress_bar):
+    '''
+    Helper function for tinyDA.sample()
+    '''
+
+    levels = len(link_factories)
+
+    print('Sampling {} chains in parallel'.format(n_chains))
+
+    # create a parallel sampling instance and sample.
+    chains = ParallelMLDAChain(link_factories, proposal, subsampling_rates, n_chains, initial_parameters, adaptive_error_model, R)
+    chains.sample(iterations, force_progress_bar)
+
+    info = {'sampler': 'MLDA', 'n_chains': n_chains, 'iterations': iterations+1, 'levels': levels, 'subsampling_rates': subsampling_rates}
+
+    chains_all = {}
+    for i in range(n_chains):
+        for j in range(levels):
+            chains_all['chain_l{}_{}'.format(j, i)] = chains.chains[i][j]
+
+    return {**info, **chains_all}

@@ -814,3 +814,174 @@ class SingleDreamZ(GaussianRandomWalk):
         epsilon = np.random.normal(0, self.b_star, size=self.d)
         
         return link.parameters + subspace_indicator*((np.ones(self.d) + e)*gamma_DREAM*(Z_r1 - Z_r2) + epsilon)
+
+class MLDA(Proposal):
+
+    is_symmetric = True
+
+    def __init__(self, link_factories, proposal, subsampling_rates, initial_parameters, adaptive_error_model, R):
+
+        self.link_factory = link_factories[-1]
+        self.level = len(link_factories) - 1
+        self.initial_parameters = initial_parameters
+
+        self.chain = []
+        self.accepted = []
+        self.is_local = []
+
+        self.chain.append(self.link_factory.create_link(self.initial_parameters))
+        self.accepted.append(True)
+        self.is_local.append(False)
+
+        # set the adaptive error model as an attribute.
+        self.adaptive_error_model = adaptive_error_model
+
+        if self.level > 0:
+
+            self.subsampling_rate = subsampling_rates[-1]
+            self.proposal = MLDA(link_factories[:-1], proposal, subsampling_rates[:-1], self.initial_parameters, self.adaptive_error_model, R[:-1])
+            self.make_proposal = self.make_mlda_proposal
+
+            if self.adaptive_error_model is not None:
+
+                self.R = R[-1]
+
+                if self.R is None:
+                    self.R = np.eye(self.chain[-1].model_output.shape[0])
+
+                # compute the difference between coarse and fine level.
+                self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
+
+                if self.adaptive_error_model == 'state-independent':
+                    # for the state-independent error model, the bias is
+                    # RecursiveSampleMoments, and the corrector is the mean
+                    # of all sampled differences.
+                    self.bias = RecursiveSampleMoments(self.model_diff, np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
+
+                elif self.adaptive_error_model == 'state-dependent':
+                    pass
+
+        elif self.level == 0:
+
+            self.proposal = proposal
+            self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory)
+            self.make_proposal = self.make_base_proposal
+
+    def set_adaptive_error_model(self, biases, Rs):
+
+            self.biases = [self.bias] + biases
+            self.Rs = [self.R] + Rs
+
+            self.R_products = [np.eye(self.Rs[0].shape[0])] * len(self.biases)
+
+            for i, R in enumerate(self.Rs[:-1]):
+                for j in range(i+1, len(self.Rs)):
+                    self.R_products[j] = np.dot(self.R_products[j], R)
+
+            mu_bias = np.sum([np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)], axis=0)
+            sigma_bias = np.sum([np.linalg.multi_dot((R, bias.get_sigma(), R.T)) for R, bias in zip(self.R_products, self.biases)], axis=0)
+
+            self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
+
+            if self.level > 1:
+                self.proposal.set_adaptive_error_model(self.biases, self.Rs)
+
+    def update_chain(self, parameters, accepted):
+
+        self.chain.append(next(filter(lambda link: np.all(link.parameters == parameters), self.chain[::-1])))
+        self.accepted.append(accepted)
+        self.is_local.append(False)
+
+        if self.level > 1:
+            self.proposal.update_chain(parameters, accepted)
+
+    def make_mlda_proposal(self, subsampling_rate):
+
+        for i in range(subsampling_rate):
+
+            proposal = self.proposal.make_proposal(self.subsampling_rate)
+
+            if sum(self.proposal.accepted[-self.subsampling_rate:]) == 0:
+                self.chain.append(self.chain[-1])
+                self.accepted.append(False)
+                self.is_local.append(True)
+
+            else:
+
+                # create a link from that proposal.
+                proposal_link = self.link_factory.create_link(proposal)
+
+                # compute the acceptance probability, which is unique to
+                # the proposal.
+                alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1], self.proposal.chain[-1], self.proposal.chain[-(self.subsampling_rate+1)])
+
+                # perform Metropolis adjustment.
+                if np.random.random() < alpha:
+                    self.chain.append(proposal_link)
+                    self.accepted.append(True)
+                    self.is_local.append(True)
+                else:
+                    self.chain.append(self.chain[-1])
+                    self.accepted.append(False)
+                    self.is_local.append(True)
+
+            self.proposal.update_chain(self.chain[-1].parameters, self.accepted[-1])
+
+            if self.adaptive_error_model is not None:
+
+                # compute the difference between coarse and fine level.
+                if self.accepted[-1]:
+                    self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
+
+                if self.adaptive_error_model == 'state-independent':
+                    # for the state-independent error model, the bias is
+                    # RecursiveSampleMoments, and the corrector is the mean
+                    # of all sampled differences.
+                    self.bias.update(self.model_diff)
+
+                    mu_bias = np.sum([np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)], axis=0)
+                    sigma_bias = np.sum([np.linalg.multi_dot((R, bias.get_sigma(), R.T)) for R, bias in zip(self.R_products, self.biases)], axis=0)
+
+                    self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
+
+                elif self.adaptive_error_model == 'state-dependent':
+                    pass
+
+                self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
+
+        return self.chain[-1].parameters
+
+    def make_base_proposal(self, subsampling_rate):
+
+        for i in range(subsampling_rate):
+
+            # draw a new proposal, given the previous parameters.
+            proposal = self.proposal.make_proposal(self.chain[-1])
+
+            # create a link from that proposal.
+            proposal_link = self.link_factory.create_link(proposal)
+
+            # compute the acceptance probability, which is unique to
+            # the proposal.
+            alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
+
+            # perform Metropolis adjustment.
+            if np.random.random() < alpha:
+                self.chain.append(proposal_link)
+                self.accepted.append(True)
+                self.is_local.append(True)
+            else:
+                self.chain.append(self.chain[-1])
+                self.accepted.append(False)
+                self.is_local.append(True)
+
+            # adapt the proposal. if the proposal is set to non-adaptive,
+            # this has no effect.
+            self.proposal.adapt(parameters=self.chain[-1].parameters, 
+                                jumping_distance=self.chain[-1].parameters-self.chain[-2].parameters, 
+                                accepted=self.accepted)
+
+        return self.chain[-1].parameters
+
+    def get_acceptance(self, proposal_link, previous_link, proposal_link_below, previous_link_below):
+        return np.exp(proposal_link.posterior - previous_link.posterior + previous_link_below.posterior - proposal_link_below.posterior)

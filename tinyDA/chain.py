@@ -169,7 +169,7 @@ class DAChain:
     
     '''
     
-    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate=1, initial_parameters=None, adaptive_error_model=None, R=None):
+    def __init__(self, link_factory_coarse, link_factory_fine, proposal, subsampling_rate, initial_parameters=None, adaptive_error_model=None, R=None):
         
         '''
         Parameters
@@ -182,8 +182,8 @@ class DAChain:
             It also generates instances of tinyDA.Link (sample objects).
         proposal : tinyDA.Proposal
             Transition kernel for coarse MCMC proposals.
-        subsampling_rate : int, optional
-            The subsampling rate for the coarse chain. The default is 1, resulting in "classic" DA MCMC.
+        subsampling_rate : int
+            The subsampling rate for the coarse chain.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw from prior).
         adaptive_error_model : str or None, optional
@@ -228,7 +228,7 @@ class DAChain:
         # setup the proposal
         self.proposal.setup_proposal(parameters=self.initial_parameters, link_factory=self.link_factory_coarse)
         
-        # set the adative error model as a. attribute.
+        # set the adaptive error model as an attribute.
         self.adaptive_error_model = adaptive_error_model
         
         # set up the adaptive error model.
@@ -384,6 +384,136 @@ class DAChain:
                 
                 self.chain_coarse[-1] = self.link_factory_coarse.update_link(self.chain_coarse[-1])
         
+        # close the progressbar if it was initialised.
+        if progressbar:
+            pbar.close()
+
+class MLDAChain:
+
+    def __init__(self, link_factories, proposal, subsampling_rates, initial_parameters=None, adaptive_error_model=None, R=None):
+
+        # internalise the link factory and the proposal
+        self.link_factory = link_factories[-1]
+        self.level = len(link_factories) - 1
+
+        self.subsampling_rate = subsampling_rates[-1]
+
+        # initialise a list, which holds the links.
+        self.chain = []
+
+        # initialise a list, which holds boolean acceptance values.
+        self.accepted = []
+
+        # if the initial parameters are given, use them. otherwise,
+        # draw a random sample from the prior.
+        if initial_parameters is not None:
+            self.initial_parameters = initial_parameters
+        else:
+            self.initial_parameters = self.link_factory.prior.rvs()
+
+        # append a link with the initial parameters (this will automatically
+        # compute the model output, and the relevant probabilties.
+        self.chain.append(self.link_factory.create_link(self.initial_parameters))
+        self.accepted.append(True)
+
+        self.proposal = MLDA(link_factories[:-1], proposal, subsampling_rates[:-1], self.initial_parameters, adaptive_error_model, R[:-1])
+
+        # set the adative error model as a. attribute.
+        self.adaptive_error_model = adaptive_error_model
+
+        if self.adaptive_error_model is not None:
+
+            self.R = R[-1]
+
+            if self.R is None:
+                self.R = np.eye(self.chain[-1].model_output.shape[0])
+
+            # compute the difference between coarse and fine level.
+            self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
+
+            if self.adaptive_error_model == 'state-independent':
+                # for the state-independent error model, the bias is
+                # RecursiveSampleMoments, and the corrector is the mean
+                # of all sampled differences.
+                self.bias = RecursiveSampleMoments(self.model_diff, np.zeros((self.model_diff.shape[0], self.model_diff.shape[0])))
+                self.proposal.link_factory.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
+
+            elif self.adaptive_error_model == 'state-dependent':
+                pass
+
+            self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
+
+            self.biases = [self.bias]
+            self.Rs = [self.R]
+
+            self.proposal.set_adaptive_error_model(self.biases, self.Rs)
+
+    def sample(self, iterations, progressbar=True):
+
+        '''
+        Parameters
+        ----------
+        iterations : int
+            Number of MCMC samples to generate.
+        progressbar : bool, optional
+            Whether to draw a progressbar, default is True.
+        '''
+
+        # Set up a progressbar, if required.
+        if progressbar:
+            pbar = tqdm(range(iterations))
+        else:
+            pbar = range(iterations)
+
+        # start the iteration
+        for i in pbar:
+            if progressbar:
+                pbar.set_description('Running chain, \u03B1 = %0.2f' % np.mean(self.accepted[-100:]))
+
+            # draw a new proposal, given the previous parameters.
+            proposal = self.proposal.make_proposal(self.subsampling_rate)
+
+            if sum(self.proposal.accepted[-self.subsampling_rate:]) == 0:
+                self.chain.append(self.chain[-1])
+                self.accepted.append(False)
+
+            else:
+
+                # create a link from that proposal.
+                proposal_link = self.link_factory.create_link(proposal)
+
+                # compute the acceptance probability, which is unique to
+                # the proposal.
+                alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1], self.proposal.chain[-1], self.proposal.chain[-(self.subsampling_rate+1)])
+
+                # perform Metropolis adjustment.
+                if np.random.random() < alpha:
+                    self.chain.append(proposal_link)
+                    self.accepted.append(True)
+                else:
+                    self.chain.append(self.chain[-1])
+                    self.accepted.append(False)
+
+            self.proposal.update_chain(self.chain[-1].parameters, self.accepted[-1])
+
+            if self.adaptive_error_model is not None:
+
+                # compute the difference between coarse and fine level.
+                if self.accepted[-1]:
+                    self.model_diff = self.R.dot(self.chain[-1].model_output) - self.proposal.chain[-1].model_output
+
+                if self.adaptive_error_model == 'state-independent':
+                    # for the state-independent error model, the bias is
+                    # RecursiveSampleMoments, and the corrector is the mean
+                    # of all sampled differences.
+                    self.bias.update(self.model_diff)
+                    self.proposal.link_factory.likelihood.set_bias(self.bias.get_mu(), self.bias.get_sigma())
+
+                elif self.adaptive_error_model == 'state-dependent':
+                    pass
+
+                self.proposal.chain[-1] = self.proposal.link_factory.update_link(self.proposal.chain[-1])
+
         # close the progressbar if it was initialised.
         if progressbar:
             pbar.close()
