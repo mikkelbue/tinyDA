@@ -14,7 +14,6 @@ Proposals
     tinyDA.CrankNicolson
     tinyDA.AdaptiveCrankNicolson
     tinyDA.SingleDreamZ
-    tinyDA.MultipleTry
     tinyDA.MLDA
    
 Independence Sampler

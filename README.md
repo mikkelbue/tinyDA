@@ -38,7 +38,7 @@ pip install tinyDA
 * [Ray](https://docs.ray.io/en/master/) (multiprocessing, optional)
 
 ## Usage
-A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
+Documentation is available at [Read the Docs](https://tinyda.readthedocs.io/en/latest/). A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
 
 ### Distributions
 The prior and likelihood can be defined using standard `scipy.stats` classes:
