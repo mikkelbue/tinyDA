@@ -148,7 +148,7 @@ The `idata` object can then be used with the ArviZ diagnostics suite to e.g. get
 ## Contributing
 I (mikkelbue) am currently the sole contributor to this package. I have been using it in my own research, and have so far been developing it (mostly) for myself. 
 
-If you feel that it is missing some features, or that something could be improved, please do not hesitate to create a fork and submit a PR! If you want to help me improve the package, please have a look at the TODO list below and consider if something seems doable to you. I am currently working on a scientific paper that I plan to submit to JOSS, and would be happy for other people to get involved.
+If you feel that it is missing some features, or that something could be improved, please do not hesitate to create a fork and submit a PR! If you want to help me improve the package, please have a look at the [issues](https://github.com/mikkelbue/tinyDA/issues) and consider if something seems doable to you. I am currently working on a scientific paper that I plan to submit to Journal of Statistical Software, and would be happy for other people to get involved.
 
 If you would like to contribute, please consider the following:
 * I am hoping to keep the list of dependencies **short**, and would rather not include any additional large libraries, unless it is strongly warranted. Great things can be achieved using NumPy!
