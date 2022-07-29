@@ -138,7 +138,10 @@ my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine],
 
 If using a hirarchy with more than two models, a Multilevel Delayed Acceptance sampler can be run by supplying a list of link factories in ascending order and a correponsing list of subsampling rates:
 ```python
-my_chains = tda.sample([my_link_factory_level0, my_link_factory_level1, my_link_factory_level2, my_link_factory_level3], 
+my_chains = tda.sample([my_link_factory_level0, 
+                        my_link_factory_level1, 
+                        my_link_factory_level2, 
+                        my_link_factory_level3], 
                        my_proposal, 
                        iterations=12000, 
                        n_chains=2, 
