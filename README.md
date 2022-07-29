@@ -38,7 +38,7 @@ pip install tinyDA
 * State dependent - Cui et al. (2018)
 
 ### Diagnostics
-* Convert tinyDA chain to ArviZ InferenceData object for near-unlimited diagnostics!
+* Convert a tinyDA chain to an ArviZ InferenceData object for near-unlimited diagnostics!
 
 ## Usage
 Documentation is available at [Read the Docs](https://tinyda.readthedocs.io/en/latest/). A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
