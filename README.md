@@ -1,11 +1,9 @@
 ![](https://github.com/mikkelbue/tinyDA/blob/main/misc/tinyDA.png)
 
 # tinyDA
-Delayed Acceptance (Christen & Fox, 2005) MCMC sampler with finite-length subchain sampling and adaptive error modelling. 
+Multilevel Delayed Acceptance MCMC sampler with finite-length subchain sampling and adaptive error modelling. This is intended as a simple, lightweight implementation, with minimal dependencies, i.e. nothing beyond the SciPy stack and ArviZ. It is fully imperative and easy to use!
 
-This is intended as a simple, lightweight implementation, with minimal dependencies, i.e. nothing beyond the SciPy stack. 
-
-It is fully imperative and easy to use!
+For instructions, have a look at the [documentation](https://tinyda.readthedocs.io/en/latest/), the [examples](https://github.com/mikkelbue/tinyDA/tree/main/examples) or the [usage section below](#usage).
 
 ## Installation
 tinyDA can be installed from PyPI:
@@ -14,6 +12,11 @@ pip install tinyDA
 ```
 
 ## Features
+
+### Samplers
+* Metropolis-Hastings
+* Delayed Acceptance (Christen & Fox, 2005)
+* Multilevel Delayed Acceptance (Lykkegaard et al. 2022)
 
 ### Proposals
 * Random Walk Metropolis Hastings (RWMH) - Metropolis et al. (1953), Hastings (1970)
