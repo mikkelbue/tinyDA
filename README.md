@@ -11,6 +11,13 @@ tinyDA can be installed from PyPI:
 pip install tinyDA
 ```
 
+## Dependencies:
+* NumPy
+* SciPy
+* ArviZ
+* tqdm
+* [Ray](https://docs.ray.io/en/master/) (multiprocessing, optional)
+
 ## Features
 
 ### Samplers
@@ -32,13 +39,6 @@ pip install tinyDA
 
 ### Diagnostics
 * Convert tinyDA chain to ArviZ InferenceData object for near-unlimited diagnostics!
-
-### Dependencies:
-* NumPy
-* SciPy
-* ArviZ
-* tqdm
-* [Ray](https://docs.ray.io/en/master/) (multiprocessing, optional)
 
 ## Usage
 Documentation is available at [Read the Docs](https://tinyda.readthedocs.io/en/latest/). A few illustrative examples are available as Jupyter Notebooks in the root directory. Below is a short summary of the core features.
