@@ -11,7 +11,7 @@ tinyDA can be installed from PyPI:
 pip install tinyDA
 ```
 
-## Dependencies:
+## Dependencies
 * NumPy
 * SciPy
 * ArviZ
