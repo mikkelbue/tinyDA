@@ -497,6 +497,101 @@ class AdaptiveMetropolis(GaussianRandomWalk):
             pass
 
 
+class LocalAdaptiveMetropolis(GaussianRandomWalk):
+    def __init__(
+        self, C0, H=100, sd=None, t0=100, adaptive=False, gamma=1.01, period=100
+    ):
+
+        """
+        Parameters
+        ----------
+        C0 : np.ndarray
+            The initial covariance matrix of the proposal distribution.
+        sd : None or float, optional
+            The AM scaling parameter. Default is None (compute from target
+            dimensionality).
+        epsilon : float, optional
+            Parameter to prevent C from becoming singular. Must be small.
+            Default is 1e-6.
+        t0 : int, optional
+            When to start adapting the covariance matrix. Default is 0 (start
+            immediately).
+        period : int, optional
+            How often to adapt. Default is 100.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is
+            False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling.
+            Default is 1.01.
+        """
+
+        # check if covariance operator is a square numpy array.
+        if not isinstance(C0, np.ndarray):
+            raise TypeError("C0 must be a numpy array")
+        elif C0.ndim == 1:
+            if not C0.shape[0] == 1:
+                raise ValueError("C0 must be an NxN array")
+        elif not C0.shape[0] == C0.shape[1]:
+            raise ValueError("C0 must be an NxN array")
+
+        # set the initial covariance operator.
+        self.C = C0
+
+        # extract the dimensionality.
+        self.d = self.C.shape[0]
+
+        # set a zero mean for the random draw.
+        self._mean = np.zeros(self.d)
+
+        # set the scaling factor.
+        self.scaling = 1
+        
+        self.H = H
+
+        # Set the scaling parameter for Diminishing Adaptation.
+        if sd is not None:
+            self.sd = sd
+        else:
+            self.sd = min(1, 2.4**2 / self.d)
+
+        # set the beginning of adaptation (rigidness of initial covariance).
+        self.t0 = t0
+
+        # Set the update period.
+        self.period = period
+
+        # set adaptivity.
+        self.adaptive = adaptive
+
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+
+            # adaptivity scaling.
+            self.gamma = gamma
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+
+        # set a counter of how many times, adapt() has been called.
+        self.t = 0
+
+    def setup_proposal(self, **kwargs):
+        # initialise the sampling moments, which will compute the
+        # adaptive covariance operator.
+        self.Z = kwargs["parameters"]
+
+    def adapt(self, **kwargs):
+
+        super().adapt(**kwargs)
+
+        # extend the archive.
+        self.Z = np.vstack((self.Z, kwargs["parameters"]))
+
+        if self.t >= self.t0:
+            self.C = self.sd * np.cov(self.Z[-self.H:,:].T)
+        else:
+            pass
+
 class AdaptiveCrankNicolson(CrankNicolson):
 
     """Adaptive preconditioned Crank-Nicolson proposal, according to Hu and Yao
