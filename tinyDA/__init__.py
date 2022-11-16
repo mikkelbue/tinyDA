@@ -7,6 +7,7 @@ from .distributions import *
 from .proposal import *
 from .diagnostics import *
 from .utils import *
+from .umbridge import *
 
 try:
     from .ray import *
