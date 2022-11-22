@@ -22,6 +22,9 @@ class Posterior:
     likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
         The likelihood function. Usually a tinyDA.LogLike, but
         the only requirement is that it has a logpdf method.
+    model : function or callable
+        The forward operator, i.e. a map F(theta). This could be a Python
+        function or a class instance with a __call__() method.
 
     Methods
     -------
@@ -33,10 +36,6 @@ class Posterior:
         This is a helper method that updates a link after the likelihood
         function has been adaptively updated. Hence, it skips model evaluation
         and only recomputes the likelihood.
-    evaluate_model(parameters)
-        This is the key method of the class. It must be overwritten through
-        inheritence to sample a given problem. Given some input parameters,
-        it must return a tuple (model_ouput, qoi). The qoi can be None.
     """
 
     def __init__(self, prior, likelihood, model=None):
@@ -47,6 +46,9 @@ class Posterior:
             The prior distribution.
         likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
             The likelihood function.
+        model : function or callable
+            The forward operator, i.e. a map F(theta). This could be a Python
+            function or a class instance with a __call__() method.
         """
         # internatlise the distributions.
         self.prior = prior
