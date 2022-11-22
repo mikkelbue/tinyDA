@@ -1159,7 +1159,7 @@ class MLDA(Proposal):
         self.chain.append(
             next(
                 filter(
-                    lambda link: np.all(link.parameters == parameters), self.chain[::-1]
+                    lambda link: link.parameters is parameters, self.chain[::-1]
                 )
             )
         )
