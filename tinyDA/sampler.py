@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
 
 def sample(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains=1,
@@ -30,16 +30,16 @@ def sample(
     force_progress_bar=False,
 ):
 
-    """Returns MCMC samples given a tinyDA.LinkFactory and a tinyDA.Proposal.
-    This function takes as input a tinyDA.LinkFactory instance, or a list of
-    tinyDA.LinkFactory instances. If a single instance is provided, standard
+    """Returns MCMC samples given a tinyDA.Posterior and a tinyDA.Proposal.
+    This function takes as input a tinyDA.Posterior instance, or a list of
+    tinyDA.Posterior instances. If a single instance is provided, standard
     single-level Metropolis-Hastings MCMC is completed. If a list with two
-    tinyDA.LinkFactory instances is provided, Delayed Acceptance MCMC will be
+    tinyDA.Posterior instances is provided, Delayed Acceptance MCMC will be
     completed using the first list item as the coarse model and the second list
     item as the fine model. If a list with more than two instances of
-    tda.LinkFactory is given, MLDA sampling is completed. In this case, the
-    list of link factories must be in increasing order, with the coarsest model
-    first and the finest model last. The tinyDA.LinkFactory instances wrap both
+    tda.Posterior is given, MLDA sampling is completed. In this case, the
+    list of posteriors must be in increasing order, with the coarsest model
+    first and the finest model last. The tinyDA.Posterior instances wrap both
     the prior, likelihood and the forward model(s), and must be initialised
     first. A tinyDA.Proposal and the required number of MCMC iterations must
     also be provided to tinyDA.sample(). The function then returns a dictionary
@@ -49,12 +49,12 @@ def sample(
 
     Parameters
     ----------
-    link_factories : list or tinyDA.LinkFactory
-        A list of tinyDA.LinkFactory instances or a single instance. If
-        link_factories is a single tinyDA.LinkFactory or a list with one
-        tinyDA.LinkFactory instance, tinyDA.sample() will run standard
-        single-level Metropolis-Hastings MCMC. If link_factories is a list
-        containing two tinyDA.LinkFactory instances, tinyDA.sample() will
+    posteriors : list or tinyDA.Posterior
+        A list of tinyDA.Posterior instances or a single instance. If
+        posteriors is a single tinyDA.Posterior or a list with one
+        tinyDA.Posterior instance, tinyDA.sample() will run standard
+        single-level Metropolis-Hastings MCMC. If posteriors is a list
+        containing two tinyDA.Posterior instances, tinyDA.sample() will
         run Delayed Acceptance MCMC with the first list item as the
         coarse model and the second list item as the fine model.
     proposal : tinyDA.Proposal
@@ -73,7 +73,7 @@ def sample(
         initialised with a random draw from the prior. Default is None.
     subsampling_rate : list or int, optional
         The subsampling rate(s). If subsampling_rate is a list, it must have
-        length len(link_factories) - 1, in increasing order. If it is an int,
+        length len(posteriors) - 1, in increasing order. If it is an int,
         the same subsampling rate will be used for all levels. If running
         single-level MCMC, this parameter is ignored. Default is 1,
         resulting in "classic" DA MCMC for a two-level model.
@@ -112,12 +112,12 @@ def sample(
     # get the availability flag.
     global ray_is_available
 
-    # put the link factory in a list, so that it can be indexed.
-    if not isinstance(link_factories, list):
-        link_factories = [link_factories]
+    # put the posterior in a list, so that it can be indexed.
+    if not isinstance(posteriors, list):
+        posteriors = [posteriors]
 
     # set the number of levels.
-    n_levels = len(link_factories)
+    n_levels = len(posteriors)
 
     # do not use MultipleTry proposal with parallel sampling, since that will create nested
     # instances in Ray, which will be competing for resources. This can be very slow.
@@ -131,7 +131,7 @@ def sample(
 
     # if the proposal is pCN, make sure that the prior is multivariate normal.
     if isinstance(proposal, CrankNicolson) and not isinstance(
-        link_factories[0].prior, stats._multivariate.multivariate_normal_frozen
+        posteriors[0].prior, stats._multivariate.multivariate_normal_frozen
     ):
         raise TypeError(
             "Prior must be of type scipy.stats.multivariate_normal for pCN proposal"
@@ -140,7 +140,7 @@ def sample(
     # check the same if the CrankNicolson is nested in a MultipleTry proposal.
     elif hasattr(proposal, "kernel"):
         if isinstance(proposal.kernel, CrankNicolson) and not isinstance(
-            link_factories[0].prior, stats._multivariate.multivariate_normal_frozen
+            posteriors[0].prior, stats._multivariate.multivariate_normal_frozen
         ):
             raise TypeError(
                 "Prior must be of type scipy.stats.multivariate_normal for pCN kernel"
@@ -168,7 +168,7 @@ def sample(
             ), "If list of initial parameters is provided, it must have length n_chains"
         elif type(initial_parameters) == np.ndarray:
             assert (
-                link_factories[0].prior.rvs().size == initial_parameters.size
+                posteriors[0].prior.rvs().size == initial_parameters.size
             ), "If an array of initial parameters is provided, it must have the same dimension as the prior"
             initial_parameters = [initial_parameters] * n_chains
         else:
@@ -182,12 +182,12 @@ def sample(
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
             samples = _sample_sequential(
-                link_factories, proposal, iterations, n_chains, initial_parameters
+                posteriors, proposal, iterations, n_chains, initial_parameters
             )
         # parallel sampling.
         else:
             samples = _sample_parallel(
-                link_factories,
+                posteriors,
                 proposal,
                 iterations,
                 n_chains,
@@ -200,7 +200,7 @@ def sample(
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
             samples = _sample_sequential_da(
-                link_factories,
+                posteriors,
                 proposal,
                 iterations,
                 n_chains,
@@ -212,7 +212,7 @@ def sample(
         # parallel sampling.
         else:
             samples = _sample_parallel_da(
-                link_factories,
+                posteriors,
                 proposal,
                 iterations,
                 n_chains,
@@ -228,14 +228,14 @@ def sample(
         if isinstance(subsampling_rate, list):
             subsampling_rates = subsampling_rate
         elif isinstance(subsampling_rate, int):
-            subsampling_rates = [subsampling_rate] * (len(link_factories) - 1)
+            subsampling_rates = [subsampling_rate] * (len(posteriors) - 1)
         if R is None:
-            R = [None] * (len(link_factories) - 1)
+            R = [None] * (len(posteriors) - 1)
 
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
             samples = _sample_sequential_mlda(
-                link_factories,
+                posteriors,
                 proposal,
                 iterations,
                 n_chains,
@@ -247,7 +247,7 @@ def sample(
         # parallel sampling.
         else:
             samples = _sample_parallel_mlda(
-                link_factories,
+                posteriors,
                 proposal,
                 iterations,
                 n_chains,
@@ -262,7 +262,7 @@ def sample(
 
 
 def _sample_sequential(
-    link_factories, proposal, iterations, n_chains, initial_parameters
+    posteriors, proposal, iterations, n_chains, initial_parameters
 ):
     """Helper function for tinyDA.sample()"""
 
@@ -270,7 +270,7 @@ def _sample_sequential(
     chains = []
     for i in range(n_chains):
         print("Sampling chain {}/{}".format(i + 1, n_chains))
-        chains.append(Chain(link_factories[0], proposal[i], initial_parameters[i]))
+        chains.append(Chain(posteriors[0], proposal[i], initial_parameters[i]))
         chains[i].sample(iterations)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
@@ -281,7 +281,7 @@ def _sample_sequential(
 
 
 def _sample_parallel(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains,
@@ -293,7 +293,7 @@ def _sample_parallel(
     print("Sampling {} chains in parallel".format(n_chains))
 
     # create a parallel sampling instance and sample.
-    chains = ParallelChain(link_factories[0], proposal, n_chains, initial_parameters)
+    chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters)
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
@@ -304,7 +304,7 @@ def _sample_parallel(
 
 
 def _sample_sequential_da(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains,
@@ -321,8 +321,8 @@ def _sample_sequential_da(
         print("Sampling chain {}/{}".format(i + 1, n_chains))
         chains.append(
             DAChain(
-                link_factories[0],
-                link_factories[1],
+                posteriors[0],
+                posteriors[1],
                 proposal[i],
                 subsampling_rate,
                 initial_parameters[i],
@@ -352,7 +352,7 @@ def _sample_sequential_da(
 
 
 def _sample_parallel_da(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains,
@@ -368,8 +368,8 @@ def _sample_parallel_da(
 
     # create a parallel sampling instance and sample.
     chains = ParallelDAChain(
-        link_factories[0],
-        link_factories[1],
+        posteriors[0],
+        posteriors[1],
         proposal,
         subsampling_rate,
         n_chains,
@@ -398,7 +398,7 @@ def _sample_parallel_da(
 
 
 def _sample_sequential_mlda(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains,
@@ -409,7 +409,7 @@ def _sample_sequential_mlda(
 ):
     """Helper function for tinyDA.sample()"""
 
-    levels = len(link_factories)
+    levels = len(posteriors)
 
     # initialise the chains and sample, sequentially.
     chains = []
@@ -417,7 +417,7 @@ def _sample_sequential_mlda(
         print("Sampling chain {}/{}".format(i + 1, n_chains))
         chains.append(
             MLDAChain(
-                link_factories,
+                posteriors,
                 proposal[i],
                 subsampling_rates,
                 initial_parameters[i],
@@ -457,7 +457,7 @@ def _sample_sequential_mlda(
 
 
 def _sample_parallel_mlda(
-    link_factories,
+    posteriors,
     proposal,
     iterations,
     n_chains,
@@ -469,13 +469,13 @@ def _sample_parallel_mlda(
 ):
     """Helper function for tinyDA.sample()"""
 
-    levels = len(link_factories)
+    levels = len(posteriors)
 
     print("Sampling {} chains in parallel".format(n_chains))
 
     # create a parallel sampling instance and sample.
     chains = ParallelMLDAChain(
-        link_factories,
+        posteriors,
         proposal,
         subsampling_rates,
         n_chains,

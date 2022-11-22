@@ -319,7 +319,7 @@ class CrankNicolson(GaussianRandomWalk):
     def setup_proposal(self, **kwargs):
 
         # set the covariance operator
-        self.C = kwargs["link_factory"].prior.cov
+        self.C = kwargs["posterior"].prior.cov
 
         # extract the dimensionality.
         self.d = self.C.shape[0]
@@ -604,7 +604,7 @@ class AdaptiveCrankNicolson(CrankNicolson):
     def setup_proposal(self, **kwargs):
 
         # set the initial covariance operator.
-        self.C = kwargs["link_factory"].prior.cov
+        self.C = kwargs["posterior"].prior.cov
 
         # extract the dimensionality.
         self.d = self.C.shape[0]
@@ -816,7 +816,7 @@ class SingleDreamZ(GaussianRandomWalk):
 
     def setup_proposal(self, **kwargs):
 
-        prior = kwargs["link_factory"].prior
+        prior = kwargs["posterior"].prior
 
         # get the dimension and the initial scaling.
         self.d = prior.dim
@@ -921,13 +921,13 @@ class SingleDreamZ(GaussianRandomWalk):
 class MLDA(Proposal):
 
     """MLDAChain is a Multilevel Delayed Acceptance sampler. It takes a list of
-    link factories of increasing level as input, as well as a proposal, which
+    posteriors of increasing level as input, as well as a proposal, which
     applies to the coarsest level only.
 
     Attributes
     ----------
-    link_factory : tinyDA.LinkFactory
-        The current level link factory responsible for communation between
+    posterior : tinyDA.Posterior
+        The current level posterior responsible for communation between
         prior, likelihood and model. It also generates instances of
         tinyDA.Link (sample objects).
     level : int
@@ -977,7 +977,7 @@ class MLDA(Proposal):
 
     def __init__(
         self,
-        link_factories,
+        posteriors,
         proposal,
         subsampling_rates,
         initial_parameters,
@@ -988,13 +988,13 @@ class MLDA(Proposal):
         """
         Parameters
         ----------
-        link_factories : list
-            List of instances of tinyDA.LinkFactory, in increasing order.
+        posteriors : list
+            List of instances of tinyDA.Posterior, in increasing order.
         proposal : tinyDA.Proposal
             Transition kernel for coarsest MCMC proposals.
         subsampling_rates : list
             List of subsampling rates. It must have length
-            len(link_factories) - 1, in increasing order.
+            len(posteriors) - 1, in increasing order.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random
             draw from prior).
@@ -1006,13 +1006,13 @@ class MLDA(Proposal):
         R : list or None, optional
             Restriction matrices for the adaptive error model. If list of
             restriction matrices is given, it must have length
-            len(link_factories) - 1 and they must be in increasing order,
+            len(posteriors) - 1 and they must be in increasing order,
             as the model hierachy. Default is None (identity matrices).
         """
 
-        # internalise the current level link factory and set the level.
-        self.link_factory = link_factories[-1]
-        self.level = len(link_factories) - 1
+        # internalise the current level posterior and set the level.
+        self.posterior = posteriors[-1]
+        self.level = len(posteriors) - 1
         self.initial_parameters = initial_parameters
 
         # initialise lists for the links and the acceptance and localness histories.
@@ -1021,7 +1021,7 @@ class MLDA(Proposal):
         self.is_local = []
 
         # create a link from the initial parameters and write to the histories.
-        self.chain.append(self.link_factory.create_link(self.initial_parameters))
+        self.chain.append(self.posterior.create_link(self.initial_parameters))
         self.accepted.append(True)
         self.is_local.append(False)
 
@@ -1036,7 +1036,7 @@ class MLDA(Proposal):
 
             # set MDLA as the proposal on the next-coarser level.
             self.proposal = MLDA(
-                link_factories[:-1],
+                posteriors[:-1],
                 proposal,
                 subsampling_rates[:-1],
                 self.initial_parameters,
@@ -1086,7 +1086,7 @@ class MLDA(Proposal):
 
             # set up the proposal.
             self.proposal.setup_proposal(
-                parameters=self.initial_parameters, link_factory=self.link_factory
+                parameters=self.initial_parameters, posterior=self.posterior
             )
 
             # set the current level make_proposal method to Metropolis-Hastings.
@@ -1132,10 +1132,10 @@ class MLDA(Proposal):
         )
 
         # set the bias on the next-coarser level.
-        self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
+        self.proposal.posterior.likelihood.set_bias(mu_bias, sigma_bias)
 
         # update the first coarser link with the adaptive error model.
-        self.proposal.chain[-1] = self.proposal.link_factory.update_link(
+        self.proposal.chain[-1] = self.proposal.posterior.update_link(
             self.proposal.chain[-1]
         )
 
@@ -1199,7 +1199,7 @@ class MLDA(Proposal):
             else:
 
                 # create a link from that proposal.
-                proposal_link = self.link_factory.create_link(proposal)
+                proposal_link = self.posterior.create_link(proposal)
 
                 # compute the MLDA acceptance probability..
                 alpha = self.proposal.get_acceptance(
@@ -1255,14 +1255,14 @@ class MLDA(Proposal):
                     )
 
                     # update the next-coarser likelihood with the bias.
-                    self.proposal.link_factory.likelihood.set_bias(mu_bias, sigma_bias)
+                    self.proposal.posterior.likelihood.set_bias(mu_bias, sigma_bias)
 
                 # state-dependent error model has not been implemented.
                 elif self.adaptive_error_model == "state-dependent":
                     pass
 
                 # update the latest link on the next-coarser level with the updated error model.
-                self.proposal.chain[-1] = self.proposal.link_factory.update_link(
+                self.proposal.chain[-1] = self.proposal.posterior.update_link(
                     self.proposal.chain[-1]
                 )
 
@@ -1278,7 +1278,7 @@ class MLDA(Proposal):
             proposal = self.proposal.make_proposal(self.chain[-1])
 
             # create a link from that proposal.
-            proposal_link = self.link_factory.create_link(proposal)
+            proposal_link = self.posterior.create_link(proposal)
 
             # compute the acceptance probability, according to the proposal.
             alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])

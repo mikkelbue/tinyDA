@@ -2,6 +2,7 @@ __version__ = "0.9.7.1"
 
 from .sampler import sample
 from .chain import *
+from .posterior import *
 from .link import *
 from .distributions import *
 from .proposal import *
