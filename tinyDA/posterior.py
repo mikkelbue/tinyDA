@@ -39,7 +39,7 @@ class Posterior:
         it must return a tuple (model_ouput, qoi). The qoi can be None.
     """
 
-    def __init__(self, prior, likelihood):
+    def __init__(self, prior, likelihood, model=None):
         """
         Parameters
         ----------
@@ -51,6 +51,12 @@ class Posterior:
         # internatlise the distributions.
         self.prior = prior
         self.likelihood = likelihood
+
+        # backwards compatibility.
+        if model is None:
+            self.model = self.evaluate_model
+        else:
+            self.model = model
 
     def create_link(self, parameters):
         """
@@ -69,7 +75,13 @@ class Posterior:
         prior = self.prior.logpdf(parameters)
 
         # get the model output and the qoi.
-        model_output, qoi = self.evaluate_model(parameters)
+        model_output = self.model(parameters)
+
+        # extract model output and qoi.
+        if isinstance(model_output, tuple):
+            model_output, qoi = model_output
+        else:
+            qoi = None
 
         # compute the likelihood.
         likelihood = self.likelihood.logpdf(model_output)
@@ -100,131 +112,28 @@ class Posterior:
             link.parameters, link.prior, link.model_output, likelihood, link.qoi
         )
 
-    def evaluate_model(self, parameters):
-        """
-        Parameters
-        ----------
-        parameters : numpy.ndarray
-            A numpy array of model parameters.
-
-        Returns
-        ----------
-        tuple
-            A tuple (model_output, qoi), where model_output is a numpy.ndarray,
-            and qoi can be anything, including None.
-        """
-        # model output must return model_output and qoi (can be None),
-        # and must be adapted to the problem at hand.
-        model_output = None
-        qoi = None
-        return model_output, qoi
-
-
-class BlackBoxPosterior(Posterior):
-    """BlackBoxPosterior is a type of Posterior, specifically intended for
-    use with a black box model. It works the same way as the Posterior, but
-    addtionally takes 'model' as input, allowing use with generic black box
-    models. The model must be either a function that returns the model output
-    F(theta), or an object with an equivalent __call__-method. If a Quantity of
-    Interest is required, the model must be an object with an additional
-    get_qoi-method.
-
-    Attributes
-    ----------
-    model : Object or function
-        A model object or function that returns model output. If model is
-        an object, it must have a __call__ method.
-    prior : scipy.stats.rv_continuous
-        The prior distribution. Usually a scipy.stats.rv_continuous, but
-        the only requirement is that it has a logpdf method.
-    likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
-        The likelihood function. Usually a tinyDA.LogLike, but
-        the only requirement is that it has a logpdf method.
-    get_qoi : bool
-        Whether the model should return a QoI (requires get_qoi method),
-        or not. If not, the QoI is None.
-
-    Methods
-    -------
-    create_link(parameters)
-        Returns an instance of tinyDA.Link, given the parameters. Calling
-        the method with a numpy.ndarray of parameters triggers evaluation
-        of the prior density, the model and the likelihood.
-    update_link(link, bias=None)
-        This is a helper method that updates a link after the likelihood
-        function has been adaptively updated. Hence, it skips model evaluation
-        and only recomputes the likelihood.
-    evaluate_model(parameters)
-        Returns the model outout (and possibly a QoI), given input parameters.
-    """
-
-    def __init__(self, model, prior, likelihood, get_qoi=False):
-        """
-        Parameters
-        ----------
-        model : Object or function
-            A model object or function that returns model output. If model is
-            an object, it must have a __call__ method.
-        prior : scipy.stats.rv_continuous
-            The prior distribution.
-        likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
-            The likelihood function.
-        get_qoi : bool, optional
-            Whether the model should return a QoI (requires get_qoi method),
-            or not. If not, the QoI is None. Default is False.
-        """
-
-        # Internatlise the model
-        self.model = model
-
-        # internatlise the distributions.
-        self.prior = prior
-        self.likelihood = likelihood
-
-        self.get_qoi = get_qoi
-
-    def evaluate_model(self, parameters):
-        """
-        Parameters
-        ----------
-        parameters : numpy.ndarray
-            A numpy array of model parameters.
-
-        Returns
-        ----------
-        tuple
-            A tuple (model_output, qoi), where model_output is a numpy.ndarray,
-            and qoi can be anything.
-        """
-
-        # get the model output.
-        model_output = self.model(parameters)
-
-        # get the quantity of interest.
-        if self.get_qoi:
-            qoi = self.model.get_qoi()
-        else:
-            qoi = None
-
-        # return everything.
-        return model_output, qoi
-
 class LinkFactory(Posterior):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, prior, likelihood):
 
         warnings.warn(
             "LinkFactory is deprecated and will be removed in the next version. Please use Posterior instead",
             stacklevel=2,
         )
 
-        super().__init__(*args, **kwargs)
+        super().__init__(prior, likelihood)
 
-class BlackBoxLinkFactory(BlackBoxPosterior):
-    def __init__(self, *args, **kwargs):
+class BlackBoxLinkFactory(Posterior):
+    def __init__(self, model, prior, likelihood, get_qoi=False):
 
         warnings.warn(
-            "BlackBoxLinkFactory is deprecated and will be removed in the next version. Please use BlackBoxPosterior instead",
+            "BlackBoxLinkFactory is deprecated and will be removed in the next version. Please use Posterior instead.",
             stacklevel=2,
         )
 
-        super().__init__(*args, **kwargs)
+        if get_qoi:
+            warnings.warn(
+                "The argument get_qoi has been removed and has no effect. If a quantity of interest is required, the call the the forward model must return a tuple of (model_output, qoi)",
+                stacklevel=2,
+            )
+
+        super().__init__(prior, likelihood, model)
