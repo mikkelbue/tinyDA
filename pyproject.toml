@@ -1,7 +1,16 @@
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
+[tool.poetry]
+name = "tinyDA"
+version = "0.9.8"
+description = "Delayed Acceptance MCMC Sampler"
+authors = ["Mikkel Bue Lykkegaard"]
 
+[tool.poetry.dependencies]
+numpy = "^=1.23.0"
+scipy = "^=1.8.0"
+matplotlib = "^=3.5.2"
+arviz = "^=0.12.1"
+tqdm = "^=4.64.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
