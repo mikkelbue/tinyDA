@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "tinyDA"
-version = "0.9.8rc1"
+name = "tinyda"
+version = "0.9.8"
 description = "Delayed Acceptance MCMC Sampler"
 license = "MIT"
 authors = ["Mikkel Bue Lykkegaard <mikkelbue@gmail.com>"]
 readme = "README.md"
-repository = "https://github.com/mikkelbue/tinyDA"
+repository = "https://github.com/mikkelbue/tinyda"
 documentation = "https://tinyda.readthedocs.io"
 classifiers = [
     "Programming Language :: Python :: 3",
