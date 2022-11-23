@@ -59,26 +59,30 @@ cov_likelihood = sigma**2*np.eye(data.shape[0])
 
 # initialise the prior distribution and likelihood.
 my_prior = multivariate_normal(mean_prior, cov_prior)
-my_loglike = tda.LogLike(data, cov_likelihood)
+my_loglike = tda.GaussianLogLike(data, cov_likelihood)
 ```
 If using a Gaussian likelihood, we recommend using the `tinyDA` implementation, since it is unnormalised and plays along well with `tda.AdaptiveLogLike` used for the Adaptive Error Model. Home-brew distributions can easily be defined, and must have a `.rvs()` method for drawing random samples and a `logpdf(x)` method for computing the log-likelihood, as per the `SciPy` implementation.
 
-### tinyDA.LinkFactory
-At the heart of the TinyDA sampler sits what we call a `LinkFactory`, which is responsible for:
+### tinyDA.Posterior
+The heart of the TinyDA sampler is the `tinyDA.Posterior`, which is responsible for:
 1. Calling the model with some parameters (a proposal) and collecting the model output.
-2. Evaluating the prior density of the parameters, and the likelihood of the model output, given the parameters.
+2. Evaluating the prior density of the parameters, and the likelihood of the data, given the parameters.
 3. Constructing `tda.Link` instances that hold information for each sample.
 
 ![](https://github.com/mikkelbue/tinyDA/blob/main/misc/flowchart.png)
 
-The `LinkFactory` must be defined by inheritance from either `tda.LinkFactory` or `tda.BlackBoxLinkFactory`. The former allows for computing the model output directly from the input parameters, using pure Python or whichever external library you want to call. The `evaluate_model()` method must thus be overwritten:
+The `tinyDA.Posterior` takes as input the prior, the likelihood, and a forward model. Therefore, a forward model must be defined. This model can be either a function `model_output = my_function(parameters)` or a class instance with a `.__call__(self, parameters)` method. The function or `__call__` method must return either just the model output or a tuple of `(model_output, qoi)`. In this example, we define a class that performs simple linear regression on whatever inputs `x` we have.
 
 ```python
-class MyLinkFactory(tda.LinkFactory):
-    def evaluate_model(self, parameters):
+class MyLinearModel:
+    def __init__(self, x):
+
+        self.x = x
+        
+    def __call__(self, parameters):
         
         # the model output is a simple linear regression
-        model_output = parameters[0] + parameters[1]*x
+        model_output = parameters[0] + parameters[1]*self.x
         
         # no quantity of interest beyond the parameters.
         qoi = None
@@ -86,27 +90,8 @@ class MyLinkFactory(tda.LinkFactory):
         # return both.
         return model_output, qoi
 
-my_link_factory = MyLinkFactory(my_prior, my_loglike)
-```
-
-The latter allows for feeding some model object to the `LinkFactory` at initialisation, which is then assigned as a class attribute. This is useful for e.g. PDE solvers. Your model must return ordered data when called (e.g. via a `__call__(self, parameters)` method), and there is no need to overwrite `evaluate_model()`. This is what happens under the hood:
-```python
-class BlackBoxLinkFactory(LinkFactory):
-    def evaluate_model(self, parameters):
-            
-        # get the model output.
-        model_output = self.model(parameters)
-        
-        # get the quantity of interest.
-        if self.get_qoi:
-            qoi = self.model.get_qoi()
-        else:
-            qoi = None
-            
-        # return everything.
-        return model_output, qoi
-
-my_link_factory = BlackBoxLinkFactory(my_model, my_prior, my_loglike, get_qoi=True)
+my_model = MyLinearModel(x)
+my_posterior = tda.Posterior(my_prior, my_loglike, my_model)
 ```
 
 ### Proposals
@@ -127,21 +112,21 @@ my_proposal = tda.AdaptiveMetropolis(C0=am_cov, t0=am_t0, sd=am_sd, epsilon=am_e
 ```
 
 ### Sampling
-After defining a proposal, a coarse link factory `my_link_factory_coarse`, and a fine link factory `my_link_factory_fine`, the Delayed Acceptance sampler can be run using `tinyDA.sample()`:
+After defining a proposal, a coarse posterior `my_posterior_coarse`, and a fine posterior `my_posterior_fine`, the Delayed Acceptance sampler can be run using `tinyDA.sample()`:
 ```python
-my_chains = tda.sample([my_link_factory_coarse, my_link_factory_fine], 
+my_chains = tda.sample([my_posterior_coarse, my_posterior_fine], 
                        my_proposal, 
                        iterations=12000, 
                        n_chains=2, 
                        subsampling_rate=10)
 ```
 
-If using a hirarchy with more than two models, a Multilevel Delayed Acceptance sampler can be run by supplying a list of link factories in ascending order and a correponsing list of subsampling rates:
+If using a hirarchy with more than two models, a Multilevel Delayed Acceptance sampler can be run by supplying a list of posteriors in ascending order and a correponsing list of subsampling rates:
 ```python
-my_chains = tda.sample([my_link_factory_level0, 
-                        my_link_factory_level1, 
-                        my_link_factory_level2, 
-                        my_link_factory_level3], 
+my_chains = tda.sample([my_posterior_level0, 
+                        my_posterior_level1, 
+                        my_posterior_level2, 
+                        my_posterior_level3], 
                        my_proposal, 
                        iterations=12000, 
                        n_chains=2, 

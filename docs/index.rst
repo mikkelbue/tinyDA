@@ -40,7 +40,7 @@ Documentation
    :maxdepth: 1
    
    modules/sampler
-   modules/link_factories
+   modules/posterior
    modules/proposals
    modules/distributions
    modules/diagnostics

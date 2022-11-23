@@ -197,14 +197,14 @@ class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
         self.t += 1
 
 
-def get_MAP(link_factory, initial_parameters=None, **kwargs):
+def get_MAP(posterior, initial_parameters=None, **kwargs):
 
-    """Returns the Maximum a Posteriori estimate of a link factory.
+    """Returns the Maximum a Posteriori estimate of a posterior.
 
     Parameters
     ----------
-    link_factory : tinyDA.LinkFactory
-        The link factory to use for computing the MAP point.
+    posterior : tinyDA.Posterior
+        The posterior to use for computing the MAP point.
     initial_parameters : numpy.ndarray, optional
         The starting point for the optimisation. Default is None
         (random draw from the prior).
@@ -218,23 +218,23 @@ def get_MAP(link_factory, initial_parameters=None, **kwargs):
     """
 
     if initial_parameters is None:
-        initial_parameters = link_factory.prior.rvs()
+        initial_parameters = posterior.prior.rvs()
 
-    negative_log_posterior = lambda parameters: -link_factory.create_link(
+    negative_log_posterior = lambda parameters: -posterior.create_link(
         parameters
     ).posterior
     MAP = minimize(negative_log_posterior, initial_parameters, **kwargs)
     return MAP["x"]
 
 
-def get_ML(link_factory, initial_parameters=None, **kwargs):
+def get_ML(posterior, initial_parameters=None, **kwargs):
 
-    """Returns the Maximum Likelihood estimate of a link factory.
+    """Returns the Maximum Likelihood estimate of a posterior.
 
     Parameters
     ----------
-    link_factory : tinyDA.LinkFactory
-        The link factory to use for computing the ML point.
+    posterior : tinyDA.Posterior
+        The posterior to use for computing the ML point.
     initial_parameters : numpy.ndarray, optional
         The starting point for the optimisation. Default is None
         (random draw from the prior).
@@ -248,9 +248,9 @@ def get_ML(link_factory, initial_parameters=None, **kwargs):
     """
 
     if initial_parameters is None:
-        initial_parameters = link_factory.prior.rvs()
+        initial_parameters = posterior.prior.rvs()
 
-    negative_log_likelihood = lambda parameters: -link_factory.create_link(
+    negative_log_likelihood = lambda parameters: -posterior.create_link(
         parameters
     ).likelihood
     ML = minimize(negative_log_likelihood, initial_parameters, **kwargs)

@@ -12,14 +12,14 @@ from .proposal import *
 class ParallelChain:
 
     """ParallelChain creates n_chains instances of tinyDA.Chain and runs the
-    chains in parallel. It is initialsed with a LinkFactory (which holds the
+    chains in parallel. It is initialsed with a Posterior (which holds the
     model and the distributions, and returns Links), and a proposal (transition
     kernel).
 
     Attributes
     ----------
-    link_factory : tinyDA.LinkFactory
-        A link factory responsible for communation between prior, likelihood
+    posterior : tinyDA.Posterior
+        A posterior responsible for communation between prior, likelihood
         and model. It also generates instances of tinyDA.Link (sample objects).
     proposal : tinyDA.Proposal
         Transition kernel for MCMC proposals.
@@ -41,13 +41,13 @@ class ParallelChain:
         Runs the MCMC for the specified number of iterations.
     """
 
-    def __init__(self, link_factory, proposal, n_chains=2, initial_parameters=None):
+    def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
 
         """
         Parameters
         ----------
-        link_factory : tinyDA.LinkFactory
-            A link factory responsible for communation between prior, likelihood
+        posterior : tinyDA.Posterior
+            A posterior responsible for communation between prior, likelihood
             and model. It also generates instances of tinyDA.Link (sample objects).
         proposal : tinyDA.Proposal
             Transition kernel for MCMC proposals.
@@ -58,8 +58,8 @@ class ParallelChain:
             draws from prior).
         """
 
-        # internalise the link factory and proposal.
-        self.link_factory = link_factory
+        # internalise the posterior and proposal.
+        self.posterior = posterior
         self.proposal = proposal
 
         # set the number of parallel chains and initial parameters.
@@ -74,7 +74,7 @@ class ParallelChain:
         # set up the parallel chains as Ray actors.
         self.remote_chains = [
             RemoteChain.remote(
-                self.link_factory, self.proposal[i], self.initial_parameters[i]
+                self.posterior, self.proposal[i], self.initial_parameters[i]
             )
             for i in range(self.n_chains)
         ]
@@ -101,17 +101,17 @@ class ParallelChain:
 class ParallelDAChain(ParallelChain):
 
     """ParalleDAChain creates n_chains instances of tinyDA.DAChain and runs the
-    chains in parallel. It takes a coarse and a fine link factory as input, as
+    chains in parallel. It takes a coarse and a fine posterior as input, as
     well as a proposal, which applies to the coarse level only.
 
     Attributes
     ----------
-    link_factory_coarse : tinyDA.LinkFactory
-        A "coarse" link factory responsible for communation between prior,
+    posterior_coarse : tinyDA.Posterior
+        A "coarse" posterior responsible for communation between prior,
         likelihood and model. It also generates instances of tinyDA.Link
         (sample objects).
-    link_factory_fine : tinyDA.LinkFactory
-        A "fine" link factory responsible for communation between prior,
+    posterior_fine : tinyDA.Posterior
+        A "fine" posterior responsible for communation between prior,
         likelihood and model. It also generates instances of tinyDA.Link
         (sample objects).
     proposal : tinyDA.Proposal
@@ -141,8 +141,8 @@ class ParallelDAChain(ParallelChain):
 
     def __init__(
         self,
-        link_factory_coarse,
-        link_factory_fine,
+        posterior_coarse,
+        posterior_fine,
         proposal,
         subsampling_rate=1,
         n_chains=2,
@@ -154,12 +154,12 @@ class ParallelDAChain(ParallelChain):
         """
         Parameters
         ----------
-        link_factory_coarse : tinyDA.LinkFactory
-            A "coarse" link factory responsible for communation between prior,
+        posterior_coarse : tinyDA.Posterior
+            A "coarse" posterior responsible for communation between prior,
             likelihood and model. It also generates instances of tinyDA.Link
             sample objects).
-        link_factory_fine : tinyDA.LinkFactory
-            A "fine" link factory responsible for communation between prior,
+        posterior_fine : tinyDA.Posterior
+            A "fine" posterior responsible for communation between prior,
             likelihood and model. It also generates instances of tinyDA.Link
             (sample objects).
         proposal : tinyDA.Proposal
@@ -182,9 +182,9 @@ class ParallelDAChain(ParallelChain):
             (identity matrix).
         """
 
-        # internalise link factories, proposal and subsampling rate.
-        self.link_factory_coarse = link_factory_coarse
-        self.link_factory_fine = link_factory_fine
+        # internalise posteriors, proposal and subsampling rate.
+        self.posterior_coarse = posterior_coarse
+        self.posterior_fine = posterior_fine
         self.proposal = proposal
         self.subsampling_rate = subsampling_rate
 
@@ -204,8 +204,8 @@ class ParallelDAChain(ParallelChain):
         # set up the parallel DA chains as Ray actors.
         self.remote_chains = [
             RemoteDAChain.remote(
-                self.link_factory_coarse,
-                self.link_factory_fine,
+                self.posterior_coarse,
+                self.posterior_fine,
                 self.proposal[i],
                 self.subsampling_rate,
                 self.initial_parameters[i],
@@ -219,7 +219,7 @@ class ParallelDAChain(ParallelChain):
 class ParallelMLDAChain(ParallelChain):
     def __init__(
         self,
-        link_factories,
+        posteriors,
         proposal,
         subsampling_rates=None,
         n_chains=2,
@@ -228,8 +228,8 @@ class ParallelMLDAChain(ParallelChain):
         R=None,
     ):
 
-        # internalise link factories, proposal and subsampling rate.
-        self.link_factories = link_factories
+        # internalise posteriors, proposal and subsampling rate.
+        self.posteriors = posteriors
         self.proposal = proposal
         self.subsampling_rates = subsampling_rates
 
@@ -249,7 +249,7 @@ class ParallelMLDAChain(ParallelChain):
         # set up the parallel DA chains as Ray actors.
         self.remote_chains = [
             RemoteMLDAChain.remote(
-                self.link_factories,
+                self.posteriors,
                 self.proposal[i],
                 self.subsampling_rates,
                 self.initial_parameters[i],
@@ -310,7 +310,7 @@ class MultipleTry(Proposal):
     Methods
     ----------
     setup_proposal(**kwargs)
-        Initialises the kernel, and the remote LinkFactories.
+        Initialises the kernel, and the remote Posteriors.
     adapt(**kwargs)
         Adapts the kernel.
     make_proposal(link)
@@ -351,9 +351,9 @@ class MultipleTry(Proposal):
         # pass the kwargs to the kernel.
         self.kernel.setup_proposal(**kwargs)
 
-        # initialise the link factories.
-        self.link_factories = [
-            RemoteLinkFactory.remote(kwargs["link_factory"]) for i in range(self.k)
+        # initialise the posteriors.
+        self.posteriors = [
+            RemotePosterior.remote(kwargs["posterior"]) for i in range(self.k)
         ]
 
     def adapt(self, **kwargs):
@@ -368,8 +368,8 @@ class MultipleTry(Proposal):
 
         # get the links in parallel.
         proposal_processes = [
-            link_factory.create_link.remote(proposal)
-            for proposal, link_factory in zip(proposals, self.link_factories)
+            posterior.create_link.remote(proposal)
+            for proposal, posterior in zip(proposals, self.posteriors)
         ]
         self.proposal_links = ray.get(proposal_processes)
 
@@ -416,8 +416,8 @@ class MultipleTry(Proposal):
 
             # get the links in parallel.
             reference_processes = [
-                link_factory.create_link.remote(reference)
-                for reference, link_factory in zip(references, self.link_factories)
+                posterior.create_link.remote(reference)
+                for reference, posterior in zip(references, self.posteriors)
             ]
             self.reference_links = ray.get(reference_processes)
 
@@ -445,9 +445,9 @@ class MultipleTry(Proposal):
 
 
 @ray.remote
-class RemoteLinkFactory:
-    def __init__(self, link_factory):
-        self.link_factory = link_factory
+class RemotePosterior:
+    def __init__(self, posterior):
+        self.posterior = posterior
 
     def create_link(self, parameters):
-        return self.link_factory.create_link(parameters)
+        return self.posterior.create_link(parameters)

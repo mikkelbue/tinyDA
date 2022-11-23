@@ -1,5 +1,5 @@
-Link Factories and Links
-========================
+Posterior and Links
+===================
 
 .. toctree::
    :maxdepth: 2
@@ -8,22 +8,13 @@ Link Factories and Links
 .. autosummary::
     :nosignatures:
     
-    tinyDA.LinkFactory
-    tinyDA.BlackBoxLinkFactory
+    tinyDA.Posterior
     tinyDA.Link
    
-Link Factory
-------------
+Posterior
+---------
 
-.. autoclass:: tinyDA.LinkFactory
-    :members:
-    
-    .. automethod:: __init__
-    
-Black Box Link Factory
-----------------------
-
-.. autoclass:: tinyDA.BlackBoxLinkFactory
+.. autoclass:: tinyDA.Posterior
     :members:
     
     .. automethod:: __init__
