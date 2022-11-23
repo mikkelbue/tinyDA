@@ -5,11 +5,15 @@ description = "Delayed Acceptance MCMC Sampler"
 authors = ["Mikkel Bue Lykkegaard"]
 
 [tool.poetry.dependencies]
-numpy = "^=1.23.0"
-scipy = "^=1.8.0"
-matplotlib = "^=3.5.2"
-arviz = "^=0.12.1"
-tqdm = "^=4.64.0"
+arviz = "^0.12.1"
+matplotlib = "^3.5.2"
+numpy = "^1.23.0"
+python = ">=3.8,<3.12"
+tqdm = "^4.64.0"
+scipy = "^1.8.0"
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
