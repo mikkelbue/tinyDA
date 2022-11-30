@@ -122,7 +122,7 @@ class Chain:
             # this has no effect.
             self.proposal.adapt(
                 parameters=self.chain[-1].parameters,
-                jumping_distance=self.chain[-1].parameters - self.chain[-2].parameters,
+                parameters_previous=self.chain[-2].parameters,
                 accepted=self.accepted,
             )
 
@@ -358,8 +358,7 @@ class DAChain:
                 # this has no effect.
                 self.proposal.adapt(
                     parameters=self.chain_coarse[-1].parameters,
-                    jumping_distance=self.chain_coarse[-1].parameters
-                    - self.chain_coarse[-2].parameters,
+                    parameters_previous=self.chain[-2].parameters,
                     accepted=list(compress(self.accepted_coarse, self.is_coarse)),
                 )
 

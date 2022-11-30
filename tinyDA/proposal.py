@@ -868,10 +868,12 @@ class SingleDreamZ(GaussianRandomWalk):
         # adaptivity
         if self.adaptive and self.t % self.period == 0:
 
+            jumping_distance = kwargs["parameters"] - kwargs["parameters_previous"]
+
             # compute new multinomial distribution according to the normalised jumping distance.
             self.DeltaCR[self.mCR] = (
                 self.DeltaCR[self.mCR]
-                + (kwargs["jumping_distance"] ** 2 / np.var(self.Z, axis=0)).sum()
+                + (jumping_distance ** 2 / np.var(self.Z, axis=0)).sum()
             )
             self.LCR[self.mCR] = self.LCR[self.mCR] + 1
 
@@ -1297,7 +1299,7 @@ class MLDA(Proposal):
             # this has no effect.
             self.proposal.adapt(
                 parameters=self.chain[-1].parameters,
-                jumping_distance=self.chain[-1].parameters - self.chain[-2].parameters,
+                parameters_previous=self.chain[-2].parameters,
                 accepted=self.accepted,
             )
         # return the latest link.
