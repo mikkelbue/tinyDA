@@ -83,11 +83,6 @@ def sample(
         (no error model), options are 'state-independent' or 'state-dependent'.
         If an error model is used, the likelihood MUST have a set_bias()
         method, use e.g. tinyDA.AdaptiveGaussianLogLike.
-    R : list or numpy.ndarray or None, optional
-        Restriction matrix(-ces) for the adaptive error model. If list of
-        restriction matrices is given for MLDA sampler, they must be in
-        increasing order as the model hierachy. If running single-level
-        MCMC, this parameter is ignored. Default is None (identity matrix).
     force_sequential : bool, optional
         Whether to force sequential sampling, even if Ray is installed.
         Default is False.
@@ -207,7 +202,6 @@ def sample(
                 initial_parameters,
                 subsampling_rate,
                 adaptive_error_model,
-                R,
             )
         # parallel sampling.
         else:
@@ -219,7 +213,6 @@ def sample(
                 initial_parameters,
                 subsampling_rate,
                 adaptive_error_model,
-                R,
                 force_progress_bar,
             )
 
@@ -229,8 +222,6 @@ def sample(
             subsampling_rates = subsampling_rate
         elif isinstance(subsampling_rate, int):
             subsampling_rates = [subsampling_rate] * (len(posteriors) - 1)
-        if R is None:
-            R = [None] * (len(posteriors) - 1)
 
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
@@ -242,7 +233,6 @@ def sample(
                 initial_parameters,
                 subsampling_rates,
                 adaptive_error_model,
-                R,
             )
         # parallel sampling.
         else:
@@ -254,7 +244,6 @@ def sample(
                 initial_parameters,
                 subsampling_rates,
                 adaptive_error_model,
-                R,
                 force_progress_bar,
             )
 
@@ -311,7 +300,6 @@ def _sample_sequential_da(
     initial_parameters,
     subsampling_rate,
     adaptive_error_model,
-    R,
 ):
     """Helper function for tinyDA.sample()"""
 
@@ -327,7 +315,6 @@ def _sample_sequential_da(
                 subsampling_rate,
                 initial_parameters[i],
                 adaptive_error_model,
-                R,
             )
         )
         chains[i].sample(iterations)
@@ -359,7 +346,6 @@ def _sample_parallel_da(
     initial_parameters,
     subsampling_rate,
     adaptive_error_model,
-    R,
     force_progress_bar,
 ):
     """Helper function for tinyDA.sample()"""
@@ -375,7 +361,6 @@ def _sample_parallel_da(
         n_chains,
         initial_parameters,
         adaptive_error_model,
-        R,
     )
     chains.sample(iterations, force_progress_bar)
 
@@ -405,7 +390,6 @@ def _sample_sequential_mlda(
     initial_parameters,
     subsampling_rates,
     adaptive_error_model,
-    R,
 ):
     """Helper function for tinyDA.sample()"""
 
@@ -422,7 +406,6 @@ def _sample_sequential_mlda(
                 subsampling_rates,
                 initial_parameters[i],
                 adaptive_error_model,
-                R,
             )
         )
         chains[i].sample(iterations)
@@ -464,7 +447,6 @@ def _sample_parallel_mlda(
     initial_parameters,
     subsampling_rates,
     adaptive_error_model,
-    R,
     force_progress_bar,
 ):
     """Helper function for tinyDA.sample()"""
@@ -481,7 +463,6 @@ def _sample_parallel_mlda(
         n_chains,
         initial_parameters,
         adaptive_error_model,
-        R,
     )
     chains.sample(iterations, force_progress_bar)
 
