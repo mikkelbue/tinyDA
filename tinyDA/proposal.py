@@ -87,12 +87,10 @@ class IndependenceSampler(Proposal):
         pass
 
     def make_proposal(self, link):
-
         # draw a random sample from the proposal distribution.
         return self.q.rvs(1).flatten()
 
     def get_acceptance(self, proposal_link, previous_link):
-
         q_proposal = self.get_q(None, proposal_link)
         q_previous = self.get_q(None, previous_link)
 
@@ -101,7 +99,6 @@ class IndependenceSampler(Proposal):
         )
 
     def get_q(self, x_link, y_link):
-
         # get the transition probability.:
         return self.q.logpdf(y_link.parameters)
 
@@ -189,7 +186,6 @@ class GaussianRandomWalk(Proposal):
 
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
-
             # adaptivity scaling.
             self.gamma = gamma
             # adaptivity period (delay between adapting)
@@ -204,15 +200,12 @@ class GaussianRandomWalk(Proposal):
         pass
 
     def adapt(self, **kwargs):
-
         self.t += 1
 
         # if adaptive, run the adaptivity routines.
         if self.adaptive:
-
             # make sure the periodicity is respected
             if self.t % self.period == 0:
-
                 # compute the acceptance rate during the previous period.
                 acceptance_rate = np.mean(kwargs["accepted"][-self.period :])
                 # set the scaling so that the acceptance rate will converge to 0.24.
@@ -305,7 +298,6 @@ class CrankNicolson(GaussianRandomWalk):
 
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
-
             # adaptivity scaling.
             self.gamma = gamma
             # adaptivity period (delay between adapting)
@@ -317,7 +309,6 @@ class CrankNicolson(GaussianRandomWalk):
         self.t = 0
 
     def setup_proposal(self, **kwargs):
-
         # set the covariance operator
         self.C = kwargs["posterior"].prior.cov
 
@@ -398,7 +389,6 @@ class AdaptiveMetropolis(GaussianRandomWalk):
     def __init__(
         self, C0, sd=None, epsilon=1e-6, t0=0, period=100, adaptive=False, gamma=1.01
     ):
-
         """
         Parameters
         ----------
@@ -464,7 +454,6 @@ class AdaptiveMetropolis(GaussianRandomWalk):
 
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
-
             # adaptivity scaling.
             self.gamma = gamma
             # initialise adaptivity counter for diminishing adaptivity.
@@ -484,7 +473,6 @@ class AdaptiveMetropolis(GaussianRandomWalk):
         )
 
     def adapt(self, **kwargs):
-
         super().adapt(**kwargs)
 
         # AM is adaptive per definition. update the RecursiveSampleMoments
@@ -592,7 +580,6 @@ class AdaptiveCrankNicolson(CrankNicolson):
 
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
-
             # adaptivity scaling.
             self.gamma = gamma
             # initialise adaptivity counter for diminishing adaptivity.
@@ -602,7 +589,6 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.t = 0
 
     def setup_proposal(self, **kwargs):
-
         # set the initial covariance operator.
         self.C = kwargs["posterior"].prior.cov
 
@@ -632,7 +618,6 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.lamb_n = (self.x_n - u_j) ** 2
 
     def adapt(self, **kwargs):
-
         super().adapt(**kwargs)
 
         # ApCN is adaptive per definition. update the moments.
@@ -739,7 +724,6 @@ class SingleDreamZ(GaussianRandomWalk):
         gamma=1.01,
         period=100,
     ):
-
         """
         Parameters
         ----------
@@ -804,7 +788,6 @@ class SingleDreamZ(GaussianRandomWalk):
 
         # if adaptive, set some adaptivity parameters
         if self.adaptive:
-
             # adaptivity scaling.
             self.gamma = gamma
             # adaptivity period (delay between adapting)
@@ -815,7 +798,6 @@ class SingleDreamZ(GaussianRandomWalk):
         self.t = 0
 
     def setup_proposal(self, **kwargs):
-
         prior = kwargs["posterior"].prior
 
         # get the dimension and the initial scaling.
@@ -830,7 +812,6 @@ class SingleDreamZ(GaussianRandomWalk):
 
         # draw initial archive with latin hypercube sampling.
         if self.Z_method == "lhs":
-
             try:
                 lhs = stats.qmc.LatinHypercube(d=self.d)
                 self.Z = lhs.random(n=self.M)
@@ -858,7 +839,6 @@ class SingleDreamZ(GaussianRandomWalk):
         self.Z = prior.rvs(self.M)
 
     def adapt(self, **kwargs):
-
         super().adapt(**kwargs)
 
         # extend the archive.
@@ -867,7 +847,6 @@ class SingleDreamZ(GaussianRandomWalk):
 
         # adaptivity
         if self.adaptive and self.t % self.period == 0:
-
             # compute new multinomial distribution according to the normalised jumping distance.
             self.DeltaCR[self.mCR] = (
                 self.DeltaCR[self.mCR]
@@ -880,7 +859,6 @@ class SingleDreamZ(GaussianRandomWalk):
                 self.pCR = DeltaCR_mean / DeltaCR_mean.sum()
 
     def make_proposal(self, link):
-
         # initialise the jump vectors.
         Z_r1 = np.zeros(self.d)
         Z_r2 = np.zeros(self.d)
@@ -947,17 +925,15 @@ class MLDA(Proposal):
         level or by correction according to the next-finer level.
     adaptive_error_model : str or None
         The adaptive error model used, see e.g. Cui et al. (2019).
-    R : numpy.ndarray
-        Restriction matrix for the adaptive error model on the current level.
     bias : tinaDA.RecursiveSampleMoments
         A recursive Gaussian error model that computes the sample moments
         of the next-coarser bias.
 
     Methods
     ----------
-    setup_adaptive_error_model(biases, Rs)
-        Sets up the adaptive error model and passes the biases and restriction
-        matrices to the next-coarser level.
+    setup_adaptive_error_model(biases)
+        Sets up the adaptive error model and passes the biases to the
+        next-coarser level.
     align_chain(parameters, accepted)
         Makes sure the first link of the current level subchain is aligned
         with the next-finer level.
@@ -982,9 +958,7 @@ class MLDA(Proposal):
         subsampling_rates,
         initial_parameters,
         adaptive_error_model,
-        R,
     ):
-
         """
         Parameters
         ----------
@@ -1003,11 +977,6 @@ class MLDA(Proposal):
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        R : list or None, optional
-            Restriction matrices for the adaptive error model. If list of
-            restriction matrices is given, it must have length
-            len(posteriors) - 1 and they must be in increasing order,
-            as the model hierachy. Default is None (identity matrices).
         """
 
         # internalise the current level posterior and set the level.
@@ -1030,7 +999,6 @@ class MLDA(Proposal):
 
         # if this level is not the coarsest level.
         if self.level > 0:
-
             # internalise the subsampling rate.
             self.subsampling_rate = subsampling_rates[-1]
 
@@ -1041,7 +1009,6 @@ class MLDA(Proposal):
                 subsampling_rates[:-1],
                 self.initial_parameters,
                 self.adaptive_error_model,
-                R[:-1],
             )
 
             # set the current level make_proposal method to MLDA.
@@ -1049,18 +1016,9 @@ class MLDA(Proposal):
 
             # set up the adaptive error model.
             if self.adaptive_error_model is not None:
-
-                # set the restriction matrix for the current level.
-                self.R = R[-1]
-
-                # if no restriction matrix was given, create an identity matrix.
-                if self.R is None:
-                    self.R = np.eye(self.chain[-1].model_output.shape[0])
-
                 # compute the difference between coarse and fine level.
                 self.model_diff = (
-                    self.R.dot(self.chain[-1].model_output)
-                    - self.proposal.chain[-1].model_output
+                    self.chain[-1].model_output - self.proposal.chain[-1].model_output
                 )
 
                 # set up the state-independent adaptive error model.
@@ -1080,7 +1038,6 @@ class MLDA(Proposal):
 
         # if the current level is the coarsest one.
         elif self.level == 0:
-
             # use the coarsest level proposal.
             self.proposal = proposal
 
@@ -1092,44 +1049,20 @@ class MLDA(Proposal):
             # set the current level make_proposal method to Metropolis-Hastings.
             self.make_proposal = self.make_base_proposal
 
-    def setup_adaptive_error_model(self, biases, Rs):
-
+    def setup_adaptive_error_model(self, biases):
         """
         Parameters
         ----------
         biases : list
             List of instances of tinyDA.RecursiveSampleMoments.
-        Rs: : list
-            List of restriction matrices.
         """
 
         # add the current level bias to the list.
         self.biases = [self.bias] + biases
 
-        # add the current level restriction matrix to the list.
-        self.Rs = [self.R] + Rs
-
-        # set up a list of recursive product of the restriction matrices.
-        self.R_products = [np.eye(self.Rs[0].shape[0])] * len(self.biases)
-
-        # compute the product of restriction matrices, as approptriate
-        # to each bias term.
-        for i, R in enumerate(self.Rs[:-1]):
-            for j in range(i + 1, len(self.Rs)):
-                self.R_products[j] = np.dot(self.R_products[j], R)
-
         # compute the total bias on the current level.
-        mu_bias = np.sum(
-            [np.dot(R, bias.get_mu()) for R, bias in zip(self.R_products, self.biases)],
-            axis=0,
-        )
-        sigma_bias = np.sum(
-            [
-                np.linalg.multi_dot((R, bias.get_sigma(), R.T))
-                for R, bias in zip(self.R_products, self.biases)
-            ],
-            axis=0,
-        )
+        mu_bias = np.sum([bias.get_mu() for bias in self.biases], axis=0)
+        sigma_bias = np.sum([bias.get_sigma() for bias in self.biases], axis=0)
 
         # set the bias on the next-coarser level.
         self.proposal.posterior.likelihood.set_bias(mu_bias, sigma_bias)
@@ -1139,12 +1072,11 @@ class MLDA(Proposal):
             self.proposal.chain[-1]
         )
 
-        # pass the list of biases and restriction matrices on the the next level.
+        # pass the list of biases on to the next level.
         if self.level > 1:
-            self.proposal.setup_adaptive_error_model(self.biases, self.Rs)
+            self.proposal.setup_adaptive_error_model(self.biases)
 
     def align_chain(self, parameters, accepted):
-
         """
         Parameters
         ----------
@@ -1157,11 +1089,7 @@ class MLDA(Proposal):
 
         # append the latest link on the current level matching the parameters.
         self.chain.append(
-            next(
-                filter(
-                    lambda link: link.parameters is parameters, self.chain[::-1]
-                )
-            )
+            next(filter(lambda link: link.parameters is parameters, self.chain[::-1]))
         )
 
         # add the acceptance bool to the history.
@@ -1175,7 +1103,6 @@ class MLDA(Proposal):
             self.proposal.align_chain(parameters, accepted)
 
     def make_mlda_proposal(self, subsampling_rate):
-
         """
         Parameters
         ----------
@@ -1185,7 +1112,6 @@ class MLDA(Proposal):
 
         # iterate through the subsamples.
         for i in range(subsampling_rate):
-
             # create a proposal from the next-lower level,
             proposal = self.proposal.make_proposal(self.subsampling_rate)
 
@@ -1197,7 +1123,6 @@ class MLDA(Proposal):
 
             # otherwise, evaluate the model.
             else:
-
                 # create a link from that proposal.
                 proposal_link = self.posterior.create_link(proposal)
 
@@ -1224,11 +1149,10 @@ class MLDA(Proposal):
 
             # apply the adaptive error model.
             if self.adaptive_error_model is not None:
-
                 # compute the difference between coarse and fine level.
                 if self.accepted[-1]:
                     self.model_diff = (
-                        self.R.dot(self.chain[-1].model_output)
+                        self.chain[-1].model_output
                         - self.proposal.chain[-1].model_output
                     )
 
@@ -1239,19 +1163,9 @@ class MLDA(Proposal):
                     self.bias.update(self.model_diff)
 
                     # compute the entire bias correction.
-                    mu_bias = np.sum(
-                        [
-                            np.dot(R, bias.get_mu())
-                            for R, bias in zip(self.R_products, self.biases)
-                        ],
-                        axis=0,
-                    )
+                    mu_bias = np.sum([bias.get_mu() for bias in self.biases], axis=0)
                     sigma_bias = np.sum(
-                        [
-                            np.linalg.multi_dot((R, bias.get_sigma(), R.T))
-                            for R, bias in zip(self.R_products, self.biases)
-                        ],
-                        axis=0,
+                        [bias.get_sigma() for bias in self.biases], axis=0
                     )
 
                     # update the next-coarser likelihood with the bias.
@@ -1270,10 +1184,8 @@ class MLDA(Proposal):
         return self.chain[-1].parameters
 
     def make_base_proposal(self, subsampling_rate):
-
         # iterate through the subsamples.
         for i in range(subsampling_rate):
-
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
 
