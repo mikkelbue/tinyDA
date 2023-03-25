@@ -124,8 +124,6 @@ class ParallelDAChain(ParallelChain):
             Starting points for the MCMC samplers.
     adaptive_error_model : str or None
         The adaptive error model, see e.g. Cui et al. (2019).
-    R : numpy.ndarray
-        Restriction matrix for the adaptive error model.
     remote_chains : list
         List of Ray actors, each running an independent DA MCMC sampler.
     chains : list
@@ -148,7 +146,6 @@ class ParallelDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
-        R=None,
     ):
 
         """
@@ -177,9 +174,6 @@ class ParallelDAChain(ParallelChain):
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood MUST
             have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        R : numpy.ndarray, optional
-            Restriction matrix for the adaptive error model. Default is None
-            (identity matrix).
         """
 
         # internalise posteriors, proposal and subsampling rate.
@@ -196,7 +190,6 @@ class ParallelDAChain(ParallelChain):
 
         # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
-        self.R = R
 
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -210,7 +203,6 @@ class ParallelDAChain(ParallelChain):
                 self.subsampling_rate,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
-                self.R,
             )
             for i in range(self.n_chains)
         ]
@@ -225,7 +217,6 @@ class ParallelMLDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
-        R=None,
     ):
 
         # internalise posteriors, proposal and subsampling rate.
@@ -241,7 +232,6 @@ class ParallelMLDAChain(ParallelChain):
 
         # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
-        self.R = R
 
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -254,7 +244,6 @@ class ParallelMLDAChain(ParallelChain):
                 self.subsampling_rates,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
-                self.R,
             )
             for i in range(self.n_chains)
         ]
