@@ -20,7 +20,7 @@ class Link:
         The (unnormalised) posterior density.
     """
 
-    def __init__(self, parameters, prior, model_output, likelihood, qoi=None):
+    def __init__(self, parameters, prior, model_output, likelihood, qoi=None, gradient=None):
 
         """
         Parameters
@@ -43,6 +43,7 @@ class Link:
         self.model_output = model_output
         self.likelihood = likelihood
         self.qoi = qoi
+        self.gradient = gradient
 
         # compute the (unnormalised) posterior.
         self.posterior = self.prior + self.likelihood
