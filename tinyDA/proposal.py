@@ -144,6 +144,7 @@ class GaussianRandomWalk(Proposal):
     """
 
     is_symmetric = True
+    alpha_star = 0.24
 
     def __init__(self, C, scaling=1, adaptive=False, gamma=1.01, period=100):
         """
@@ -218,7 +219,7 @@ class GaussianRandomWalk(Proposal):
                 # set the scaling so that the acceptance rate will converge to 0.24.
                 self.scaling = np.exp(
                     np.log(self.scaling)
-                    + self.gamma**-self.k * (acceptance_rate - 0.24)
+                    + self.gamma**-self.k * (acceptance_rate - self.alpha_star)
                 )
                 # increase adaptivity counter for diminishing adaptivity.
                 self.k += 1
@@ -917,6 +918,59 @@ class SingleDreamZ(GaussianRandomWalk):
             (np.ones(self.d) + e) * gamma_DREAM * (Z_r1 - Z_r2) + epsilon
         )
 
+class MALA(GaussianRandomWalk):
+
+    is_symmetric = False
+    alpha_star = 0.57
+
+    def __init__(self, d, scaling=1, adaptive=False, gamma=1.01, period=100):
+
+        C = np.eye(d)
+
+        super().__init__(C, scaling, adaptive, gamma, period)
+
+    def setup_proposal(self, **kwargs):
+
+        self.posterior = kwargs["posterior"]
+
+    def make_proposal(self, link):
+
+        if not hasattr(link, "gradient"):
+            link.gradient = self._compute_gradient(link)
+
+        # make a MALA proposal.
+        return link.parameters + 0.5*self.scaling*link.gradient + np.sqrt(self.scaling)*np.random.multivariate_normal(self._mean, self.C)
+
+    def get_acceptance(self, proposal_link, previous_link):
+
+        if np.isnan(proposal_link.posterior):
+            return 0
+        else:
+            if not hasattr(proposal_link, "gradient"):
+                proposal_link.gradient = self._compute_gradient(proposal_link)
+
+            q_previous = self.get_q(previous_link, proposal_link)
+            q_proposal = self.get_q(proposal_link, previous_link)
+
+        return np.exp(
+            proposal_link.posterior - previous_link.posterior + q_previous - q_proposal
+        )
+
+    def get_q(self, x_link, y_link):
+
+        # get the transition probability.:
+        return -0.5/self.scaling * np.linalg.norm(y_link.parameters - x_link.parameters - 0.5*self.scaling*x_link.gradient)**2
+
+    def _compute_gradient(self, link):
+        gradient = np.zeros(self.d)
+
+        for i in range(self.d):
+            perturbation = np.zeros(self.d)
+            perturbation[i] = 1e-3
+            test_link = self.posterior.create_link(link.parameters + perturbation)
+            gradient[i] = (test_link.posterior - link.posterior) / 1e-3
+
+        return gradient
 
 class MLDA(Proposal):
 

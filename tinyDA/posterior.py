@@ -55,11 +55,10 @@ class Posterior:
         self.likelihood = likelihood
 
         # backwards compatibility.
-        self.model = model
-        if callable(getattr(self.model, "gradient", None)):
-            self.model_gradient = self.model.gradient
+        if model is None:
+            self.model = self.evaluate_model
         else:
-            self.model_gradient = None
+            self.model = model
 
     def create_link(self, parameters):
         """
