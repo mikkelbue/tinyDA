@@ -485,31 +485,16 @@ class AdaptiveMetropolis(GaussianRandomWalk):
             pass
 
 
-class AdaptiveCrankNicolson(CrankNicolson):
+class OperatorWeightedCrankNicolson(CrankNicolson):
 
-    """Adaptive preconditioned Crank-Nicolson proposal, according to Hu and Yao
-    (2016).
+    """Operator-weighted preconditioned Crank-Nicolson proposal (Law 2014).
 
     Attributes
     ----------
-    C : np.ndarray
-        The initial covariance matrix of the proposal distribution.
-    d : int
-        The dimension of the target distribution.
-    scaling : float
-        The global scaling ("beta") of the proposal.
-    J : int
-        The truncation index, i.e. only dimensions below this index will be
-        adapted.
     B : numpy.ndarray
-        The adapted covariance matrix of the proposal distribution.
-    L : numpy.ndarray
-        Precision matrix of the prior, i.e. the inverse of the initial covariance
-        matrix.
-    operator : numpy.ndarray
-        The adaptive pCN scaling operator. To avoid recomputing the scaling
-        operator at each step, this array caches the result of
-        sqrtm(eye(d) - beta**2*np.dot(B, L))
+        The scaling operator of the proposal distribution.
+    scaling : float
+        The global scaling of the proposal.
     t0 : int
         When to start adapting the covariance matrix.
     adaptive : bool
@@ -539,41 +524,30 @@ class AdaptiveCrankNicolson(CrankNicolson):
     """
 
     def __init__(
-        self, scaling=0.1, J=None, t0=0, period=100, adaptive=False, gamma=1.01
+        self, B, scaling=1.0, adaptive=False, gamma=1.01, period=100
     ):
         """
         Parameters
         ----------
+        B : numpy.ndarray
+            The scaling operator of the proposal distribution.
         scaling : float, optional
-            The global scaling ("beta") of the proposal. Default is 0.1.
-        J : None or int, optional
-            The truncation index, i.e. only dimensions below this index will
-            be adapted.
-            Default is None (adapt all dimensions).
-        t0 : int, optional
-            When to start adapting the covariance matrix. Default is 0 (start
-            immediately).
-        period : int, optional
-            How often to adapt. Default is 100.
+            The global scaling of the proposal. Default is 1.0.
         adaptive : bool, optional
             Whether to adapt the global scaling of the proposal. Default is
             False.
         gamma : float, optional
             The adaptivity coefficient for the global adaptive scaling.
             Default is 1.01.
+        period : int, optional
+            How often to adapt. Default is 100.
         """
+
+        # set tge scaling operator
+        self.B = B
 
         # set the scaling.
         self.scaling = scaling
-
-        # truncation.
-        self.J = J
-
-        # set the beginning of adaptation (rigidness of initial covariance).
-        self.t0 = t0
-
-        # Set the update period.
-        self.period = period
 
         # set adaptivity.
         self.adaptive = adaptive
@@ -582,6 +556,8 @@ class AdaptiveCrankNicolson(CrankNicolson):
         if self.adaptive:
             # adaptivity scaling.
             self.gamma = gamma
+            # adaptivity period (delay between adapting)
+            self.period = period
             # initialise adaptivity counter for diminishing adaptivity.
             self.k = 0
 
@@ -589,70 +565,34 @@ class AdaptiveCrankNicolson(CrankNicolson):
         self.t = 0
 
     def setup_proposal(self, **kwargs):
-        # set the initial covariance operator.
-        self.C = kwargs["posterior"].prior.cov
 
-        # extract the dimensionality.
-        self.d = self.C.shape[0]
+        super().setup_proposal(**kwargs)
 
-        # set a zero mean for the random draw.
-        self._mean = np.zeros(self.d)
-
-        # adaptive parameters
-        self.B = self.C.copy()
-        self.L = np.linalg.inv(self.C)
-        self.operator = sqrtm(
-            np.eye(self.d) - self.scaling**2 * np.dot(self.B, self.L)
-        )
-
-        # eigendecomposition of covariance matrix.
-        self.alpha, self.e = np.linalg.eig(self.C)
-        self.lamb = self.alpha.copy()
-
-        # truncation.
-        if self.J is None:
-            self.J = self.d
-
-        u_j = np.inner(kwargs["parameters"], self.e.T)
-        self.x_n = u_j
-        self.lamb_n = (self.x_n - u_j) ** 2
+        self.state_operator = sqrtm(np.eye(self.d) - self.scaling*self.B)
+        self.noise_operator = sqrtm(self.scaling*self.B)
 
     def adapt(self, **kwargs):
         super().adapt(**kwargs)
 
-        # ApCN is adaptive per definition. update the moments.
-        u_j = np.inner(kwargs["parameters"], self.e.T)
-        self.x_n = self.t / (self.t + 1) * self.x_n + 1 / (self.t + 1) * u_j
-        self.lamb_n = (
-            self.t / (self.t + 1) * self.lamb_n
-            + 1 / (self.t + 1) * (self.x_n - u_j) ** 2
-        )
-
-        # compute the operator, if the initial adaptation is complete and
-        # the period matches.
-        if self.t >= self.t0 and self.t % self.period == 0:
-            self.lamb[: self.J] = self.lamb_n[: self.J]
-            self.lamb[self.lamb > self.alpha] = self.alpha[self.lamb > self.alpha]
-            self.B = np.linalg.multi_dot((self.e, np.diag(self.lamb), self.e.T))
-            self.operator = sqrtm(
-                np.eye(self.d) - self.scaling**2 * np.dot(self.B, self.L)
-            )
-        else:
-            pass
+        if self.adaptive:
+            # make sure the periodicity is respected
+            if self.t % self.period == 0:
+                self.state_operator = sqrtm(np.eye(self.d) - self.scaling*self.B)
+                self.noise_operator = sqrtm(self.scaling*self.B)
 
     def make_proposal(self, link):
         # only use the adaptive proposal, if the initial time has passed.
 
         # make a proposal
         return np.dot(
-            self.operator, link.parameters
-        ) + self.scaling * np.random.multivariate_normal(self._mean, self.B)
+            self.state_operator, link.parameters
+        ) + np.dot(self.noise_operator, np.random.multivariate_normal(self._mean, self.C))
 
     def get_q(self, x_link, y_link):
         return stats.multivariate_normal.logpdf(
             y_link.parameters,
-            mean=np.dot(self.operator, x_link.parameters),
-            cov=self.scaling**2 * self.B,
+            mean=np.dot(self.state_operator, x_link.parameters),
+            cov=np.dot(self.scaling*self.B, self.C),
         )
 
 
