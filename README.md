@@ -29,7 +29,7 @@ pip install tinyDA
 * Random Walk Metropolis Hastings (RWMH) - Metropolis et al. (1953), Hastings (1970)
 * preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013)
 * Adaptive Metropolis (AM) - Haario et al. (2001)
-* Adaptive pCN - Hu and Yao (2016)
+* Operator-weighted pCN - Law (2014)
 * DREAM(Z) - Vrugt (2016)
 * Multiple-Try Metropolis (MTM) - Liu et al. (2000)
 
