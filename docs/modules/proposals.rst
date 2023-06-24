@@ -12,7 +12,7 @@ Proposals
     tinyDA.GaussianRandomWalk
     tinyDA.AdaptiveMetropolis
     tinyDA.CrankNicolson
-    tinyDA.AdaptiveCrankNicolson
+    tinyDA.OperatorWeightedCrankNicolson
     tinyDA.SingleDreamZ
     tinyDA.MLDA
    
@@ -48,10 +48,10 @@ preconditioned Crank-Nicolson
     
     .. automethod:: __init__
 
-Adaptive preconditioned Crank-Nicolson
---------------------------------------
+Operator-weighted pCN
+---------------------
 
-.. autoclass:: tinyDA.AdaptiveCrankNicolson
+.. autoclass:: tinyDA.OperatorWeightedCrankNicolson
     :members:
     
     .. automethod:: __init__

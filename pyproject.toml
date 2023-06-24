@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tinyda"
-version = "0.9.9rc"
+version = "0.9.9"
 description = "Delayed Acceptance MCMC Sampler"
 license = "MIT"
 authors = ["Mikkel Bue Lykkegaard <mikkelbue@gmail.com>"]
