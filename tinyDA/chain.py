@@ -35,7 +35,6 @@ class Chain:
     """
 
     def __init__(self, posterior, proposal, initial_parameters=None):
-
         """
         Parameters
         ----------
@@ -77,7 +76,6 @@ class Chain:
         )
 
     def sample(self, iterations, progressbar=True):
-
         """
         Parameters
         ----------
@@ -166,8 +164,6 @@ class DAChain:
         List of bool, signifying whether a fine proposal was accepted or not.
     adaptive_error_model : str or None
         The adaptive error model, see e.g. Cui et al. (2019).
-    R : numpy.ndarray
-        Restriction matrix for the adaptive error model.
     bias : tinaDA.RecursiveSampleMoments
         A recursive Gaussian error model that computes the sample moments of
         the coarse bias.
@@ -186,9 +182,7 @@ class DAChain:
         subsampling_rate,
         initial_parameters=None,
         adaptive_error_model=None,
-        R=None,
     ):
-
         """
         Parameters
         ----------
@@ -212,9 +206,6 @@ class DAChain:
             None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood MUST
             have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        R : numpy.ndarray or None, optional
-            Restriction matrix for the adaptive error model. Default is None
-            (identity matrix).
         """
 
         # internalise posteriors and the proposal
@@ -247,9 +238,7 @@ class DAChain:
         self.is_coarse.append(False)
 
         # append a link with the initial parameters to the coarse chain.
-        self.chain_fine.append(
-            self.posterior_fine.create_link(self.initial_parameters)
-        )
+        self.chain_fine.append(self.posterior_fine.create_link(self.initial_parameters))
         self.accepted_fine.append(True)
 
         # setup the proposal
@@ -262,16 +251,9 @@ class DAChain:
 
         # set up the adaptive error model.
         if self.adaptive_error_model is not None:
-
-            if R is None:
-                self.R = np.eye(self.chain_fine[-1].model_output.shape[0])
-            else:
-                self.R = R
-
             # compute the difference between coarse and fine level.
             self.model_diff = (
-                self.R.dot(self.chain_fine[-1].model_output)
-                - self.chain_coarse[-1].model_output
+                self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
             )
 
             if self.adaptive_error_model == "state-independent":
@@ -331,7 +313,6 @@ class DAChain:
 
             # subsample the coarse model.
             for j in range(self.subsampling_rate):
-
                 # draw a new proposal, given the previous parameters.
                 proposal = self.proposal.make_proposal(self.chain_coarse[-1])
 
@@ -381,11 +362,11 @@ class DAChain:
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
-
                     bias_next = (
-                        self.R.dot(proposal_link_fine.model_output)
+                        proposal_link_fine.model_output
                         - self.chain_coarse[-1].model_output
                     )
+
                     coarse_state_biased = self.posterior_coarse.update_link(
                         self.chain_coarse[-(self.subsampling_rate + 1)], bias_next
                     )
@@ -438,15 +419,15 @@ class DAChain:
 
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
-
                 if self.adaptive_error_model == "state-independent":
                     # for the state-independent AEM, we simply update the
                     # RecursiveSampleMoments with the difference between
                     # the fine and coarse model output
                     self.model_diff = (
-                        self.R.dot(self.chain_fine[-1].model_output)
+                        self.chain_fine[-1].model_output
                         - self.chain_coarse[-1].model_output
                     )
+
                     self.bias.update(self.model_diff)
 
                     # and update the likelihood in the coarse posterior.
@@ -458,13 +439,13 @@ class DAChain:
                     # for the state-dependent error model, we want the
                     # difference, corrected with the previous difference
                     # to compute the error covariance.
-                    self.model_diff_corrected = self.R.dot(
-                        self.chain_fine[-1].model_output
-                    ) - (self.chain_coarse[-1].model_output + self.model_diff)
+                    self.model_diff_corrected = self.chain_fine[-1].model_output - (
+                        self.chain_coarse[-1].model_output + self.model_diff
+                    )
 
                     # and the "pure" model difference for the offset.
                     self.model_diff = (
-                        self.R.dot(self.chain_fine[-1].model_output)
+                        self.chain_fine[-1].model_output
                         - self.chain_coarse[-1].model_output
                     )
 
@@ -513,8 +494,6 @@ class MLDAChain:
         List of bool, signifying whether a proposal was accepted or not.
     adaptive_error_model : str or None
         The adaptive error model, see e.g. Cui et al. (2019).
-    R : numpy.ndarray
-        Restriction matrix for the adaptive error model on the finest level.
     bias : tinaDA.RecursiveSampleMoments
         A recursive Gaussian error model that computes the sample moments
         of the next-coarser bias.
@@ -532,9 +511,7 @@ class MLDAChain:
         subsampling_rates,
         initial_parameters=None,
         adaptive_error_model=None,
-        R=None,
     ):
-
         """
         Parameters
         ----------
@@ -553,11 +530,6 @@ class MLDAChain:
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        R : list or None, optional
-            Restriction matrices for the adaptive error model. If list of
-            restriction matrices is given, it must have length
-            len(posteriors) - 1 and they must be in increasing order,
-            as the model hierachy. Default is None (identity matrices).
         """
 
         # internalise the finest posterior and set the level.
@@ -585,11 +557,6 @@ class MLDAChain:
         self.chain.append(self.posterior.create_link(self.initial_parameters))
         self.accepted.append(True)
 
-        # make sure R can be passed recursively to MLDA proposal, if MLDAChain
-        # was initialised without tda.sample().
-        if R is None:
-            R = [None] * self.level
-
         # set the effective proposal to MLDA which runs on the next-coarser level.
         self.proposal = MLDA(
             posteriors[:-1],
@@ -597,7 +564,6 @@ class MLDAChain:
             subsampling_rates[:-1],
             self.initial_parameters,
             adaptive_error_model,
-            R[:-1],
         )
 
         # set the adative error model as an attribute.
@@ -605,18 +571,9 @@ class MLDAChain:
 
         # set up the adaptive error model.
         if self.adaptive_error_model is not None:
-
-            # extract the finest-level restriction matrix from the list.
-            self.R = R[-1]
-
-            # if no restriction matrix was given, create an identity matrix.
-            if self.R is None:
-                self.R = np.eye(self.chain[-1].model_output.shape[0])
-
             # compute the difference between coarse and fine level.
             self.model_diff = (
-                self.R.dot(self.chain[-1].model_output)
-                - self.proposal.chain[-1].model_output
+                self.chain[-1].model_output - self.proposal.chain[-1].model_output
             )
 
             # set up the state-independent adaptive error model.
@@ -642,15 +599,13 @@ class MLDAChain:
                 self.proposal.chain[-1]
             )
 
-            # collect biases and restriction matrices in a list.
+            # collect biases in a list.
             self.biases = [self.bias]
-            self.Rs = [self.R]
 
-            # pass the bias models and restriction levels to the next-coarser level.
-            self.proposal.setup_adaptive_error_model(self.biases, self.Rs)
+            # pass the bias models to the next-coarser level.
+            self.proposal.setup_adaptive_error_model(self.biases)
 
     def sample(self, iterations, progressbar=True):
-
         """
         Parameters
         ----------
@@ -681,7 +636,6 @@ class MLDAChain:
                 self.accepted.append(False)
 
             else:
-
                 # create a link from that proposal.
                 proposal_link = self.posterior.create_link(proposal)
 
@@ -707,11 +661,10 @@ class MLDAChain:
 
             # apply the adaptive error model.
             if self.adaptive_error_model is not None:
-
                 # compute the difference between coarse and fine level.
                 if self.accepted[-1]:
                     self.model_diff = (
-                        self.R.dot(self.chain[-1].model_output)
+                        self.chain[-1].model_output
                         - self.proposal.chain[-1].model_output
                     )
 
