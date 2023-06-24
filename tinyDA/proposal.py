@@ -523,9 +523,7 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
         previous link.
     """
 
-    def __init__(
-        self, B, scaling=1.0, adaptive=False, gamma=1.01, period=100
-    ):
+    def __init__(self, B, scaling=1.0, adaptive=False, gamma=1.01, period=100):
         """
         Parameters
         ----------
@@ -565,11 +563,10 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
         self.t = 0
 
     def setup_proposal(self, **kwargs):
-
         super().setup_proposal(**kwargs)
 
-        self.state_operator = sqrtm(np.eye(self.d) - self.scaling*self.B)
-        self.noise_operator = sqrtm(self.scaling*self.B)
+        self.state_operator = np.real(sqrtm(np.eye(self.d) - self.scaling * self.B))
+        self.noise_operator = np.real(sqrtm(self.scaling * self.B))
 
     def adapt(self, **kwargs):
         super().adapt(**kwargs)
@@ -577,22 +574,24 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
         if self.adaptive:
             # make sure the periodicity is respected
             if self.t % self.period == 0:
-                self.state_operator = sqrtm(np.eye(self.d) - self.scaling*self.B)
-                self.noise_operator = sqrtm(self.scaling*self.B)
+                self.state_operator = np.real(
+                    sqrtm(np.eye(self.d) - self.scaling * self.B)
+                )
+                self.noise_operator = np.real(sqrtm(self.scaling * self.B))
 
     def make_proposal(self, link):
         # only use the adaptive proposal, if the initial time has passed.
 
         # make a proposal
-        return np.dot(
-            self.state_operator, link.parameters
-        ) + np.dot(self.noise_operator, np.random.multivariate_normal(self._mean, self.C))
+        return np.dot(self.state_operator, link.parameters) + np.dot(
+            self.noise_operator, np.random.multivariate_normal(self._mean, self.C)
+        )
 
     def get_q(self, x_link, y_link):
         return stats.multivariate_normal.logpdf(
             y_link.parameters,
             mean=np.dot(self.state_operator, x_link.parameters),
-            cov=np.dot(self.scaling*self.B, self.C),
+            cov=np.dot(self.scaling * self.B, self.C),
         )
 
 
