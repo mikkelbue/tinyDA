@@ -21,7 +21,7 @@ class Posterior:
         the only requirement is that it has a logpdf method.
     likelihood : scipy.stats.rv_continuous or tinyDA.LogLike
         The likelihood function. Usually a tinyDA.LogLike, but
-        the only requirement is that it has a logpdf method.
+        the only requirement is that it has a loglike method.
     model : function or callable
         The forward operator, i.e. a map F(theta). This could be a Python
         function or a class instance with a __call__() method.
@@ -86,7 +86,7 @@ class Posterior:
             qoi = None
 
         # compute the likelihood.
-        likelihood = self.likelihood.logpdf(model_output)
+        likelihood = self.likelihood.loglike(model_output)
 
         return Link(parameters, prior, model_output, likelihood, qoi)
 
@@ -106,9 +106,9 @@ class Posterior:
 
         if bias is None:
             # recompute the likelihood.
-            likelihood = self.likelihood.logpdf(link.model_output)
+            likelihood = self.likelihood.loglike(link.model_output)
         else:
-            likelihood = self.likelihood.logpdf_custom_bias(link.model_output, bias)
+            likelihood = self.likelihood.loglike_custom_bias(link.model_output, bias)
 
         return Link(
             link.parameters, link.prior, link.model_output, likelihood, link.qoi
