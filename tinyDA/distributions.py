@@ -104,8 +104,8 @@ class GaussianLogLike:
 
     Attributes
     ----------
-    mean : numpy.ndarray
-        The mean of the Gaussian likelihood function (typically the data).
+    data : numpy.ndarray
+        The Gaussian distributed data.
     cov : numpy.ndarray
         The covariance of the Gaussian likelihood function.
     cov_inverse : numpy.ndarray
@@ -113,22 +113,22 @@ class GaussianLogLike:
 
     Methods
     ----------
-    logpdf(x)
+    loglike(x)
         Returns the log-likelihood of the input array x.
     """
 
-    def __init__(self, mean, covariance):
+    def __init__(self, data, covariance):
         """
         Parameters
         ----------
-        mean : numpy.ndarray
-            The mean of the Gaussian likelihood function (typically the data).
+        data : numpy.ndarray
+            The Gaussian distributed data.
         cov : numpy.ndarray
             The covariance of the Gaussian likelihood function.
         """
 
-        # set the mean and covariance as attributes
-        self.mean = mean
+        # set the data and covariance as attributes
+        self.data = data
         self.cov = covariance
 
         # precompute the inverse of the covariance.
@@ -137,7 +137,7 @@ class GaussianLogLike:
         else:
             self.cov_inverse = np.linalg.inv(self.cov)
 
-    def logpdf(self, x):
+    def loglike(self, x):
         """
         Parameters
         ----------
@@ -152,7 +152,7 @@ class GaussianLogLike:
 
         # compute the unnormalised likelihood.
         return -0.5 * np.linalg.multi_dot(
-            ((x - self.mean).T, self.cov_inverse, (x - self.mean))
+            ((x - self.data).T, self.cov_inverse, (x - self.data))
         )
 
 
@@ -162,8 +162,8 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
 
     Attributes
     ----------
-    mean : numpy.ndarray
-        The mean of the Gaussian likelihood function (typically the data).
+    data : numpy.ndarray
+        The Gaussian distributed data.
     cov : numpy.ndarray
         The covariance of the Gaussian likelihood function.
     cov_inverse : numpy.ndarray
@@ -177,27 +177,27 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
     ----------
     set_bias(bias, covariance_bias)
         Set the bias of the likelihood function.
-    logpdf(x)
+    loglike(x)
         Returns the log-likelihood of the input array x, correcting for the bias.
-    logpdf_custom_bias(x, bias)
+    loglike_custom_bias(x, bias)
         Returns the log-likelihood of the input array, correcting for a custom
         (one-shot) bias.
     """
 
-    def __init__(self, mean, covariance):
+    def __init__(self, data, covariance):
         """
         Parameters
         ----------
-        mean : numpy.ndarray
-            The mean of the Gaussian likelihood function (typically the data).
+        data : numpy.ndarray
+            The Gaussian distributed data.
         cov : numpy.ndarray
             The covariance of the Gaussian likelihood function.
         """
 
-        super().__init__(mean, covariance)
+        super().__init__(data, covariance)
 
         # set the initial bias.
-        self.bias = np.zeros(self.mean.shape[0])
+        self.bias = np.zeros(self.data.shape[0])
 
     def set_bias(self, mean_bias, covariance_bias):
         """
@@ -218,7 +218,7 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
         else:
             self.cov_inverse = np.linalg.inv(self.cov + self.cov_bias)
 
-    def logpdf(self, x):
+    def loglike(self, x):
         """
         Parameters
         ----------
@@ -235,19 +235,18 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
         # offset, scaling, and rotation.
         return -0.5 * np.linalg.multi_dot(
             (
-                (x + self.bias - self.mean).T,
+                (x + self.bias - self.data).T,
                 self.cov_inverse,
-                (x + self.bias - self.mean),
+                (x + self.bias - self.data),
             )
         )
 
-    def logpdf_custom_bias(self, x, bias):
+    def loglike_custom_bias(self, x, bias):
         """
         Parameters
         ----------
         x : numpy.ndarray
             Input array, to be evaluated by the likelihood function.
-
         bias : numpy.ndarray
             A custom bias to add to the input array.
 
@@ -260,7 +259,7 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
         # compute the unnormalised likelihood, with additional terms for
         # offset, scaling, and rotation.
         return -0.5 * np.linalg.multi_dot(
-            ((x + bias - self.mean).T, self.cov_inverse, (x + bias - self.mean))
+            ((x + bias - self.data).T, self.cov_inverse, (x + bias - self.data))
         )
 
 
