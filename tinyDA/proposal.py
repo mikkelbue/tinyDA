@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
+from scipy.optimize import approx_fprime
 
 # internal imports
 from .utils import RecursiveSampleMoments
@@ -835,59 +836,74 @@ class SingleDreamZ(GaussianRandomWalk):
             (np.ones(self.d) + e) * gamma_DREAM * (Z_r1 - Z_r2) + epsilon
         )
 
-class MALA(GaussianRandomWalk):
 
-    is_symmetric = False
+class MALA(CrankNicolson):
     alpha_star = 0.57
 
-    def __init__(self, d, scaling=1, adaptive=False, gamma=1.01, period=100):
-
-        C = np.eye(d)
-
-        super().__init__(C, scaling, adaptive, gamma, period)
-
     def setup_proposal(self, **kwargs):
-
         self.posterior = kwargs["posterior"]
 
-    def make_proposal(self, link):
+        # set the covariance operator
+        self.d = kwargs["posterior"].prior.rvs().size
 
+        model_jacobian = getattr(self.posterior.model, "jacobian", None)
+        if callable(model_jacobian):
+            self.compute_gradient = self._compute_gradient
+        else:
+            self.compute_gradient = self._compute_gradient_approx
+
+    def make_proposal(self, link):
         if not hasattr(link, "gradient"):
-            link.gradient = self._compute_gradient(link)
+            link.gradient = self.compute_gradient(link)
 
         # make a MALA proposal.
-        return link.parameters + 0.5*self.scaling*link.gradient + np.sqrt(self.scaling)*np.random.multivariate_normal(self._mean, self.C)
-
-    def get_acceptance(self, proposal_link, previous_link):
-
-        if np.isnan(proposal_link.posterior):
-            return 0
-        else:
-            if not hasattr(proposal_link, "gradient"):
-                proposal_link.gradient = self._compute_gradient(proposal_link)
-
-            q_previous = self.get_q(previous_link, proposal_link)
-            q_proposal = self.get_q(proposal_link, previous_link)
-
-        return np.exp(
-            proposal_link.posterior - previous_link.posterior + q_previous - q_proposal
+        return (
+            link.parameters
+            + 0.5 * self.scaling**2 * link.gradient
+            + self.scaling * np.random.normal(size=self.d)
         )
 
-    def get_q(self, x_link, y_link):
+    def get_acceptance(self, proposal_link, previous_link):
+        if np.isnan(proposal_link.posterior):
+            return 0
 
-        # get the transition probability.:
-        return -0.5/self.scaling * np.linalg.norm(y_link.parameters - x_link.parameters - 0.5*self.scaling*x_link.gradient)**2
+        if not hasattr(proposal_link, "gradient"):
+            proposal_link.gradient = self.compute_gradient(proposal_link)
+
+        q_x_y = self.get_q(previous_link, proposal_link)
+        q_y_x = self.get_q(proposal_link, previous_link)
+
+        return np.exp(proposal_link.posterior - previous_link.posterior + q_x_y - q_y_x)
+
+    def get_q(self, x_link, y_link):
+        # get the transition probability.
+        return (
+            -0.5
+            / self.scaling**2
+            * np.linalg.norm(
+                x_link.parameters
+                - y_link.parameters
+                - 0.5 * self.scaling**2 * y_link.gradient
+            )
+            ** 2
+        )
 
     def _compute_gradient(self, link):
-        gradient = np.zeros(self.d)
+        grad_log_prior = approx_fprime(
+            link.parameters, lambda x: self.posterior.prior.logpdf(x)
+        )
+        grad_log_likelikehood = approx_fprime(
+            link.model_output, lambda x: self.posterior.likelihood.loglike(x)
+        )
+        model_jacobian = self.posterior.model.jacobian(link.parameters)
+        return grad_log_prior + np.dot(grad_log_likelikehood, model_jacobian)
 
-        for i in range(self.d):
-            perturbation = np.zeros(self.d)
-            perturbation[i] = 1e-3
-            test_link = self.posterior.create_link(link.parameters + perturbation)
-            gradient[i] = (test_link.posterior - link.posterior) / 1e-3
+    def _compute_gradient_approx(self, link):
+        grad_log_posterior = approx_fprime(
+            link.parameters, lambda x: self.posterior.create_link(x).posterior
+        )
+        return grad_log_posterior
 
-        return gradient
 
 class MLDA(Proposal):
 
