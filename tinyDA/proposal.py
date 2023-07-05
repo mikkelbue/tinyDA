@@ -4,6 +4,7 @@ import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
 from scipy.optimize import approx_fprime
+from scipy.stats import gaussian_kde
 
 # internal imports
 from .utils import RecursiveSampleMoments
@@ -543,26 +544,10 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
             How often to adapt. Default is 100.
         """
 
-        # set tge scaling operator
+        # set the scaling operator
         self.B = B
 
-        # set the scaling.
-        self.scaling = scaling
-
-        # set adaptivity.
-        self.adaptive = adaptive
-
-        # if adaptive, set some adaptivity parameters
-        if self.adaptive:
-            # adaptivity scaling.
-            self.gamma = gamma
-            # adaptivity period (delay between adapting)
-            self.period = period
-            # initialise adaptivity counter for diminishing adaptivity.
-            self.k = 0
-
-        # set a counter of how many times, adapt() has been called..
-        self.t = 0
+        super().__init__(scaling, adaptive, gamma, period)
 
     def setup_proposal(self, **kwargs):
         super().setup_proposal(**kwargs)
@@ -902,6 +887,54 @@ class MALA(CrankNicolson):
         grad_log_posterior = approx_fprime(
             link.parameters, lambda x: self.posterior.create_link(x).posterior
         )
+        return grad_log_posterior
+
+
+class KernelMALA(MALA):
+    def __init__(
+        self,
+        kernel=None,
+        M=1000,
+        t0=1000,
+        scaling=0.1,
+        adaptive=False,
+        gamma=1.01,
+        period=100,
+    ):
+        if kernel is None:
+            self._kernel = gaussian_kde
+        else:
+            self._kernel = kernel
+
+        self.M = M
+        self.t0 = t0
+
+        super().__init__(scaling, adaptive, gamma, period)
+
+    def setup_proposal(self, **kwargs):
+        self.posterior = kwargs["posterior"]
+
+        # set the covariance operator
+        self.d = kwargs["posterior"].prior.rvs().size
+
+        self.Z = kwargs["parameters"]
+
+    def adapt(self, **kwargs):
+        super().adapt(**kwargs)
+
+        # extend the archive.
+        self.Z = np.vstack((self.Z, kwargs["parameters"]))
+
+        if self.t >= self.t0 and self.t % self.period == 0:
+            self.kernel = self._kernel(self.Z[-self.M :, :].T)
+
+    def compute_gradient(self, link):
+        try:
+            grad_log_posterior = approx_fprime(
+                link.parameters, lambda x: self.kernel.logpdf(x)
+            )
+        except AttributeError:
+            grad_log_posterior = 0
         return grad_log_posterior
 
 
