@@ -7,7 +7,7 @@ from scipy.optimize import approx_fprime
 from scipy.stats import gaussian_kde
 
 # internal imports
-from .utils import RecursiveSampleMoments
+from .utils import RecursiveSampleMoments, grad_log_p, grad_log_l
 
 
 class Proposal:
@@ -874,12 +874,8 @@ class MALA(CrankNicolson):
         )
 
     def _compute_gradient(self, link):
-        grad_log_prior = approx_fprime(
-            link.parameters, lambda x: self.posterior.prior.logpdf(x)
-        )
-        grad_log_likelikehood = approx_fprime(
-            link.model_output, lambda x: self.posterior.likelihood.loglike(x)
-        )
+        grad_log_prior = grad_log_p(link.parameters, self.posterior.prior)
+        grad_log_likelikehood = grad_log_l(link.model_output, self.posterior.likelihood)
         model_jacobian = self.posterior.model.jacobian(link.parameters)
         return grad_log_prior + np.dot(grad_log_likelikehood, model_jacobian)
 
