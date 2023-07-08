@@ -313,7 +313,10 @@ class CrankNicolson(GaussianRandomWalk):
 
     def setup_proposal(self, **kwargs):
         # set the covariance operator
-        self.C = kwargs["posterior"].prior.cov
+        try:
+            self.C = kwargs["posterior"].prior.cov
+        except AttributeError:
+            self.C = kwargs["posterior"].prior.cov_object.covariance
 
         # extract the dimensionality.
         self.d = self.C.shape[0]
@@ -747,10 +750,15 @@ class SingleDreamZ(GaussianRandomWalk):
             except AttributeError:
                 # if the prior is a multivariate_normal, it will not have a .ppf-method.
                 if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
+                    try:
+                        var = np.diag(dist.cov)
+                    except AttributeError:
+                        var = np.diag(dist.cov_object.covariance)
+
                     # instead draw samples from independent normals, according to the prior means and variances.
                     for i in range(self.d):
                         self.Z[:, i] = stats.norm(
-                            loc=prior.mean[i], scale=prior.cov[i, i]
+                            loc=prior.mean[i], scale=np.sqrt(var[i])
                         ).ppf(self.Z[:, i])
                     return
 

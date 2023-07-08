@@ -261,7 +261,11 @@ def get_ML(posterior, initial_parameters=None, **kwargs):
 
 def grad_log_p(x, dist):
     if isinstance(dist, stats._multivariate.multivariate_normal_frozen):
-        return np.dot(np.linalg.inv(dist.cov), (dist.mean - x))
+        try:
+            cov_inverse = np.linalg.inv(dist.cov)
+        except AttributeError:
+            cov_inverse = np.linalg.inv(dist.cov_object.covariance)
+        return np.dot(cov_inverse, (dist.mean - x))
     else:
         return approx_fprime(x, lambda x: dist.logpdf)
 
