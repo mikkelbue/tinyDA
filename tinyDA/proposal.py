@@ -730,7 +730,7 @@ class SingleDreamZ(GaussianRandomWalk):
         prior = kwargs["posterior"].prior
 
         # get the dimension and the initial scaling.
-        self.d = prior.dim
+        self.d = kwargs["posterior"].prior.rvs().size
 
         # these adaptivity parameters need to be mutable, so are only
         # initialised at setup.
