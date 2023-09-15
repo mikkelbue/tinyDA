@@ -21,7 +21,7 @@ class UmBridgeModel:
         the standard UM-Bridge model definitition.
     """
 
-    def __init__(self, umbridge_model, pre=None, post=None, umbridge_config={}):
+    def __init__(self, umbridge_model, pre=None, umbridge_config={}):
 
         """
         Parameters
@@ -31,9 +31,6 @@ class UmBridgeModel:
         pre : function, optional
             An (optional) function that can be applied to the model input
             before passing it to the UM-Bridge model. Default is None.
-        post : function, optional
-            An (optional) function that can be applied to the model output
-            before passing it to the likelihood. Default is None.
         umbridge_config : dict, optional
             Configuration parameter for UM-Bridge for interoperability with
             the standard UM-Bridge model definitition.
@@ -48,11 +45,10 @@ class UmBridgeModel:
         else:
             self.pre = lambda x: x
 
-        # set the pstprocessing function.
-        if post is not None:
-            self.post = post
+        if self.umbridge_model.supports_gradient():
+            self.gradient = self._gradient
         else:
-            self.post = lambda x: x
+            self.gradient = None
 
         # internalise the UM-Bridge config.
         self.umbridge_config = umbridge_config
@@ -81,4 +77,19 @@ class UmBridgeModel:
         model_output = np.array(umbridge_output).flatten()
 
         # return the postprocessed model output.
-        return self.post(model_output)
+        return model_output
+
+    def _gradient(self, parameters, sensitivity):
+
+        # convert NumPy arrays to standard UM-Bridge input.
+        umbridge_input = [self.pre(parameters).tolist()]
+        umbridge_sens = sensitivity.tolist()
+
+        # send converted model input the the UM-Bridge model.
+        umbridge_gradient = self.umbridge_model.gradient(0, 0, umbridge_input, umbridge_sens, self.umbridge_config)
+
+        # convert the UM-Bridge output back to a NumPy array.
+        gradient = np.array(umbridge_gradient).flatten()
+
+        # return the postprocessed model output.
+        return gradient

@@ -839,8 +839,8 @@ class MALA(CrankNicolson):
         # set the covariance operator
         self.d = kwargs["posterior"].prior.rvs().size
 
-        model_jacobian = getattr(self.posterior.model, "jacobian", None)
-        if callable(model_jacobian):
+        model_gradient = getattr(self.posterior.model, "gradient", None)
+        if callable(model_gradient):
             self.compute_gradient = self._compute_gradient
         else:
             self.compute_gradient = self._compute_gradient_approx
@@ -883,9 +883,9 @@ class MALA(CrankNicolson):
 
     def _compute_gradient(self, link):
         grad_log_prior = grad_log_p(link.parameters, self.posterior.prior)
-        grad_log_likelikehood = grad_log_l(link.model_output, self.posterior.likelihood)
-        model_jacobian = self.posterior.model.jacobian(link.parameters)
-        return grad_log_prior + np.dot(grad_log_likelikehood, model_jacobian)
+        grad_log_sensitivity = grad_log_l(link.model_output, self.posterior.likelihood)
+        grad_log_likelikehood = self.posterior.model.gradient(link.parameters, grad_log_sensitivity)
+        return grad_log_prior + grad_log_likelikehood
 
     def _compute_gradient_approx(self, link):
         grad_log_posterior = approx_fprime(
