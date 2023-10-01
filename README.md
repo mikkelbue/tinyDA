@@ -8,7 +8,7 @@ For instructions, have a look at the [documentation](https://tinyda.readthedocs.
 ## Installation
 tinyDA can be installed from PyPI:
 ```
-pip install tinyDA
+pip install tinyda
 ```
 
 ## Dependencies
@@ -30,6 +30,7 @@ pip install tinyDA
 * preconditioned Crank-Nicolson (pCN) - Cotter et al. (2013)
 * Adaptive Metropolis (AM) - Haario et al. (2001)
 * Operator-weighted pCN - Law (2014)
+* Metropolis Adjusted Langevin Algorithm (MALA) - Roberts & Tweedie (1996)
 * DREAM(Z) - Vrugt (2016)
 * Multiple-Try Metropolis (MTM) - Liu et al. (2000)
 
