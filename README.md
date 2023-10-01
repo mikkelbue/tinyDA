@@ -159,10 +159,8 @@ If you would like to contribute, please consider the following:
 * ~~Parallel multi-chain sampling~~
 * ~~More user-friendly diagnostics~~
 * ~~Multilevel Delayed Acceptance~~
+* ~~MALA proposal~~
+* ~~Tests~~
 * Variance Reduction
-* MALA proposal
 * Wrapper for framework-agnostic adaptive coarse model
 * Embedded spaces for hierachical models
-* Tests
-
-
