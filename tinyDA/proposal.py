@@ -751,9 +751,9 @@ class SingleDreamZ(GaussianRandomWalk):
                 # if the prior is a multivariate_normal, it will not have a .ppf-method.
                 if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
                     try:
-                        var = np.diag(dist.cov)
+                        var = np.diag(prior.cov)
                     except AttributeError:
-                        var = np.diag(dist.cov_object.covariance)
+                        var = np.diag(prior.cov_object.covariance)
 
                     # instead draw samples from independent normals, according to the prior means and variances.
                     for i in range(self.d):
