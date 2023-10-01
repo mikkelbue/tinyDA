@@ -1,6 +1,9 @@
 import numpy as np
-from scipy.optimize import minimize
+import scipy.stats as stats
 
+from scipy.optimize import minimize, approx_fprime
+
+from .distributions import GaussianLogLike, AdaptiveGaussianLogLike
 
 class RecursiveSampleMoments:
 
@@ -255,3 +258,21 @@ def get_ML(posterior, initial_parameters=None, **kwargs):
     ).likelihood
     ML = minimize(negative_log_likelihood, initial_parameters, **kwargs)
     return ML["x"]
+
+def grad_log_p(x, dist):
+    if isinstance(dist, stats._multivariate.multivariate_normal_frozen):
+        try:
+            cov_inverse = np.linalg.inv(dist.cov)
+        except AttributeError:
+            cov_inverse = np.linalg.inv(dist.cov_object.covariance)
+        return np.dot(cov_inverse, (dist.mean - x))
+    else:
+        return approx_fprime(x, lambda x: dist.logpdf)
+
+def grad_log_l(x, dist):
+    if isinstance(dist, GaussianLogLike):
+        return np.dot(dist.cov_inverse, (dist.data - x))
+    elif isinstance(dist, AdaptiveGaussianLogLike):
+        return np.dot(dist.cov_inverse, (dist.data - (x + dist.bias)))
+    else:
+        return approx_fprime(x, lambda x: dist.loglike)

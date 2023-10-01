@@ -3,9 +3,11 @@ import warnings
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
+from scipy.optimize import approx_fprime
+from scipy.stats import gaussian_kde
 
 # internal imports
-from .utils import RecursiveSampleMoments
+from .utils import RecursiveSampleMoments, grad_log_p, grad_log_l
 
 
 class Proposal:
@@ -141,6 +143,7 @@ class GaussianRandomWalk(Proposal):
     """
 
     is_symmetric = True
+    alpha_star = 0.24
 
     def __init__(self, C, scaling=1, adaptive=False, gamma=1.01, period=100):
         """
@@ -211,7 +214,7 @@ class GaussianRandomWalk(Proposal):
                 # set the scaling so that the acceptance rate will converge to 0.24.
                 self.scaling = np.exp(
                     np.log(self.scaling)
-                    + self.gamma**-self.k * (acceptance_rate - 0.24)
+                    + self.gamma**-self.k * (acceptance_rate - self.alpha_star)
                 )
                 # increase adaptivity counter for diminishing adaptivity.
                 self.k += 1
@@ -310,7 +313,10 @@ class CrankNicolson(GaussianRandomWalk):
 
     def setup_proposal(self, **kwargs):
         # set the covariance operator
-        self.C = kwargs["posterior"].prior.cov
+        try:
+            self.C = kwargs["posterior"].prior.cov
+        except AttributeError:
+            self.C = kwargs["posterior"].prior.cov_object.covariance
 
         # extract the dimensionality.
         self.d = self.C.shape[0]
@@ -541,26 +547,10 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
             How often to adapt. Default is 100.
         """
 
-        # set tge scaling operator
+        # set the scaling operator
         self.B = B
 
-        # set the scaling.
-        self.scaling = scaling
-
-        # set adaptivity.
-        self.adaptive = adaptive
-
-        # if adaptive, set some adaptivity parameters
-        if self.adaptive:
-            # adaptivity scaling.
-            self.gamma = gamma
-            # adaptivity period (delay between adapting)
-            self.period = period
-            # initialise adaptivity counter for diminishing adaptivity.
-            self.k = 0
-
-        # set a counter of how many times, adapt() has been called..
-        self.t = 0
+        super().__init__(scaling, adaptive, gamma, period)
 
     def setup_proposal(self, **kwargs):
         super().setup_proposal(**kwargs)
@@ -740,7 +730,7 @@ class SingleDreamZ(GaussianRandomWalk):
         prior = kwargs["posterior"].prior
 
         # get the dimension and the initial scaling.
-        self.d = prior.dim
+        self.d = kwargs["posterior"].prior.rvs().size
 
         # these adaptivity parameters need to be mutable, so are only
         # initialised at setup.
@@ -760,10 +750,15 @@ class SingleDreamZ(GaussianRandomWalk):
             except AttributeError:
                 # if the prior is a multivariate_normal, it will not have a .ppf-method.
                 if isinstance(prior, stats._multivariate.multivariate_normal_frozen):
+                    try:
+                        var = np.diag(prior.cov)
+                    except AttributeError:
+                        var = np.diag(prior.cov_object.covariance)
+
                     # instead draw samples from independent normals, according to the prior means and variances.
                     for i in range(self.d):
                         self.Z[:, i] = stats.norm(
-                            loc=prior.mean[i], scale=prior.cov[i, i]
+                            loc=prior.mean[i], scale=np.sqrt(var[i])
                         ).ppf(self.Z[:, i])
                     return
 
@@ -833,6 +828,245 @@ class SingleDreamZ(GaussianRandomWalk):
         return link.parameters + subspace_indicator * (
             (np.ones(self.d) + e) * gamma_DREAM * (Z_r1 - Z_r2) + epsilon
         )
+
+
+class MALA(CrankNicolson):
+    """
+    Metropolis-Adjusted Langevin Algorithm (MALA) proposal. This proposal
+    will use the "gradient" method of the forward model if it is avalable.
+    Such gradient method must implement the following logic:
+    def gradient(self, parameters, sensitivity):
+        ...
+        return np.dot(sensitivity, jacobian)
+    Please see MALA notebook example for more details. If the model does
+    not implement a gradient method, the posterior gradient will be
+    approximated using finite differences.
+
+    Attributes
+    ----------
+    scaling : float
+        The global scaling ("sigma") of the proposal.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for the global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been adapted.
+    t : int
+        How many times the adapt method has been called.
+
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        Sets the dimension of the target and chooses the correct gradient
+        function.
+    adapt(**kwargs)
+        If adaptive=True, the proposal will adapt the global scaling.
+    make_proposal(link)
+        Generates a MALA proposal from the input link.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the
+        previous link.
+    """
+
+    alpha_star = 0.57
+
+    def setup_proposal(self, **kwargs):
+        self.posterior = kwargs["posterior"]
+
+        # set the target dimension
+        self.d = kwargs["posterior"].prior.rvs().size
+
+        # set the gradient function. if the forward model has a gradient
+        # method, use the exact gradient. othereise use a finite difference
+        # approximation.
+        model_gradient = getattr(self.posterior.model, "gradient", None)
+        if callable(model_gradient):
+            self.compute_gradient = self._compute_gradient
+        else:
+            self.compute_gradient = self._compute_gradient_approx
+
+    def make_proposal(self, link):
+        # compute the gradient for the input link, if it has not been
+        # computed yet.
+        if not hasattr(link, "gradient"):
+            link.gradient = self.compute_gradient(link)
+
+        # make a MALA proposal.
+        return (
+            link.parameters
+            + 0.5 * self.scaling**2 * link.gradient
+            + self.scaling * np.random.normal(size=self.d)
+        )
+
+    def get_acceptance(self, proposal_link, previous_link):
+        # safety against NaN evaluations.
+        if np.isnan(proposal_link.posterior):
+            return 0
+
+        # compute the gradient for the proposal, if it has not been
+        # computed yet.
+        if not hasattr(proposal_link, "gradient"):
+            proposal_link.gradient = self.compute_gradient(proposal_link)
+
+        # compute the forward and backwards transisitions probabilities.
+        q_x_y = self.get_q(previous_link, proposal_link)
+        q_y_x = self.get_q(proposal_link, previous_link)
+
+        return np.exp(proposal_link.posterior - previous_link.posterior + q_x_y - q_y_x)
+
+    def get_q(self, x_link, y_link):
+        # get the MALA transition probability.
+        return (
+            -0.5
+            / self.scaling**2
+            * np.linalg.norm(
+                x_link.parameters
+                - y_link.parameters
+                - 0.5 * self.scaling**2 * y_link.gradient
+            )
+            ** 2
+        )
+
+    def _compute_gradient(self, link):
+        # get the gradient of the log-prior.
+        grad_log_prior = grad_log_p(link.parameters, self.posterior.prior)
+        # get the gradient of the likelihood function (not considering the forward model).
+        grad_log_sensitivity = grad_log_l(link.model_output, self.posterior.likelihood)
+        # get the gradient of the likelihood, i.e. np.dot(grad_log_sensitivity, model_jacobian).
+        grad_log_likelikehood = self.posterior.model.gradient(
+            link.parameters, grad_log_sensitivity
+        )
+        # return the gradient of the log-posterior.
+        return grad_log_prior + grad_log_likelikehood
+
+    def _compute_gradient_approx(self, link):
+        # aproximate the gradient of the log-posterior using finite differences.
+        grad_log_posterior = approx_fprime(
+            link.parameters, lambda x: self.posterior.create_link(x).posterior
+        )
+        return grad_log_posterior
+
+
+class KernelMALA(MALA):
+    """
+    Metropolis-Adjusted Langevin Algorithm (MALA) proposal using a kernel
+    approximation for the gradient of the log-posterior. See e.g.
+    Strathmann, H., Sejdinovic, D., Livingstone, S., Szabo, Z., & Gretton, A. (2015).
+    Gradient-free Hamiltonian Monte Carlo with Efficient Kernel Exponential Families.
+    Advances in Neural Information Processing Systems, 28.
+    If no kernel is provided, scipy.stats.gaussian_kde will be used.
+
+    Attributes
+    ----------
+    kernel : object
+        The kernel used to approximate the gradient of the log-posterior.
+    M : int
+        The length of the sampling history used by the kernel.
+    t0 : float
+        When to start using the kernel gradient.
+    scaling : float
+        The global scaling ("sigma") of the proposal.
+    adaptive : bool
+        Whether to adapt the global scaling of the proposal.
+    gamma : float
+        The adaptivity coefficient for the global adaptive scaling.
+    period : int
+        How often to adapt the global scaling.
+    k : int
+        How many times the proposal has been adapted.
+    t : int
+        How many times the adapt method has been called.
+
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        Sets the dimension of the target and chooses the correct gradient
+        function. Starts bukding the history.
+    adapt(**kwargs)
+        If adaptive=True, the proposal will adapt the global scaling.
+    make_proposal(link)
+        Generates a MALA proposal from the input link.
+    get_acceptance(proposal_link, previous_link)
+        Computes the acceptance probability given a proposal link and the
+        previous link.
+    """
+
+    def __init__(
+        self,
+        kernel=None,
+        M=1000,
+        t0=1000,
+        scaling=0.1,
+        adaptive=False,
+        gamma=1.01,
+        period=100,
+    ):
+        """
+        Parameters
+        ----------
+        kernel : object
+            The kernel used to approximate the gradient of the log-posterior.
+            Default is None, which will use scipy.stats.gaussian_kde as
+            the kernel.
+        M : int
+            The length of the sampling history used by the kernel.
+        t0 : float
+            When to start using the kernel gradient.
+        scaling : float
+            The global scaling ("sigma") of the proposal.
+        adaptive : bool
+            Whether to adapt the global scaling of the proposal.
+        gamma : float
+            The adaptivity coefficient for the global adaptive scaling.
+        period : int
+            How often to adapt the global scaling and the kernel.
+        """
+
+        # set the kernel to scipy.stats.gaussian_kde if nothing is provided.
+        if kernel is None:
+            self._kernel = gaussian_kde
+        else:
+            self._kernel = kernel
+
+        # set the history length.
+        self.M = M
+        # set the number of samples before the kernel will be used.
+        self.t0 = t0
+
+        super().__init__(scaling, adaptive, gamma, period)
+
+    def setup_proposal(self, **kwargs):
+        self.posterior = kwargs["posterior"]
+
+        # set the target dimension.
+        self.d = kwargs["posterior"].prior.rvs().size
+
+        # initialise an array forthe sampling history (archive).
+        self.Z = kwargs["parameters"]
+
+    def adapt(self, **kwargs):
+        super().adapt(**kwargs)
+
+        # extend the archive.
+        self.Z = np.vstack((self.Z, kwargs["parameters"]))
+
+        # fit the kernel if it is time to do so.
+        if self.t >= self.t0 and self.t % self.period == 0:
+            self.kernel = self._kernel(self.Z[-self.M :, :].T)
+
+    def compute_gradient(self, link):
+        # get the gradient of the kernel.
+        try:
+            grad_log_posterior = approx_fprime(
+                link.parameters, lambda x: self.kernel.logpdf(x)
+            )
+        # if there is no kernel yet, simply set the gradient to 0.
+        except AttributeError:
+            grad_log_posterior = 0
+        return grad_log_posterior
 
 
 class MLDA(Proposal):

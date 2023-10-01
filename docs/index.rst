@@ -21,6 +21,7 @@ Features
 - preconditioned Crank-Nicolson (pCN)
 - Adaptive Metropolis (AM)
 - Operator-weighted pCN
+- Metropolis Adjusted Langevin Algorithm (MALA)
 - DREAM(Z)
 - Multiple-Try Metropolis (MTM)
 
