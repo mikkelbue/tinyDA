@@ -832,14 +832,8 @@ class SingleDreamZ(GaussianRandomWalk):
 
 class MALA(CrankNicolson):
     """
-    Metropolis-Adjusted Langevin Algorithm (MALA) proposal. This proposal
-    will use the "gradient" method of the forward model if it is avalable.
-    Such gradient method must implement the following logic:
-    def gradient(self, parameters, sensitivity):
-        ...
-        return np.dot(sensitivity, jacobian)
-    Please see MALA notebook example for more details. If the model does
-    not implement a gradient method, the posterior gradient will be
+    Metropolis-Adjusted Langevin Algorithm (MALA) proposal. If the model
+    does not implement a "gradient" method, the posterior gradient will be
     approximated using finite differences.
 
     Attributes
