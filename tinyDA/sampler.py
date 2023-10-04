@@ -7,11 +7,11 @@ import scipy.stats as stats
 # internal imports
 from .chain import *
 from .proposal import *
+from .distributions import *
 
 # check if ray is available and set a flag.
 try:
     from .ray import *
-
     ray_is_available = True
 except ModuleNotFoundError:
     ray_is_available = False
@@ -140,6 +140,18 @@ def sample(
             raise TypeError(
                 "Prior must be of type scipy.stats.multivariate_normal for pCN kernel"
             )
+
+    # if the proposal is PoissonPointProposal, make sure that the prior is PoissonPointProcess.
+    if isinstance(proposal, PoissonPointProposal) and not isinstance(posteriors[0].prior, PoissonPointProcess):
+        raise TypeError(
+            "Prior must be tinyDA.PoissonPointProcess for tinyDA.PoissonPointProposal proposal."
+        )
+
+    # similarly, if the prior is PoissonPointProcess, make sure that the proposal is PoissonPointProposal.
+    if isinstance(posteriors[0].prior, PoissonPointProcess) and not isinstance(proposal, PoissonPointProposal):
+        raise TypeError(
+            "Proposal must be tinyDA.PoissonPointProposal for tinyDA.PoissonPointProcess prior."
+        )
 
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
 
