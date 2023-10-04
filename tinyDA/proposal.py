@@ -1,7 +1,7 @@
 # external imports
 import warnings
+import random
 from copy import deepcopy
-from random import sample
 
 import numpy as np
 from scipy.linalg import sqrtm
@@ -1101,6 +1101,8 @@ class PoissonPointProposal(GaussianRandomWalk):
         prior.
     destroy(x)
         Remove a random point from the current state.
+    move(x)
+        Move a random point from the current state.
     shuffle(x)
         Randomly scramble the indices of all the points in the current state.
     swap(x)
@@ -1112,11 +1114,12 @@ class PoissonPointProposal(GaussianRandomWalk):
     def __init__(
         self,
         move_distribution={
-            "create": 0.2,
-            "destroy": 0.2,
-            "shuffle": 0.2,
-            "swap": 0.2,
-            "perturb": 0.2,
+            "create": 1,
+            "destroy": 1,
+            "move": 1,
+            "shuffle": 1,
+            "swap": 1,
+            "perturb": 1,
         },
     ):
         """
@@ -1139,6 +1142,8 @@ class PoissonPointProposal(GaussianRandomWalk):
             [p for p in self.move_distribution.values()]
         ).astype(float)
         self.probabilities /= self.probabilities.sum()
+
+        self.scaling = 0.1
 
     def setup_proposal(self, **kwargs):
         # link to the prior.
@@ -1169,7 +1174,7 @@ class PoissonPointProposal(GaussianRandomWalk):
         # draw a random index.
         idx = np.random.choice(range(len(x) + 1))
         # insert a new random point at the random index.
-        y.insert(idx, self.prior.create_point())
+        y.insert(idx, self.prior._create_point())
         return y
 
     def destroy(self, x):
@@ -1180,9 +1185,17 @@ class PoissonPointProposal(GaussianRandomWalk):
         del y[idx]
         return y
 
+    def move(self, x):
+        y = deepcopy(x)
+        # draw a random index.
+        idx = np.random.choice(range(len(x)))
+        # delete the point at the chosen index.
+        y[idx]['position'] += np.random.choice([-1,1])*self.scaling*self.prior.domain_dist.rvs()
+        return y
+
     def shuffle(self, x):
         # randomly shuffle all the points.
-        return sample(x, len(x))
+        return random.sample(x, len(x))
 
     def swap(self, x):
         y = deepcopy(x)
@@ -1199,7 +1212,7 @@ class PoissonPointProposal(GaussianRandomWalk):
         # pick a random attribute.
         attr = np.random.choice(list(self.prior.attributes.keys()))
         # get a new random draw for that attribute from the prior.
-        y[idx][attr] = self.prior.attributes[attr].rvs()
+        y[idx][attr] += np.random.choice([-1,1])*self.scaling*self.prior.attributes[attr].rvs()
         return y
 
 
