@@ -1067,7 +1067,7 @@ class KernelMALA(MALA):
         return grad_log_posterior
 
 
-class PoissonPointProposal(tda.GaussianRandomWalk):
+class PoissonPointProposal(GaussianRandomWalk):
 
     """PoissonPointProposal ca be seen as a special case of Reversible
     Jump MCMC. It is used to make moves for a PoissonPointProcess prior.
