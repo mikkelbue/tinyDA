@@ -13,9 +13,10 @@ Proposals
     tinyDA.AdaptiveMetropolis
     tinyDA.CrankNicolson
     tinyDA.OperatorWeightedCrankNicolson
+    tinyDA.SingleDreamZ
     tinyDA.MALA
     tinyDA.KernelMALA
-    tinyDA.SingleDreamZ
+    tinyDA.PoissonPointProposal
     tinyDA.MLDA
    
 Independence Sampler
@@ -58,6 +59,14 @@ Operator-weighted pCN
 
     .. automethod:: __init__
 
+DREAM(Z)
+--------
+
+.. autoclass:: tinyDA.SingleDreamZ
+    :members:
+
+    .. automethod:: __init__
+
 Metropolis Adjusted Langevin Algorithm
 --------------------------------------
 
@@ -74,12 +83,12 @@ Kernel MALA
 
     .. automethod:: __init__
 
-DREAM(Z)
---------
+Poisson Point Proposal
+----------------------
 
-.. autoclass:: tinyDA.SingleDreamZ
+.. autoclass:: tinyDA.PoissonPointProposal
     :members:
-    
+
     .. automethod:: __init__
 
 MLDA
