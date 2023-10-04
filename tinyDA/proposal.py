@@ -1,5 +1,8 @@
 # external imports
 import warnings
+from copy import deepcopy
+from random import sample
+
 import numpy as np
 from scipy.linalg import sqrtm
 import scipy.stats as stats
@@ -785,7 +788,7 @@ class SingleDreamZ(GaussianRandomWalk):
             jumping_distance = kwargs["parameters"] - kwargs["parameters_previous"]
             self.DeltaCR[self.mCR] = (
                 self.DeltaCR[self.mCR]
-                + (jumping_distance ** 2 / np.var(self.Z, axis=0)).sum()
+                + (jumping_distance**2 / np.var(self.Z, axis=0)).sum()
             )
             self.LCR[self.mCR] = self.LCR[self.mCR] + 1
 
@@ -1062,6 +1065,142 @@ class KernelMALA(MALA):
         except AttributeError:
             grad_log_posterior = 0
         return grad_log_posterior
+
+
+class PoissonPointProposal(tda.GaussianRandomWalk):
+
+    """PoissonPointProposal ca be seen as a special case of Reversible
+    Jump MCMC. It is used to make moves for a PoissonPointProcess prior.
+
+    Attributes
+    ----------
+    move_distribution : dict
+        Specifies the (unnormalised) probability of making each of the
+        named moves.
+    moves : list
+        A list of the functions used to make moves.
+    probabilities : numpy.ndarray
+        The probability of making each of the moves in the moves list.
+
+    Methods
+    ----------
+    setup_proposal(**kwargs)
+        This proposal extracts the prior in order to perturb points.
+    adapt(**kwargs)
+        This proposal is non-adaptive, so this method does nothing.
+    make_proposal(link)
+        Chooses a move according to the move probabilities and then
+        executes that move.
+    is_feasible(proposal)
+        Convenience method that is triggered before a proposal is passed
+        back to the sampler, allowing users to check for various geometric
+        propoerties of the proposal before it is evaluated. By default
+        returns True, so must be overwritten.
+    create(x)
+        Add a new point to the current state from the PoissonPointProcess
+        prior.
+    destroy(x)
+        Remove a random point from the current state.
+    shuffle(x)
+        Randomly scramble the indices of all the points in the current state.
+    swap(x)
+        Randomly swap the indices of two points in the current state.
+    perturb(x)
+        Randomly perturb a single attribute of a point in the current state.
+    """
+
+    def __init__(
+        self,
+        move_distribution={
+            "create": 0.2,
+            "destroy": 0.2,
+            "shuffle": 0.2,
+            "swap": 0.2,
+            "perturb": 0.2,
+        },
+    ):
+        """
+        Parameters
+        ----------
+        move_distribution : dict
+            Specifies the (unnormalised) probability of making each of the
+            named moves.
+        """
+
+        # internalise the dictionary of move probabilities.
+        self.move_distribution = move_distribution
+
+        # get the move functions and put them in a list.
+        self.moves = [
+            self.__getattribute__(move) for move in self.move_distribution.keys()
+        ]
+        # compute the normalised probabilities of each move.
+        self.probabilities = np.array(
+            [p for p in self.move_distribution.values()]
+        ).astype(float)
+        self.probabilities /= self.probabilities.sum()
+
+    def setup_proposal(self, **kwargs):
+        # link to the prior.
+        self.prior = kwargs["posterior"].prior
+
+    def adapt(self, **kwargs):
+        pass
+
+    def make_proposal(self, link):
+        while True:
+            try:
+                # choose a move randomly.
+                move = np.random.choice(self.moves, p=self.probabilities)
+                # use the move function.
+                proposal = move(link.parameters)
+                # check if the move is feasible.
+                if not self.is_feasible(proposal):
+                    continue
+            except ValueError:
+                continue
+            return proposal
+
+    def is_feasible(self, proposal):
+        return True
+
+    def create(self, x):
+        y = deepcopy(x)
+        # draw a random index.
+        idx = np.random.choice(range(len(x) + 1))
+        # insert a new random point at the random index.
+        y.insert(idx, self.prior.create_point())
+        return y
+
+    def destroy(self, x):
+        y = deepcopy(x)
+        # draw a random index.
+        idx = np.random.choice(range(len(x)))
+        # delete the point at the chosen index.
+        del y[idx]
+        return y
+
+    def shuffle(self, x):
+        # randomly shuffle all the points.
+        return sample(x, len(x))
+
+    def swap(self, x):
+        y = deepcopy(x)
+        # iock two random indices.
+        idx, idy = np.random.choice(range(len(x)), size=2, replace=False)
+        # swap the points at the chosen indices.
+        y[idy], y[idx] = x[idx], x[idy]
+        return y
+
+    def perturb(self, x):
+        y = deepcopy(x)
+        # draw a random index.
+        idx = np.random.choice(range(len(x)))
+        # pick a random attribute.
+        attr = np.random.choice(list(self.prior.attributes.keys()))
+        # get a new random draw for that attribute from the prior.
+        y[idx][attr] = self.prior.attributes[attr].rvs()
+        return y
 
 
 class MLDA(Proposal):
