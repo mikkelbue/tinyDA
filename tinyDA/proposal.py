@@ -1190,7 +1190,9 @@ class PoissonPointProposal(GaussianRandomWalk):
         # draw a random index.
         idx = np.random.choice(range(len(x)))
         # delete the point at the chosen index.
-        y[idx]['position'] += np.random.choice([-1,1])*self.scaling*self.prior.domain_dist.rvs()
+        y[idx]["position"] += (
+            np.random.choice([-1, 1]) * self.scaling * self.prior.domain_dist.rvs()
+        )
         return y
 
     def shuffle(self, x):
@@ -1212,7 +1214,9 @@ class PoissonPointProposal(GaussianRandomWalk):
         # pick a random attribute.
         attr = np.random.choice(list(self.prior.attributes.keys()))
         # get a new random draw for that attribute from the prior.
-        y[idx][attr] += np.random.choice([-1,1])*self.scaling*self.prior.attributes[attr].rvs()
+        y[idx][attr] += (
+            np.random.choice([-1, 1]) * self.scaling * self.prior.attributes[attr].rvs()
+        )
         return y
 
 

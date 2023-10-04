@@ -4,6 +4,7 @@ import numpy as np
 
 import scipy.stats as stats
 
+
 class CompositePrior:
 
     """CompositePrior is a wrapper for a list of priors, if the parameters have
