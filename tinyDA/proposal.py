@@ -1069,7 +1069,7 @@ class KernelMALA(MALA):
 
 class PoissonPointProposal(GaussianRandomWalk):
 
-    """PoissonPointProposal ca be seen as a special case of Reversible
+    """PoissonPointProposal can be seen as a special case of Reversible
     Jump MCMC. It is used to make moves for a PoissonPointProcess prior.
 
     Attributes

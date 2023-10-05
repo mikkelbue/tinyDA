@@ -120,7 +120,7 @@ class PoissonPointProcess:
         etc.), with the format {"attribute": scipy.stats.distribution}
     pois : scipy.stats.poisson
         The Poisson distribution over the number of points.
-    domain_dist : stats.scipy.uniform
+    domain_dist : scipy.stats.uniform
         A d-dimensional uniform distribution describing the domain.
 
     Methods
