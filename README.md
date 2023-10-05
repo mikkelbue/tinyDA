@@ -147,13 +147,13 @@ idata = tda.to_inference_data(my_chains, level='coarse', burnin=20000)
 The `idata` object can then be used with the ArviZ diagnostics suite to e.g. get MCMC statistics, plot the traces and so on.
 
 ## Contributing
-I (mikkelbue) am currently the sole contributor to this package. I have been using it in my own research, and have so far been developing it (mostly) for myself. 
-
-If you feel that it is missing some features, or that something could be improved, please do not hesitate to create a fork and submit a PR! If you want to help me improve the package, please have a look at the [issues](https://github.com/mikkelbue/tinyDA/issues) and consider if something seems doable to you. I am currently working on a scientific paper that I plan to submit to Journal of Statistical Software, and would be happy for other people to get involved.
+If you feel that tinyDA is missing some features, or that something could be improved, please do not hesitate to create a fork and submit a PR! If you want to help improve the package, please have a look at the [issues](https://github.com/mikkelbue/tinyDA/issues) and consider if something seems doable to you.
 
 If you would like to contribute, please consider the following:
-* I am hoping to keep the list of dependencies **short**, and would rather not include any additional large libraries, unless it is strongly warranted. Great things can be achieved using NumPy!
-* I am pretty good at converting theoretical methods into computer code, but I am not a software engineer. Any kind of CI, tests and improvements to the software infrastructure would be greatly appreciated!
+* It's called tinyDA because it's small. The list of dependencies should be kept **short**. Great things can be achieved using NumPy!
+* tinyDA has loads of nice features, but it's somewhat lacking in terms of CI. Any kind of CI, tests and improvements to the software infrastructure would be greatly appreciated!
+
+The development of tinyDA is sponsored by [digiLab](https://www.digilab.co.uk/)
 
 ## TODO
 * ~~Parallel multi-chain sampling~~
