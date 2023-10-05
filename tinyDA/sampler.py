@@ -7,6 +7,7 @@ import scipy.stats as stats
 # internal imports
 from .chain import *
 from .proposal import *
+from .distributions import *
 
 # check if ray is available and set a flag.
 try:
@@ -29,7 +30,6 @@ def sample(
     force_sequential=False,
     force_progress_bar=False,
 ):
-
     """Returns MCMC samples given a tinyDA.Posterior and a tinyDA.Proposal.
     This function takes as input a tinyDA.Posterior instance, or a list of
     tinyDA.Posterior instances. If a single instance is provided, standard
@@ -141,6 +141,22 @@ def sample(
                 "Prior must be of type scipy.stats.multivariate_normal for pCN kernel"
             )
 
+    # if the proposal is PoissonPointProposal, make sure that the prior is PoissonPointProcess.
+    if isinstance(proposal, PoissonPointProposal) and not isinstance(
+        posteriors[0].prior, PoissonPointProcess
+    ):
+        raise TypeError(
+            "Prior must be tinyDA.PoissonPointProcess for tinyDA.PoissonPointProposal proposal."
+        )
+
+    # similarly, if the prior is PoissonPointProcess, make sure that the proposal is PoissonPointProposal.
+    if isinstance(posteriors[0].prior, PoissonPointProcess) and not isinstance(
+        proposal, PoissonPointProposal
+    ):
+        raise TypeError(
+            "Proposal must be tinyDA.PoissonPointProposal for tinyDA.PoissonPointProcess prior."
+        )
+
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
 
     # raise a warning if there are more than two levels (not implemented yet).
@@ -217,7 +233,6 @@ def sample(
             )
 
     elif n_levels > 2:
-
         if isinstance(subsampling_rate, list):
             subsampling_rates = subsampling_rate
         elif isinstance(subsampling_rate, int):
@@ -250,9 +265,7 @@ def sample(
     return samples
 
 
-def _sample_sequential(
-    posteriors, proposal, iterations, n_chains, initial_parameters
-):
+def _sample_sequential(posteriors, proposal, iterations, n_chains, initial_parameters):
     """Helper function for tinyDA.sample()"""
 
     # initialise the chains and sample, sequentially.

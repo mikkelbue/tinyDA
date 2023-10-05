@@ -2,6 +2,8 @@
 import warnings
 import numpy as np
 
+import scipy.stats as stats
+
 
 class CompositePrior:
 
@@ -96,6 +98,89 @@ class CompositePrior:
             y[:, i] = self.distributions[i].ppf(x[:, i])
 
         return y
+
+
+class PoissonPointProcess:
+
+    """PoissonPointProcess is a geometric prior, where the number of points
+    has a Poisson distribution and their locations are uniformly distributed
+    on the domain. Additional geometric attributes of the points can also be
+    assigned.
+
+    Attributes
+    ----------
+    lamb : float
+        The Poisson rate.
+    domain : numpy.ndarray
+        A d x 2 numpy array describing the bounds of the domain, where
+        the first column are the minima of each dimension and the second
+        column are the maxima of each dimension.
+    attributes : dict
+        A dictionary of additional attributes of the points (size, direction,
+        etc.), with the format {"attribute": scipy.stats.distribution}
+    pois : scipy.stats.poisson
+        The Poisson distribution over the number of points.
+    domain_dist : stats.scipy.uniform
+        A d-dimensional uniform distribution describing the domain.
+
+    Methods
+    ----------
+    logpdf(x)
+        Returns the Poisson pmf of x.
+    rvs()
+        Generates one sample from the Poisson Point Process prior.
+    """
+
+    def __init__(self, lamb, domain, attributes={}):
+        """
+        Parameters
+        ----------
+        lamb : float
+            The Poisson rate.
+        domain : numpy.ndarray
+            A d x 2 numpy array describing the bounds of the domain, where
+            the first column are the minima of each dimension and the second
+            column are the maxima of each dimension.
+        attributes : dict
+            A dictionary of additional attributes of the points (size, direction,
+            etc.), with the format {"attribute": scipy.stats.distribution}
+        """
+
+        # set the Poisson rate.
+        self.lamb = lamb
+        # internalise the domain.
+        self.domain = domain
+        # set the point process attributes.
+        self.attributes = attributes
+
+        # initialise a Poisson distribution.
+        self.pois = stats.poisson(lamb)
+
+        # initialise a uniform distribution for the domain.
+        self.domain_dist = stats.uniform(
+            loc=self.domain[:, 0], scale=self.domain[:, 1] - self.domain[:, 0]
+        )
+
+    def logpdf(self, x):
+        # get the Poisson pmf of the number of points.
+        return self.pois.logpmf(len(x))
+
+    def rvs(self):
+        # get a random draw from the Poisson distribution.
+        k = self.pois.rvs()
+
+        # create k points.
+        return [self._create_point() for i in range(k)]
+
+    def _create_point(self):
+        # get a random position for the point.
+        point = {"position": self.domain_dist.rvs()}
+
+        # create random attributes for the point.
+        for attr, dist in self.attributes.items():
+            point[attr] = dist.rvs()
+
+        return point
 
 
 class GaussianLogLike:

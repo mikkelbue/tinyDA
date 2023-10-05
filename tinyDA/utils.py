@@ -1,9 +1,10 @@
 import numpy as np
 import scipy.stats as stats
 
-from scipy.optimize import minimize, approx_fprime
+from scipy.optimize import minimize, differential_evolution, approx_fprime
 
 from .distributions import GaussianLogLike, AdaptiveGaussianLogLike
+
 
 class RecursiveSampleMoments:
 
@@ -200,8 +201,7 @@ class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
         self.t += 1
 
 
-def get_MAP(posterior, initial_parameters=None, **kwargs):
-
+def get_MAP(posterior, **kwargs):
     """Returns the Maximum a Posteriori estimate of a posterior.
 
     Parameters
@@ -220,18 +220,22 @@ def get_MAP(posterior, initial_parameters=None, **kwargs):
         Maximum a Posteriori estimate.
     """
 
-    if initial_parameters is None:
-        initial_parameters = posterior.prior.rvs()
-
     negative_log_posterior = lambda parameters: -posterior.create_link(
         parameters
     ).posterior
-    MAP = minimize(negative_log_posterior, initial_parameters, **kwargs)
+
+    method = kwargs.pop("method", None)
+    if method == "differential_evolution":
+        MAP = differential_evolution(negative_log_posterior, **kwargs)
+    else:
+        initial_parameters = kwargs.pop("initial_parameters", posterior.prior.rvs())
+        MAP = minimize(
+            negative_log_posterior, initial_parameters, method=method, **kwargs
+        )
     return MAP["x"]
 
 
-def get_ML(posterior, initial_parameters=None, **kwargs):
-
+def get_ML(posterior, **kwargs):
     """Returns the Maximum Likelihood estimate of a posterior.
 
     Parameters
@@ -250,14 +254,20 @@ def get_ML(posterior, initial_parameters=None, **kwargs):
         Maximum Likelihood estimate.
     """
 
-    if initial_parameters is None:
-        initial_parameters = posterior.prior.rvs()
-
     negative_log_likelihood = lambda parameters: -posterior.create_link(
         parameters
     ).likelihood
-    ML = minimize(negative_log_likelihood, initial_parameters, **kwargs)
+
+    method = kwargs.pop("method", None)
+    if method == "differential_evolution":
+        ML = differential_evolution(negative_log_likelihood, **kwargs)
+    else:
+        initial_parameters = kwargs.pop("initial_parameters", posterior.prior.rvs())
+        ML = minimize(
+            negative_log_likelihood, initial_parameters, method=method, **kwargs
+        )
     return ML["x"]
+
 
 def grad_log_p(x, dist):
     if isinstance(dist, stats._multivariate.multivariate_normal_frozen):
@@ -268,6 +278,7 @@ def grad_log_p(x, dist):
         return np.dot(cov_inverse, (dist.mean - x))
     else:
         return approx_fprime(x, lambda x: dist.logpdf)
+
 
 def grad_log_l(x, dist):
     if isinstance(dist, GaussianLogLike):
