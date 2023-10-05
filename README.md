@@ -153,7 +153,7 @@ If you would like to contribute, please consider the following:
 * It's called tinyDA because it's small. The list of dependencies should be kept **short**. Great things can be achieved using NumPy!
 * tinyDA has loads of nice features, but it's somewhat lacking in terms of CI. Any kind of CI, tests and improvements to the software infrastructure would be greatly appreciated!
 
-The development of tinyDA is sponsored by [digiLab](https://www.digilab.co.uk/)
+The development of tinyDA is sponsored by [digiLab](https://www.digilab.co.uk/).
 
 ## TODO
 * ~~Parallel multi-chain sampling~~
