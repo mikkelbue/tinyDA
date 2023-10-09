@@ -13,7 +13,7 @@ Proposals
     tinyDA.AdaptiveMetropolis
     tinyDA.CrankNicolson
     tinyDA.OperatorWeightedCrankNicolson
-    tinyDA.SingleDreamZ
+    tinyDA.DREAMZ
     tinyDA.MALA
     tinyDA.KernelMALA
     tinyDA.PoissonPointProposal
@@ -62,7 +62,7 @@ Operator-weighted pCN
 DREAM(Z)
 --------
 
-.. autoclass:: tinyDA.SingleDreamZ
+.. autoclass:: tinyDA.DREAMZ
     :members:
 
     .. automethod:: __init__
