@@ -588,7 +588,7 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
         )
 
 
-class SingleDreamZ(GaussianRandomWalk):
+class DREAMZ(GaussianRandomWalk):
 
     """Dream(Z) proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt
     2016).
@@ -691,10 +691,6 @@ class SingleDreamZ(GaussianRandomWalk):
             How often to adapt the global scaling and crossover distribution.
             Default is 100.
         """
-
-        warnings.warn(
-            " SingleDreamZ is an EXPERIMENTAL proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt 2016), but using only a single chain.\n"
-        )
 
         # set initial archive size.
         self.M = M0
@@ -833,6 +829,10 @@ class SingleDreamZ(GaussianRandomWalk):
             (np.ones(self.d) + e) * gamma_DREAM * (Z_r1 - Z_r2) + epsilon
         )
 
+def SingleDreamZ(*args, **kwargs):
+    """Deprecation dummy."""
+    warnings.warn(" SingleDreamZ has been deprecated. Please use DREAMZ.")
+    return DREAMZ(*args, **kwargs)
 
 class MALA(CrankNicolson):
     """
