@@ -182,6 +182,7 @@ class DAChain:
         subsampling_rate,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
         """
         Parameters
@@ -206,6 +207,9 @@ class DAChain:
             None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood MUST
             have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        store_coarse_chain : bool, optional
+            Whether to store the coarse chain. Disable if the sampler is
+            taking up too much memory. Default is True.
         """
 
         # internalise posteriors and the proposal
@@ -282,6 +286,8 @@ class DAChain:
             self.chain_coarse[-1] = self.posterior_coarse.update_link(
                 self.chain_coarse[-1]
             )
+
+        self.store_coarse_chain = store_coarse_chain
 
     def sample(self, iterations, progressbar=True):
         """
@@ -363,6 +369,12 @@ class DAChain:
             pbar.close()
 
     def _sample_coarse(self):
+
+        # remove everything except the latest coarse link, if the coarse
+        # chain shouldn't be stored.
+        if not self.store_coarse_chain:
+            self.chain_coarse = [self.chain_coarse[-1]]
+
         # subsample the coarse model.
         for j in range(self.subsampling_rate):
             # draw a new proposal, given the previous parameters.
