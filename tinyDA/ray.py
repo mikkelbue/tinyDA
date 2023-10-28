@@ -37,7 +37,6 @@ class ParallelChain:
     """
 
     def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
-
         """
         Parameters
         ----------
@@ -75,7 +74,6 @@ class ParallelChain:
         ]
 
     def sample(self, iterations, progressbar=False):
-
         """
         Parameters
         ----------
@@ -105,7 +103,6 @@ class ParallelDAChain(ParallelChain):
         adaptive_error_model=None,
         store_coarse_chain=True,
     ):
-
         # internalise posteriors, proposal and subsampling rate.
         self.posterior_coarse = posterior_coarse
         self.posterior_fine = posterior_fine
@@ -151,8 +148,8 @@ class ParallelMLDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
-
         # internalise posteriors, proposal and subsampling rate.
         self.posteriors = posteriors
         self.proposal = proposal
@@ -167,6 +164,9 @@ class ParallelMLDAChain(ParallelChain):
         # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
 
+        # whether to store the coarse chain.
+        self.store_coarse_chain = store_coarse_chain
+
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
 
@@ -178,6 +178,7 @@ class ParallelMLDAChain(ParallelChain):
                 self.subsampling_rates,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
+                self.store_coarse_chain,
             )
             for i in range(self.n_chains)
         ]
@@ -197,11 +198,11 @@ class RemoteDAChain(DAChain):
         super().sample(iterations, progressbar)
 
         if self.store_coarse_chain:
-            coarse_chain = list(compress(self.chain_coarse, self.is_coarse))
+            chain_coarse = list(compress(self.chain_coarse, self.is_coarse))
         else:
-            coarse_chain = None
+            chain_coarse = None
 
-        return coarse_chain, self.chain_fine
+        return chain_coarse, self.chain_fine
 
 
 @ray.remote
@@ -215,7 +216,11 @@ class RemoteMLDAChain(MLDAChain):
         # iterate through the levels.
         _current = self.proposal
         for i in range(self.level):
-            chains.append(list(compress(_current.chain, _current.is_local)))
+            if self.store_coarse_chain:
+                chain_current = list(compress(_current.chain, _current.is_local))
+            else:
+                chain_current = None
+            chains.append(chain_current)
             _current = _current.proposal
 
         # flip the list of chains and return it.
@@ -251,7 +256,6 @@ class MultipleTry(Proposal):
     is_symmetric = True
 
     def __init__(self, kernel, k):
-
         """
         Parameters
         ----------
@@ -275,7 +279,6 @@ class MultipleTry(Proposal):
         ray.init(ignore_reinit_error=True)
 
     def setup_proposal(self, **kwargs):
-
         # pass the kwargs to the kernel.
         self.kernel.setup_proposal(**kwargs)
 
@@ -285,12 +288,10 @@ class MultipleTry(Proposal):
         ]
 
     def adapt(self, **kwargs):
-
         # this method is not adaptive in its own, but its kernel might be.
         self.kernel.adapt(**kwargs)
 
     def make_proposal(self, link):
-
         # create proposals. this is fast so no paralellised.
         proposals = [self.kernel.make_proposal(link) for i in range(self.k)]
 
@@ -330,13 +331,11 @@ class MultipleTry(Proposal):
             ).parameters
 
     def get_acceptance(self, proposal_link, previous_link):
-
         # check if the proposal makes sense, if not return 0.
         if np.isnan(proposal_link.posterior) or np.isinf(self.proposal_weights).all():
             return 0
 
         else:
-
             # create reference proposals.this is fast so no paralellised.
             references = [
                 self.kernel.make_proposal(proposal_link) for i in range(self.k - 1)

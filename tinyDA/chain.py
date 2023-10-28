@@ -287,6 +287,7 @@ class DAChain:
                 self.chain_coarse[-1]
             )
 
+        # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
 
     def sample(self, iterations, progressbar=True):
@@ -369,7 +370,6 @@ class DAChain:
             pbar.close()
 
     def _sample_coarse(self):
-
         # remove everything except the latest coarse link, if the coarse
         # chain shouldn't be stored.
         if not self.store_coarse_chain:
@@ -408,7 +408,6 @@ class DAChain:
             )
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
-
         # compute the bias at the proposal.
         bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
 
@@ -533,6 +532,7 @@ class MLDAChain:
         subsampling_rates,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
         """
         Parameters
@@ -552,6 +552,9 @@ class MLDAChain:
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        store_coarse_chain : bool, optional
+            Whether to store the coarse chains. Disable if the sampler is
+            taking up too much memory. Default is True.
         """
 
         # internalise the finest posterior and set the level.
@@ -579,17 +582,21 @@ class MLDAChain:
         self.chain.append(self.posterior.create_link(self.initial_parameters))
         self.accepted.append(True)
 
+        # set the adative error model as an attribute.
+        self.adaptive_error_model = adaptive_error_model
+
+        # set whether to store the coarse chain
+        self.store_coarse_chain = store_coarse_chain
+
         # set the effective proposal to MLDA which runs on the next-coarser level.
         self.proposal = MLDA(
             posteriors[:-1],
             proposal,
             subsampling_rates[:-1],
             self.initial_parameters,
-            adaptive_error_model,
+            self.adaptive_error_model,
+            self.store_coarse_chain,
         )
-
-        # set the adative error model as an attribute.
-        self.adaptive_error_model = adaptive_error_model
 
         # set up the adaptive error model.
         if self.adaptive_error_model is not None:
@@ -649,6 +656,11 @@ class MLDAChain:
                 pbar.set_description(
                     "Running chain, \u03B1 = %0.2f" % np.mean(self.accepted[-100:])
                 )
+
+            # remove everything except the latest coarse link, if the coarse
+            # chain shouldn't be stored.
+            if not self.store_coarse_chain:
+                self.proposal._reset_chain()
 
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.subsampling_rate)
