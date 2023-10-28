@@ -29,11 +29,6 @@ class ParallelChain:
         Starting points for the MCMC samplers
     remote_chains : list
         List of Ray actors, each running an independent MCMC sampler.
-    chains : list
-        List of lists containing samples ("Links") in the MCMC chains.
-    accepted : list
-        List of lists of bool, signifying whether a proposal was accepted
-        or not.
 
     Methods
     -------
@@ -42,7 +37,6 @@ class ParallelChain:
     """
 
     def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
-
         """
         Parameters
         ----------
@@ -80,7 +74,6 @@ class ParallelChain:
         ]
 
     def sample(self, iterations, progressbar=False):
-
         """
         Parameters
         ----------
@@ -99,44 +92,6 @@ class ParallelChain:
 
 
 class ParallelDAChain(ParallelChain):
-
-    """ParalleDAChain creates n_chains instances of tinyDA.DAChain and runs the
-    chains in parallel. It takes a coarse and a fine posterior as input, as
-    well as a proposal, which applies to the coarse level only.
-
-    Attributes
-    ----------
-    posterior_coarse : tinyDA.Posterior
-        A "coarse" posterior responsible for communation between prior,
-        likelihood and model. It also generates instances of tinyDA.Link
-        (sample objects).
-    posterior_fine : tinyDA.Posterior
-        A "fine" posterior responsible for communation between prior,
-        likelihood and model. It also generates instances of tinyDA.Link
-        (sample objects).
-    proposal : tinyDA.Proposal
-        Transition kernel for coarse MCMC proposals.
-    subsampling_rate : int
-        The subsampling rate for the coarse chain.
-    n_chains : int
-        Number of parallel chains.
-    initial_parameters : list
-            Starting points for the MCMC samplers.
-    adaptive_error_model : str or None
-        The adaptive error model, see e.g. Cui et al. (2019).
-    remote_chains : list
-        List of Ray actors, each running an independent DA MCMC sampler.
-    chains : list
-        List of lists containing samples ("Links") in the fine MCMC chains.
-    accepted : list
-        List of lists of bool, signifying whether a proposal was accepted or not.
-
-    Methods
-    -------
-    sample(iterations)
-        Runs the MCMC for the specified number of iterations.
-    """
-
     def __init__(
         self,
         posterior_coarse,
@@ -146,36 +101,8 @@ class ParallelDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
-
-        """
-        Parameters
-        ----------
-        posterior_coarse : tinyDA.Posterior
-            A "coarse" posterior responsible for communation between prior,
-            likelihood and model. It also generates instances of tinyDA.Link
-            sample objects).
-        posterior_fine : tinyDA.Posterior
-            A "fine" posterior responsible for communation between prior,
-            likelihood and model. It also generates instances of tinyDA.Link
-            (sample objects).
-        proposal : tinyDA.Proposal
-            Transition kernel for coarse MCMC proposals.
-        subsampling_rate : int, optional
-            The subsampling rate for the coarse chain. The default is 1,
-            resulting in "classic" DA MCMC..
-        n_chains : int, optional
-            Number of independent MCMC samplers. Default is 2.
-        initial_parameters : list, optional
-            Starting points for the MCMC samplers, default is None (random
-            draws from prior).
-        adaptive_error_model : str or None, optional
-            The adaptive error model, see e.g. Cui et al. (2019). Default
-            is None (no error model), options are 'state-independent' or
-            'state-dependent'. If an error model is used, the likelihood MUST
-            have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        """
-
         # internalise posteriors, proposal and subsampling rate.
         self.posterior_coarse = posterior_coarse
         self.posterior_fine = posterior_fine
@@ -188,8 +115,11 @@ class ParallelDAChain(ParallelChain):
         # set the initial parameters.
         self.initial_parameters = initial_parameters
 
-        # set the adaptive error model
+        # set the adaptive error model.
         self.adaptive_error_model = adaptive_error_model
+
+        # whether to store the coarse chain.
+        self.store_coarse_chain = store_coarse_chain
 
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -203,6 +133,7 @@ class ParallelDAChain(ParallelChain):
                 self.subsampling_rate,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
+                self.store_coarse_chain,
             )
             for i in range(self.n_chains)
         ]
@@ -217,8 +148,8 @@ class ParallelMLDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
-
         # internalise posteriors, proposal and subsampling rate.
         self.posteriors = posteriors
         self.proposal = proposal
@@ -233,6 +164,9 @@ class ParallelMLDAChain(ParallelChain):
         # set the adaptive error model
         self.adaptive_error_model = adaptive_error_model
 
+        # whether to store the coarse chain.
+        self.store_coarse_chain = store_coarse_chain
+
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
 
@@ -244,6 +178,7 @@ class ParallelMLDAChain(ParallelChain):
                 self.subsampling_rates,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
+                self.store_coarse_chain,
             )
             for i in range(self.n_chains)
         ]
@@ -262,7 +197,12 @@ class RemoteDAChain(DAChain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
 
-        return list(compress(self.chain_coarse, self.is_coarse)), self.chain_fine
+        if self.store_coarse_chain:
+            chain_coarse = list(compress(self.chain_coarse, self.is_coarse))
+        else:
+            chain_coarse = None
+
+        return chain_coarse, self.chain_fine
 
 
 @ray.remote
@@ -276,7 +216,11 @@ class RemoteMLDAChain(MLDAChain):
         # iterate through the levels.
         _current = self.proposal
         for i in range(self.level):
-            chains.append(list(compress(_current.chain, _current.is_local)))
+            if self.store_coarse_chain:
+                chain_current = list(compress(_current.chain, _current.is_local))
+            else:
+                chain_current = None
+            chains.append(chain_current)
             _current = _current.proposal
 
         # flip the list of chains and return it.
@@ -312,7 +256,6 @@ class MultipleTry(Proposal):
     is_symmetric = True
 
     def __init__(self, kernel, k):
-
         """
         Parameters
         ----------
@@ -336,7 +279,6 @@ class MultipleTry(Proposal):
         ray.init(ignore_reinit_error=True)
 
     def setup_proposal(self, **kwargs):
-
         # pass the kwargs to the kernel.
         self.kernel.setup_proposal(**kwargs)
 
@@ -346,12 +288,10 @@ class MultipleTry(Proposal):
         ]
 
     def adapt(self, **kwargs):
-
         # this method is not adaptive in its own, but its kernel might be.
         self.kernel.adapt(**kwargs)
 
     def make_proposal(self, link):
-
         # create proposals. this is fast so no paralellised.
         proposals = [self.kernel.make_proposal(link) for i in range(self.k)]
 
@@ -391,13 +331,11 @@ class MultipleTry(Proposal):
             ).parameters
 
     def get_acceptance(self, proposal_link, previous_link):
-
         # check if the proposal makes sense, if not return 0.
         if np.isnan(proposal_link.posterior) or np.isinf(self.proposal_weights).all():
             return 0
 
         else:
-
             # create reference proposals.this is fast so no paralellised.
             references = [
                 self.kernel.make_proposal(proposal_link) for i in range(self.k - 1)

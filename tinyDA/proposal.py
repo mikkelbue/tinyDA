@@ -829,10 +829,12 @@ class DREAMZ(GaussianRandomWalk):
             (np.ones(self.d) + e) * gamma_DREAM * (Z_r1 - Z_r2) + epsilon
         )
 
+
 def SingleDreamZ(*args, **kwargs):
     """Deprecation dummy."""
     warnings.warn(" SingleDreamZ has been deprecated. Please use DREAMZ.")
     return DREAMZ(*args, **kwargs)
+
 
 class MALA(CrankNicolson):
     """
@@ -1282,6 +1284,7 @@ class MLDA(Proposal):
         subsampling_rates,
         initial_parameters,
         adaptive_error_model,
+        store_coarse_chain,
     ):
         """
         Parameters
@@ -1321,6 +1324,9 @@ class MLDA(Proposal):
         # set the adaptive error model as an attribute.
         self.adaptive_error_model = adaptive_error_model
 
+        # set whether to store the coarse chain
+        self.store_coarse_chain = store_coarse_chain
+
         # if this level is not the coarsest level.
         if self.level > 0:
             # internalise the subsampling rate.
@@ -1333,6 +1339,7 @@ class MLDA(Proposal):
                 subsampling_rates[:-1],
                 self.initial_parameters,
                 self.adaptive_error_model,
+                self.store_coarse_chain,
             )
 
             # set the current level make_proposal method to MLDA.
@@ -1425,6 +1432,13 @@ class MLDA(Proposal):
         # perpetuate the correction downward in the model hierachy.
         if self.level > 1:
             self.proposal.align_chain(parameters, accepted)
+
+    def _reset_chain(self):
+        # remove everything except the latest coarse link, if the coarse
+        # chain shouldn't be stored.
+        self.chain = [self.chain[-1]]
+        if self.level > 1:
+            self.proposal._reset_chain()
 
     def make_mlda_proposal(self, subsampling_rate):
         """

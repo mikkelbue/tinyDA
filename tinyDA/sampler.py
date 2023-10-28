@@ -26,7 +26,7 @@ def sample(
     initial_parameters=None,
     subsampling_rate=1,
     adaptive_error_model=None,
-    R=None,
+    store_coarse_chain=True,
     force_sequential=False,
     force_progress_bar=False,
 ):
@@ -83,6 +83,9 @@ def sample(
         (no error model), options are 'state-independent' or 'state-dependent'.
         If an error model is used, the likelihood MUST have a set_bias()
         method, use e.g. tinyDA.AdaptiveGaussianLogLike.
+    store_coarse_chain : bool, optional
+        Whether to store the coarse chain. Disable if the sampler is
+        taking up too much memory. Default is True.
     force_sequential : bool, optional
         Whether to force sequential sampling, even if Ray is installed.
         Default is False.
@@ -218,6 +221,7 @@ def sample(
                 initial_parameters,
                 subsampling_rate,
                 adaptive_error_model,
+                store_coarse_chain,
             )
         # parallel sampling.
         else:
@@ -229,6 +233,7 @@ def sample(
                 initial_parameters,
                 subsampling_rate,
                 adaptive_error_model,
+                store_coarse_chain,
                 force_progress_bar,
             )
 
@@ -248,6 +253,7 @@ def sample(
                 initial_parameters,
                 subsampling_rates,
                 adaptive_error_model,
+                store_coarse_chain,
             )
         # parallel sampling.
         else:
@@ -259,6 +265,7 @@ def sample(
                 initial_parameters,
                 subsampling_rates,
                 adaptive_error_model,
+                store_coarse_chain,
                 force_progress_bar,
             )
 
@@ -313,6 +320,7 @@ def _sample_sequential_da(
     initial_parameters,
     subsampling_rate,
     adaptive_error_model,
+    store_coarse_chain,
 ):
     """Helper function for tinyDA.sample()"""
 
@@ -328,6 +336,7 @@ def _sample_sequential_da(
                 subsampling_rate,
                 initial_parameters[i],
                 adaptive_error_model,
+                store_coarse_chain,
             )
         )
         chains[i].sample(iterations)
@@ -339,15 +348,25 @@ def _sample_sequential_da(
         "subsampling_rate": subsampling_rate,
     }
 
-    # collect and return the samples.
-    chains_coarse = {
-        "chain_coarse_{}".format(i): list(compress(chain.chain_coarse, chain.is_coarse))
-        for i, chain in enumerate(chains)
-    }
+    # collect the coarse samples.
+    if store_coarse_chain:
+        chains_coarse = {
+            "chain_coarse_{}".format(i): list(
+                compress(chain.chain_coarse, chain.is_coarse)
+            )
+            for i, chain in enumerate(chains)
+        }
+    else:
+        chains_coarse = {
+            "chain_coarse_{}".format(i): None for i, chain in enumerate(chains)
+        }
+
+    # collect the fine samples.
     chains_fine = {
         "chain_fine_{}".format(i): chain.chain_fine for i, chain in enumerate(chains)
     }
 
+    # return eveything.
     return {**info, **chains_coarse, **chains_fine}
 
 
@@ -359,6 +378,7 @@ def _sample_parallel_da(
     initial_parameters,
     subsampling_rate,
     adaptive_error_model,
+    store_coarse_chain,
     force_progress_bar,
 ):
     """Helper function for tinyDA.sample()"""
@@ -374,6 +394,7 @@ def _sample_parallel_da(
         n_chains,
         initial_parameters,
         adaptive_error_model,
+        store_coarse_chain,
     )
     chains.sample(iterations, force_progress_bar)
 
@@ -384,14 +405,17 @@ def _sample_parallel_da(
         "subsampling_rate": subsampling_rate,
     }
 
-    # collect and return the samples.
+    # collect the coarse samples.
     chains_coarse = {
         "chain_coarse_{}".format(i): chain[0] for i, chain in enumerate(chains.chains)
     }
+
+    # collect the fine samples.
     chains_fine = {
         "chain_fine_{}".format(i): chain[1] for i, chain in enumerate(chains.chains)
     }
 
+    # return everything.
     return {**info, **chains_coarse, **chains_fine}
 
 
@@ -403,6 +427,7 @@ def _sample_sequential_mlda(
     initial_parameters,
     subsampling_rates,
     adaptive_error_model,
+    store_coarse_chain,
 ):
     """Helper function for tinyDA.sample()"""
 
@@ -419,6 +444,7 @@ def _sample_sequential_mlda(
                 subsampling_rates,
                 initial_parameters[i],
                 adaptive_error_model,
+                store_coarse_chain,
             )
         )
         chains[i].sample(iterations)
@@ -440,13 +466,16 @@ def _sample_sequential_mlda(
     # iterate through the different MLDA levels recursively.
     _current = [chain.proposal for chain in chains]
     for i in reversed(range(levels - 1)):
-        chains_all = {
-            **chains_all,
-            **{
+        if store_coarse_chain:
+            chains_current = {
                 "chain_l{}_{}".format(i, j): list(compress(chain.chain, chain.is_local))
                 for j, chain in enumerate(_current)
-            },
-        }
+            }
+        else:
+            chains_current = {
+                "chain_l{}_{}".format(i, j): None for j, chain in enumerate(_current)
+            }
+        chains_all = {**chains_all, **chains_current}
         _current = [chain.proposal for chain in _current]
 
     return {**info, **chains_all}
@@ -460,6 +489,7 @@ def _sample_parallel_mlda(
     initial_parameters,
     subsampling_rates,
     adaptive_error_model,
+    store_coarse_chain,
     force_progress_bar,
 ):
     """Helper function for tinyDA.sample()"""
@@ -476,6 +506,7 @@ def _sample_parallel_mlda(
         n_chains,
         initial_parameters,
         adaptive_error_model,
+        store_coarse_chain,
     )
     chains.sample(iterations, force_progress_bar)
 

@@ -182,6 +182,7 @@ class DAChain:
         subsampling_rate,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
         """
         Parameters
@@ -206,6 +207,9 @@ class DAChain:
             None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood MUST
             have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        store_coarse_chain : bool, optional
+            Whether to store the coarse chain. Disable if the sampler is
+            taking up too much memory. Default is True.
         """
 
         # internalise posteriors and the proposal
@@ -283,6 +287,9 @@ class DAChain:
                 self.chain_coarse[-1]
             )
 
+        # set whether to store the coarse chain
+        self.store_coarse_chain = store_coarse_chain
+
     def sample(self, iterations, progressbar=True):
         """
         Parameters
@@ -311,38 +318,10 @@ class DAChain:
                     )
                 )
 
-            # subsample the coarse model.
-            for j in range(self.subsampling_rate):
-                # draw a new proposal, given the previous parameters.
-                proposal = self.proposal.make_proposal(self.chain_coarse[-1])
+            # run the coarse chain.
+            self._sample_coarse()
 
-                # create a link from that proposal.
-                proposal_link_coarse = self.posterior_coarse.create_link(proposal)
-
-                # compute the acceptance probability, which is unique to
-                # the proposal.
-                alpha_1 = self.proposal.get_acceptance(
-                    proposal_link_coarse, self.chain_coarse[-1]
-                )
-
-                # perform Metropolis adjustment.
-                if np.random.random() < alpha_1:
-                    self.chain_coarse.append(proposal_link_coarse)
-                    self.accepted_coarse.append(True)
-                    self.is_coarse.append(True)
-                else:
-                    self.chain_coarse.append(self.chain_coarse[-1])
-                    self.accepted_coarse.append(False)
-                    self.is_coarse.append(True)
-
-                # adapt the proposal. if the proposal is set to non-adaptive,
-                # this has no effect.
-                self.proposal.adapt(
-                    parameters=self.chain_coarse[-1].parameters,
-                    parameters_previous=self.chain_coarse[-2].parameters,
-                    accepted=list(compress(self.accepted_coarse, self.is_coarse)),
-                )
-
+            # if nothing was accepted on the coarse, repeat the previous sample.
             if sum(self.accepted_coarse[-self.subsampling_rate :]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
@@ -361,43 +340,9 @@ class DAChain:
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
-                    bias_next = (
-                        proposal_link_fine.model_output
-                        - self.chain_coarse[-1].model_output
-                    )
-
-                    coarse_state_biased = self.posterior_coarse.update_link(
-                        self.chain_coarse[-(self.subsampling_rate + 1)], bias_next
-                    )
-
-                    if self.proposal.is_symmetric:
-                        q_x_y = q_y_x = 0
-                    else:
-                        q_x_y = self.proposal.get_q(
-                            self.chain_fine[-1], proposal_link_fine
-                        )
-                        q_y_x = self.proposal.get_q(
-                            proposal_link_fine, self.chain_fine[-1]
-                        )
-
-                    alpha_2 = np.exp(
-                        min(
-                            proposal_link_fine.posterior + q_y_x,
-                            coarse_state_biased.posterior + q_x_y,
-                        )
-                        - min(
-                            self.chain_fine[-1].posterior + q_x_y,
-                            self.chain_coarse[-1].posterior + q_y_x,
-                        )
-                    )
-
+                    alpha_2 = self._get_state_dependent_acceptance(proposal_link_fine)
                 else:
-                    alpha_2 = np.exp(
-                        proposal_link_fine.posterior
-                        - self.chain_fine[-1].posterior
-                        + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
-                        - self.chain_coarse[-1].posterior
-                    )
+                    alpha_2 = self._get_state_independent_acceptance(proposal_link_fine)
 
                 # Perform Metropolis adjustment, and update the coarse chain
                 # to restart from the previous accepted fine link.
@@ -418,53 +363,130 @@ class DAChain:
 
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
-                if self.adaptive_error_model == "state-independent":
-                    # for the state-independent AEM, we simply update the
-                    # RecursiveSampleMoments with the difference between
-                    # the fine and coarse model output
-                    self.model_diff = (
-                        self.chain_fine[-1].model_output
-                        - self.chain_coarse[-1].model_output
-                    )
-
-                    self.bias.update(self.model_diff)
-
-                    # and update the likelihood in the coarse posterior.
-                    self.posterior_coarse.likelihood.set_bias(
-                        self.bias.get_mu(), self.bias.get_sigma()
-                    )
-
-                elif self.adaptive_error_model == "state-dependent":
-                    # for the state-dependent error model, we want the
-                    # difference, corrected with the previous difference
-                    # to compute the error covariance.
-                    self.model_diff_corrected = self.chain_fine[-1].model_output - (
-                        self.chain_coarse[-1].model_output + self.model_diff
-                    )
-
-                    # and the "pure" model difference for the offset.
-                    self.model_diff = (
-                        self.chain_fine[-1].model_output
-                        - self.chain_coarse[-1].model_output
-                    )
-
-                    # update the ZeroMeanRecursiveSampleMoments with the
-                    # corrected difference.
-                    self.bias.update(self.model_diff_corrected)
-
-                    # and update the likelihood in the coarse posterior
-                    # with the "pure" difference.
-                    self.posterior_coarse.likelihood.set_bias(
-                        self.model_diff, self.bias.get_sigma()
-                    )
-
-                self.chain_coarse[-1] = self.posterior_coarse.update_link(
-                    self.chain_coarse[-1]
-                )
+                self._update_error_model()
 
         # close the progressbar if it was initialised.
         if progressbar:
             pbar.close()
+
+    def _sample_coarse(self):
+        # remove everything except the latest coarse link, if the coarse
+        # chain shouldn't be stored.
+        if not self.store_coarse_chain:
+            self.chain_coarse = [self.chain_coarse[-1]]
+
+        # subsample the coarse model.
+        for j in range(self.subsampling_rate):
+            # draw a new proposal, given the previous parameters.
+            proposal = self.proposal.make_proposal(self.chain_coarse[-1])
+
+            # create a link from that proposal.
+            proposal_link_coarse = self.posterior_coarse.create_link(proposal)
+
+            # compute the acceptance probability, which is unique to
+            # the proposal.
+            alpha_1 = self.proposal.get_acceptance(
+                proposal_link_coarse, self.chain_coarse[-1]
+            )
+
+            # perform Metropolis adjustment.
+            if np.random.random() < alpha_1:
+                self.chain_coarse.append(proposal_link_coarse)
+                self.accepted_coarse.append(True)
+                self.is_coarse.append(True)
+            else:
+                self.chain_coarse.append(self.chain_coarse[-1])
+                self.accepted_coarse.append(False)
+                self.is_coarse.append(True)
+
+            # adapt the proposal. if the proposal is set to non-adaptive,
+            # this has no effect.
+            self.proposal.adapt(
+                parameters=self.chain_coarse[-1].parameters,
+                parameters_previous=self.chain_coarse[-2].parameters,
+                accepted=list(compress(self.accepted_coarse, self.is_coarse)),
+            )
+
+    def _get_state_dependent_acceptance(self, proposal_link_fine):
+        # compute the bias at the proposal.
+        bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
+
+        # create a throwaway link representing the reverse state.
+        coarse_state_biased = self.posterior_coarse.update_link(
+            self.chain_coarse[-(self.subsampling_rate + 1)], bias_next
+        )
+
+        # compute the move probabilities.
+        if self.proposal.is_symmetric:
+            q_x_y = q_y_x = 0
+        else:
+            q_x_y = self.proposal.get_q(self.chain_fine[-1], proposal_link_fine)
+            q_y_x = self.proposal.get_q(proposal_link_fine, self.chain_fine[-1])
+
+        # compute the state-dependent delayed acceptance probability.
+        alpha_2 = np.exp(
+            min(
+                proposal_link_fine.posterior + q_y_x,
+                coarse_state_biased.posterior + q_x_y,
+            )
+            - min(
+                self.chain_fine[-1].posterior + q_x_y,
+                self.chain_coarse[-1].posterior + q_y_x,
+            )
+        )
+
+        return alpha_2
+
+    def _get_state_independent_acceptance(self, proposal_link_fine):
+        # compute the state-independent delayed acceptance probability.
+        alpha_2 = np.exp(
+            proposal_link_fine.posterior
+            - self.chain_fine[-1].posterior
+            + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
+            - self.chain_coarse[-1].posterior
+        )
+        return alpha_2
+
+    def _update_error_model(self):
+        if self.adaptive_error_model == "state-independent":
+            # for the state-independent AEM, we simply update the
+            # RecursiveSampleMoments with the difference between
+            # the fine and coarse model output
+            self.model_diff = (
+                self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+            )
+
+            self.bias.update(self.model_diff)
+
+            # and update the likelihood in the coarse posterior.
+            self.posterior_coarse.likelihood.set_bias(
+                self.bias.get_mu(), self.bias.get_sigma()
+            )
+
+        elif self.adaptive_error_model == "state-dependent":
+            # for the state-dependent error model, we want the
+            # difference, corrected with the previous difference
+            # to compute the error covariance.
+            self.model_diff_corrected = self.chain_fine[-1].model_output - (
+                self.chain_coarse[-1].model_output + self.model_diff
+            )
+
+            # and the "pure" model difference for the offset.
+            self.model_diff = (
+                self.chain_fine[-1].model_output - self.chain_coarse[-1].model_output
+            )
+
+            # update the ZeroMeanRecursiveSampleMoments with the
+            # corrected difference.
+            self.bias.update(self.model_diff_corrected)
+
+            # and update the likelihood in the coarse posterior
+            # with the "pure" difference.
+            self.posterior_coarse.likelihood.set_bias(
+                self.model_diff, self.bias.get_sigma()
+            )
+
+        self.chain_coarse[-1] = self.posterior_coarse.update_link(self.chain_coarse[-1])
 
 
 class MLDAChain:
@@ -510,6 +532,7 @@ class MLDAChain:
         subsampling_rates,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
         """
         Parameters
@@ -529,6 +552,9 @@ class MLDAChain:
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        store_coarse_chain : bool, optional
+            Whether to store the coarse chains. Disable if the sampler is
+            taking up too much memory. Default is True.
         """
 
         # internalise the finest posterior and set the level.
@@ -556,17 +582,21 @@ class MLDAChain:
         self.chain.append(self.posterior.create_link(self.initial_parameters))
         self.accepted.append(True)
 
+        # set the adative error model as an attribute.
+        self.adaptive_error_model = adaptive_error_model
+
+        # set whether to store the coarse chain
+        self.store_coarse_chain = store_coarse_chain
+
         # set the effective proposal to MLDA which runs on the next-coarser level.
         self.proposal = MLDA(
             posteriors[:-1],
             proposal,
             subsampling_rates[:-1],
             self.initial_parameters,
-            adaptive_error_model,
+            self.adaptive_error_model,
+            self.store_coarse_chain,
         )
-
-        # set the adative error model as an attribute.
-        self.adaptive_error_model = adaptive_error_model
 
         # set up the adaptive error model.
         if self.adaptive_error_model is not None:
@@ -626,6 +656,11 @@ class MLDAChain:
                 pbar.set_description(
                     "Running chain, \u03B1 = %0.2f" % np.mean(self.accepted[-100:])
                 )
+
+            # remove everything except the latest coarse link, if the coarse
+            # chain shouldn't be stored.
+            if not self.store_coarse_chain:
+                self.proposal._reset_chain()
 
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.subsampling_rate)
