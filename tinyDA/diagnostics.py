@@ -3,7 +3,7 @@ import xarray as xr
 import arviz as az
 
 
-def to_inference_data(chain, level="fine", burnin=0):
+def to_inference_data(chain, level="fine", burnin=0, parameter_names=None):
     """Converts a dict of tinyDA.Link samples as returned by tinyDA.sample() to
     an arviz.InferenceData object. This can be used after running
     tinyDA.sample() to make use of the diagnostics suite provided by ArviZ for
@@ -19,6 +19,10 @@ def to_inference_data(chain, level="fine", burnin=0):
         The default is 'fine'.
     burnin : int, optional
         The burnin length. The default is 0.
+    parameter_names : list, optional
+        List of the names of the parameters in the chain, in the same order 
+        as they appear in each link. Default is None, meaning that
+        parameters will be named [x1, x2, ...].
 
     Returns
     ----------
@@ -35,7 +39,23 @@ def to_inference_data(chain, level="fine", burnin=0):
 
     # iterate through the attributes and create xarray.Datasets
     for attr in attributes:
-        inference_arrays.append(to_xarray(get_samples(chain, attr, level, burnin)))
+
+        samples = get_samples(chain, attr, level, burnin)
+
+        # set up the dict keys to reflect the extracted attribute.
+        if attr == "parameters":
+            if parameter_names is None:
+                keys = ["x{}".format(i) for i in range(samples["dimension"])]
+            else:
+                keys = parameter_names
+        elif attr == "model_output":
+            keys = ["obs_{}".format(i) for i in range(samples["dimension"])]
+        elif attr == "qoi":
+            keys = ["qoi_{}".format(i) for i in range(samples["dimension"])]
+        elif attr == "stats":
+            keys = ["prior", "likelihood", "posterior"]
+
+        inference_arrays.append(to_xarray(samples, keys))
 
     # create the InferenceData instance.
     idata = az.InferenceData(
@@ -49,13 +69,15 @@ def to_inference_data(chain, level="fine", burnin=0):
     return idata
 
 
-def to_xarray(samples):
+def to_xarray(samples, keys):
     """Converts a dict of attribute samples to an xarray.Dataset.
 
     Parameters
     ----------
     samples : dict
         A dict of MCMC samples, as returned by tinyDA.get_samples().
+    keys : list
+        Names of the variables of the attribute.
 
     Returns
     ----------
@@ -64,27 +86,17 @@ def to_xarray(samples):
         to independent MCMC sampler and their respective samples.
     """
 
-    # set up the dict keys to reflect the extracted attribute.
-    if samples["attribute"] == "parameters":
-        keys = ["theta_{}".format(i) for i in range(samples["dimension"])]
-    elif samples["attribute"] == "model_output":
-        keys = ["obs_{}".format(i) for i in range(samples["dimension"])]
-    elif samples["attribute"] == "qoi":
-        keys = ["qoi_{}".format(i) for i in range(samples["dimension"])]
-    elif samples["attribute"] == "stats":
-        keys = ["prior", "likelihood", "posterior"]
-
     # initialise a dict to hold the data variables.
     data_vars = {}  #
 
     # iterate through the data variables.
     for i in range(samples["dimension"]):
         # extract and pivot the data variables.
-        theta = np.array(
+        x = np.array(
             [samples["chain_{}".format(j)][:, i] for j in range(samples["n_chains"])]
         )
         # add the coordinates to the data variables.
-        data_vars[keys[i]] = (["chain", "draw"], theta)
+        data_vars[keys[i]] = (["chain", "draw"], x)
 
     # create the dataset.
     dataset = xr.Dataset(
