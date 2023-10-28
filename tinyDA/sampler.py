@@ -353,7 +353,7 @@ def _sample_sequential_da(
             for i, chain in enumerate(chains)
         }
     else:
-        chains_coarse = {}
+        chains_coarse = {"chain_coarse_{}".format(i): None for i, chain in enumerate(chains)}
 
     # collect the fine samples.
     chains_fine = {
@@ -400,12 +400,9 @@ def _sample_parallel_da(
     }
 
     # collect the coarse samples.
-    if store_coarse_chain:
-        chains_coarse = {
-            "chain_coarse_{}".format(i): chain[0] for i, chain in enumerate(chains.chains)
-        }
-    else:
-        chains_coarse = {}
+    chains_coarse = {
+        "chain_coarse_{}".format(i): chain[0] for i, chain in enumerate(chains.chains)
+    }
 
     # collect the fine samples.
     chains_fine = {

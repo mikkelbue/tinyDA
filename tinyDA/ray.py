@@ -196,7 +196,12 @@ class RemoteDAChain(DAChain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
 
-        return list(compress(self.chain_coarse, self.is_coarse)), self.chain_fine
+        if self.store_coarse_chain:
+            coarse_chain = list(compress(self.chain_coarse, self.is_coarse))
+        else:
+            coarse_chain = None
+
+        return coarse_chain, self.chain_fine
 
 
 @ray.remote
