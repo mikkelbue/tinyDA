@@ -29,11 +29,6 @@ class ParallelChain:
         Starting points for the MCMC samplers
     remote_chains : list
         List of Ray actors, each running an independent MCMC sampler.
-    chains : list
-        List of lists containing samples ("Links") in the MCMC chains.
-    accepted : list
-        List of lists of bool, signifying whether a proposal was accepted
-        or not.
 
     Methods
     -------
@@ -99,44 +94,6 @@ class ParallelChain:
 
 
 class ParallelDAChain(ParallelChain):
-
-    """ParalleDAChain creates n_chains instances of tinyDA.DAChain and runs the
-    chains in parallel. It takes a coarse and a fine posterior as input, as
-    well as a proposal, which applies to the coarse level only.
-
-    Attributes
-    ----------
-    posterior_coarse : tinyDA.Posterior
-        A "coarse" posterior responsible for communation between prior,
-        likelihood and model. It also generates instances of tinyDA.Link
-        (sample objects).
-    posterior_fine : tinyDA.Posterior
-        A "fine" posterior responsible for communation between prior,
-        likelihood and model. It also generates instances of tinyDA.Link
-        (sample objects).
-    proposal : tinyDA.Proposal
-        Transition kernel for coarse MCMC proposals.
-    subsampling_rate : int
-        The subsampling rate for the coarse chain.
-    n_chains : int
-        Number of parallel chains.
-    initial_parameters : list
-            Starting points for the MCMC samplers.
-    adaptive_error_model : str or None
-        The adaptive error model, see e.g. Cui et al. (2019).
-    remote_chains : list
-        List of Ray actors, each running an independent DA MCMC sampler.
-    chains : list
-        List of lists containing samples ("Links") in the fine MCMC chains.
-    accepted : list
-        List of lists of bool, signifying whether a proposal was accepted or not.
-
-    Methods
-    -------
-    sample(iterations)
-        Runs the MCMC for the specified number of iterations.
-    """
-
     def __init__(
         self,
         posterior_coarse,
@@ -146,35 +103,8 @@ class ParallelDAChain(ParallelChain):
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
+        store_coarse_chain=True,
     ):
-
-        """
-        Parameters
-        ----------
-        posterior_coarse : tinyDA.Posterior
-            A "coarse" posterior responsible for communation between prior,
-            likelihood and model. It also generates instances of tinyDA.Link
-            sample objects).
-        posterior_fine : tinyDA.Posterior
-            A "fine" posterior responsible for communation between prior,
-            likelihood and model. It also generates instances of tinyDA.Link
-            (sample objects).
-        proposal : tinyDA.Proposal
-            Transition kernel for coarse MCMC proposals.
-        subsampling_rate : int, optional
-            The subsampling rate for the coarse chain. The default is 1,
-            resulting in "classic" DA MCMC..
-        n_chains : int, optional
-            Number of independent MCMC samplers. Default is 2.
-        initial_parameters : list, optional
-            Starting points for the MCMC samplers, default is None (random
-            draws from prior).
-        adaptive_error_model : str or None, optional
-            The adaptive error model, see e.g. Cui et al. (2019). Default
-            is None (no error model), options are 'state-independent' or
-            'state-dependent'. If an error model is used, the likelihood MUST
-            have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
-        """
 
         # internalise posteriors, proposal and subsampling rate.
         self.posterior_coarse = posterior_coarse
@@ -188,8 +118,11 @@ class ParallelDAChain(ParallelChain):
         # set the initial parameters.
         self.initial_parameters = initial_parameters
 
-        # set the adaptive error model
+        # set the adaptive error model.
         self.adaptive_error_model = adaptive_error_model
+
+        # whether to store the coarse chain.
+        self.store_coarse_chain = store_coarse_chain
 
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
@@ -203,6 +136,7 @@ class ParallelDAChain(ParallelChain):
                 self.subsampling_rate,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
+                self.store_coarse_chain,
             )
             for i in range(self.n_chains)
         ]
