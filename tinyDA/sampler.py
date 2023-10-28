@@ -26,7 +26,6 @@ def sample(
     initial_parameters=None,
     subsampling_rate=1,
     adaptive_error_model=None,
-    R=None,
     force_sequential=False,
     force_progress_bar=False,
 ):
