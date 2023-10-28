@@ -1430,14 +1430,14 @@ class MLDA(Proposal):
         self.is_local.append(False)
 
         # perpetuate the correction downward in the model hierachy.
-        if self.level > 1:
+        if self.level > 0:
             self.proposal.align_chain(parameters, accepted)
 
     def _reset_chain(self):
         # remove everything except the latest coarse link, if the coarse
         # chain shouldn't be stored.
         self.chain = [self.chain[-1]]
-        if self.level > 1:
+        if self.level > 0:
             self.proposal._reset_chain()
 
     def make_mlda_proposal(self, subsampling_rate):
