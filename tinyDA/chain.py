@@ -404,7 +404,7 @@ class DAChain:
             self.proposal.adapt(
                 parameters=self.chain_coarse[-1].parameters,
                 parameters_previous=self.chain_coarse[-2].parameters,
-                accepted=list(compress(self.accepted_coarse, self.is_coarse)),
+                accepted=self.accepted_coarse,
             )
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
