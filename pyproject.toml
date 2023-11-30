@@ -21,7 +21,7 @@ packages = [{include = "tinyDA"}]
 arviz = "^0.12.1"
 matplotlib = "^3.5.2"
 numpy = "^1.23.0"
-python = ">=3.8,<3.12"
+python = ">=3.8"
 tqdm = "^4.64.0"
 scipy = "^1.8.0"
 
