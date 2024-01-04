@@ -380,16 +380,3 @@ class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
 
     def grad_loglike(self, x):
         return np.dot(self.cov_inverse, (self.data - (x + self.bias)))
-
-def LogLike(*args, **kwargs):
-    """Deprecation dummy."""
-    warnings.warn(" LogLike has been deprecated. Please use GaussianLogLike.")
-    return GaussianLogLike(*args, **kwargs)
-
-
-def AdaptiveLogLike(*args, **kwargs):
-    """Deprecation dummy."""
-    warnings.warn(
-        " AdaptiveLogLike has been deprecated. Please use AdaptiveGaussianLogLike."
-    )
-    return AdaptiveGaussianLogLike(*args, **kwargs)
