@@ -836,7 +836,7 @@ def SingleDreamZ(*args, **kwargs):
     return DREAMZ(*args, **kwargs)
 
 
-class MALA(CrankNicolson):
+class MALA(Proposal):
     """
     Metropolis-Adjusted Langevin Algorithm (MALA) proposal. If the model
     does not implement a "gradient" method, the posterior gradient will be
@@ -872,6 +872,40 @@ class MALA(CrankNicolson):
     """
 
     alpha_star = 0.57
+
+    def __init__(self, scaling=0.1, adaptive=False, gamma=1.01, period=100):
+        """
+        Parameters
+        ----------
+        scaling : float, optional
+            The global scaling ("sigma") of the proposal. Default is 0.1.
+        adaptive : bool, optional
+            Whether to adapt the global scaling of the proposal. Default is
+            False.
+        gamma : float, optional
+            The adaptivity coefficient for the global adaptive scaling. Default
+            is 1.01.
+        period : int, optional
+            How often to adapt the global scaling. Default is 100.
+        """
+
+        # set the scaling.
+        self.scaling = scaling
+
+        # set adaptivity.
+        self.adaptive = adaptive
+
+        # if adaptive, set some adaptivity parameters
+        if self.adaptive:
+            # adaptivity scaling.
+            self.gamma = gamma
+            # adaptivity period (delay between adapting)
+            self.period = period
+            # initialise adaptivity counter for diminishing adaptivity.
+            self.k = 0
+
+        # initialise counter of how many times, adapt() has been called..
+        self.t = 0
 
     def setup_proposal(self, **kwargs):
         self.posterior = kwargs["posterior"]
