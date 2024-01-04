@@ -183,7 +183,26 @@ class PoissonPointProcess:
         return point
 
 def GaussianLogLike(data, covariance):
-    """Factory pattern for initialising Gaussian likelihoods."""
+    """Factory pattern for initialising Gaussian likelihoods.
+    If a diagonal covariance matrix is provided, this will return a
+    DiagonalGaussianLogLike object. If all the diagonal terms are the same,
+    it will return an IsotropicGaussianLogLike object. Otherwise it will
+    return a DefaultGaussianLogLike.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        A 1-D NumPy array of the data.
+    covariance : numpy.ndarray
+        A 2-D NumPy array of the data covariance matrix.
+
+    Returns
+    ----------
+    object
+        A DefaultGaussianLoglike, DiagonalGaussianLogLike or an
+        IsotropicGaussianLogLike, depending on the structure of the
+        giver covariance matrix.
+    """
     if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
         if np.all(np.diag(covariance) == covariance[0,0]):
             return IsotropicGaussianLogLike(data, covariance[0,0])
@@ -264,9 +283,12 @@ class DiagonalGaussianLogLike(DefaultGaussianLogLike):
 
 class IsotropicGaussianLogLike(DefaultGaussianLogLike):
     def __init__(self, data, variance):
+        # set the data and variance as attributes
         self.data = data
         self.var = variance
+
     def loglike(self, x):
+        # compute the unnormalised likelihood.
         return -0.5 * np.linalg.norm(x-self.data)**2 / self.var
 
     def grad_loglike(self, x):

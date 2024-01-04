@@ -13,6 +13,7 @@ TinyDA is designed to make use of distributions from ``scipy.stats``. Hence, onl
     tinyDA.CompositePrior
     tinyDA.PoissonPointProcess
     tinyDA.GaussianLogLike
+    tinyDA.DefaultGaussianLogLike
     tinyDA.AdaptiveGaussianLogLike
 
 Composite Prior
@@ -34,7 +35,9 @@ Poisson Point Process
 Gaussian Log-Likelihood
 -----------------------
 
-.. autoclass:: tinyDA.GaussianLogLike
+.. autofunction:: tinyDA.GaussianLogLike
+
+.. autoclass:: tinyDA.DefaultGaussianLogLike
     :members:
     
     .. automethod:: __init__
