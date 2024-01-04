@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tinyda"
-version = "0.9.16"
+version = "0.9.17"
 description = "Delayed Acceptance MCMC Sampler"
 license = "MIT"
 authors = ["Mikkel Bue Lykkegaard <mikkelbue@gmail.com>"]
@@ -21,12 +21,17 @@ packages = [{include = "tinyDA"}]
 arviz = "^0.12.1"
 matplotlib = "^3.5.2"
 numpy = "^1.23.0"
-python = ">=3.8"
+python = ">=3.8,<4.0.0"
 tqdm = "^4.64.0"
 scipy = "^1.8.0"
 
 [tool.poetry.group.dev.dependencies]
 jupyter = "^1.0.0"
+black = "^23.12.1"
+pytest = "^7.4.4"
+nbmake = "^1.4.6"
+umbridge = "^1.2.4"
+ray = "^2.9.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

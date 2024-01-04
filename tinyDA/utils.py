@@ -3,7 +3,7 @@ import scipy.stats as stats
 
 from scipy.optimize import minimize, differential_evolution, approx_fprime
 
-from .distributions import GaussianLogLike, AdaptiveGaussianLogLike
+from .distributions import DefaultGaussianLogLike
 
 
 class RecursiveSampleMoments:
@@ -281,9 +281,7 @@ def grad_log_p(x, dist):
 
 
 def grad_log_l(x, dist):
-    if isinstance(dist, GaussianLogLike):
-        return np.dot(dist.cov_inverse, (dist.data - x))
-    elif isinstance(dist, AdaptiveGaussianLogLike):
-        return np.dot(dist.cov_inverse, (dist.data - (x + dist.bias)))
+    if isinstance(dist, DefaultGaussianLogLike):
+        return dist.grad_loglike(x)
     else:
         return approx_fprime(x, lambda x: dist.loglike)

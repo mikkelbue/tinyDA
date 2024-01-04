@@ -182,10 +182,38 @@ class PoissonPointProcess:
 
         return point
 
+def GaussianLogLike(data, covariance):
+    """Factory pattern for initialising Gaussian likelihoods.
+    If a diagonal covariance matrix is provided, this will return a
+    DiagonalGaussianLogLike object. If all the diagonal terms are the same,
+    it will return an IsotropicGaussianLogLike object. Otherwise it will
+    return a DefaultGaussianLogLike.
 
-class GaussianLogLike:
-    """LogLike is a minimal implementation of the (unnormalised) Gaussian
-    likelihood function.
+    Parameters
+    ----------
+    data : numpy.ndarray
+        A 1-D NumPy array of the data.
+    covariance : numpy.ndarray
+        A 2-D NumPy array of the data covariance matrix.
+
+    Returns
+    ----------
+    object
+        A DefaultGaussianLoglike, DiagonalGaussianLogLike or an
+        IsotropicGaussianLogLike, depending on the structure of the
+        giver covariance matrix.
+    """
+    if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
+        if np.all(np.diag(covariance) == covariance[0,0]):
+            return IsotropicGaussianLogLike(data, covariance[0,0])
+        else:
+            return DiagonalGaussianLogLike(data, covariance)
+    else:
+        return DefaultGaussianLogLike(data, covariance)
+
+class DefaultGaussianLogLike:
+    """GaussianLogLike is a minimal implementation of the (unnormalised)
+    Gaussian likelihood function.
 
     Attributes
     ----------
@@ -217,10 +245,7 @@ class GaussianLogLike:
         self.cov = covariance
 
         # precompute the inverse of the covariance.
-        if np.count_nonzero(self.cov - np.diag(np.diag(self.cov))) == 0:
-            self.cov_inverse = np.diag(1 / np.diag(self.cov))
-        else:
-            self.cov_inverse = np.linalg.inv(self.cov)
+        self.cov_inverse = np.linalg.inv(self.cov)
 
     def loglike(self, x):
         """
@@ -240,8 +265,36 @@ class GaussianLogLike:
             ((x - self.data).T, self.cov_inverse, (x - self.data))
         )
 
+    def grad_loglike(self, x):
+        return np.dot(self.cov_inverse, (self.data - x))
 
-class AdaptiveGaussianLogLike(GaussianLogLike):
+class DiagonalGaussianLogLike(DefaultGaussianLogLike):
+    def __init__(self, data, covariance):
+        # set the data and covariance as attributes
+        self.data = data
+        self.cov = np.diag(covariance)
+
+    def loglike(self, x):
+        # compute the unnormalised likelihood.
+        return -0.5 * ((x-self.data)**2 / self.cov).sum()
+
+    def grad_loglike(self, x):
+        return 1/self.cov * (self.data - x)
+
+class IsotropicGaussianLogLike(DefaultGaussianLogLike):
+    def __init__(self, data, variance):
+        # set the data and variance as attributes
+        self.data = data
+        self.var = variance
+
+    def loglike(self, x):
+        # compute the unnormalised likelihood.
+        return -0.5 * np.linalg.norm(x-self.data)**2 / self.var
+
+    def grad_loglike(self, x):
+        return 1/self.var * (self.data - x)
+
+class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
     """AdaptiveLogLike is a minimal implementation of the (unnormalised)
     Gaussian likelihood function, with bias-correction.
 
@@ -347,16 +400,5 @@ class AdaptiveGaussianLogLike(GaussianLogLike):
             ((x + bias - self.data).T, self.cov_inverse, (x + bias - self.data))
         )
 
-
-def LogLike(*args, **kwargs):
-    """Deprecation dummy."""
-    warnings.warn(" LogLike has been deprecated. Please use GaussianLogLike.")
-    return GaussianLogLike(*args, **kwargs)
-
-
-def AdaptiveLogLike(*args, **kwargs):
-    """Deprecation dummy."""
-    warnings.warn(
-        " AdaptiveLogLike has been deprecated. Please use AdaptiveGaussianLogLike."
-    )
-    return AdaptiveGaussianLogLike(*args, **kwargs)
+    def grad_loglike(self, x):
+        return np.dot(self.cov_inverse, (self.data - (x + self.bias)))
