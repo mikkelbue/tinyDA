@@ -5,8 +5,8 @@ from numpy.linalg import inv
 
 from .link import Link
 
-class Posterior:
 
+class Posterior:
     """Posterior connects the prior, likelihood and model to produce MCMC
     samples (Links). The create_link-method calls evaluate_model, which is the
     key method in this class. It must be overwritten through inheritance to
@@ -114,6 +114,24 @@ class Posterior:
             link.parameters, link.prior, link.model_output, likelihood, link.qoi
         )
 
+    def posterior_eval(self, parameters):
+        """
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            A numpy array of model parameters.
+
+        Returns
+        ----------
+        float
+            The posterior density evaluated at given model parameters.
+        """
+
+        qoi = self.create_link(parameters).posterior
+
+        return qoi
+
+
 class LinkFactory(Posterior):
     def __init__(self, prior, likelihood):
 
@@ -123,6 +141,7 @@ class LinkFactory(Posterior):
         )
 
         super().__init__(prior, likelihood)
+
 
 class BlackBoxLinkFactory(Posterior):
     def __init__(self, model, prior, likelihood, get_qoi=False):
