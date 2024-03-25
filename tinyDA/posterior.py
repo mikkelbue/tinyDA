@@ -127,9 +127,9 @@ class Posterior:
             The posterior density evaluated at given model parameters.
         """
 
-        qoi = self.create_link(parameters).posterior
+        posterior_value = self.create_link(parameters).posterior
 
-        return qoi
+        return posterior_value
 
 
 class LinkFactory(Posterior):
