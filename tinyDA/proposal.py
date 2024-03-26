@@ -972,9 +972,7 @@ class MALA(Proposal):
 
     def _compute_gradient_approx(self, link):
         # aproximate the gradient of the log-posterior using finite differences.
-        grad_log_posterior = approx_fprime(
-            link.parameters, lambda x: self.posterior.logpdf(x)
-        )
+        grad_log_posterior = approx_fprime(link.parameters, self.posterior.logpdf)
         return grad_log_posterior
 
 
