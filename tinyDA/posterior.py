@@ -60,6 +60,21 @@ class Posterior:
         else:
             self.model = model
 
+    def __call__(self, parameters):
+        """
+        Parameters
+        ----------
+        parameters : numpy.ndarray
+            A numpy array of model parameters.
+
+        Returns
+        ----------
+        numpy.ndarray
+            The unnormalised posterior evaluated at the given parameters.
+        """
+
+        return self.logpdf(parameters)
+
     def create_link(self, parameters):
         """
         Parameters
@@ -114,7 +129,7 @@ class Posterior:
             link.parameters, link.prior, link.model_output, likelihood, link.qoi
         )
 
-    def posterior_eval(self, parameters):
+    def logpdf(self, parameters):
         """
         Parameters
         ----------
@@ -124,7 +139,7 @@ class Posterior:
         Returns
         ----------
         float
-            The posterior density evaluated at given model parameters.
+            The unnormalised posterior density evaluated at given model parameters.
         """
 
         posterior_value = self.create_link(parameters).posterior
