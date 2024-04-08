@@ -1161,7 +1161,10 @@ class PoissonPointProposal(GaussianRandomWalk):
         self.move_distribution = move_distribution
 
         # forcing the move distribution to be symmetric.
-        assert self.move_distribution["create"] == self.move_distribution["destroy"]
+        if not self.move_distribution["create"] == self.move_distribution["destroy"]:
+            raise ValueError(
+                "Move distribution must be symmetric. Make sure that the probability of creating and destroying points is the same."
+            )
 
         # get the move functions and put them in a list.
         self.moves = [
