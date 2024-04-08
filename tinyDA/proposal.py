@@ -1160,6 +1160,12 @@ class PoissonPointProposal(GaussianRandomWalk):
         # internalise the dictionary of move probabilities.
         self.move_distribution = move_distribution
 
+        # forcing the move distribution to be symmetric.
+        if not self.move_distribution["create"] == self.move_distribution["destroy"]:
+            raise ValueError(
+                "Move distribution must be symmetric. Make sure that the probability of creating and destroying points is the same."
+            )
+
         # get the move functions and put them in a list.
         self.moves = [
             self.__getattribute__(move) for move in self.move_distribution.keys()
