@@ -41,7 +41,6 @@ class Proposal:
 
 
 class IndependenceSampler(Proposal):
-
     """Independence sampler using a proposal distribution q(x).
 
     Attributes
@@ -109,7 +108,6 @@ class IndependenceSampler(Proposal):
 
 
 class GaussianRandomWalk(Proposal):
-
     """Standard Random Walk Metropolis Hastings proposal.
 
     Attributes
@@ -239,7 +237,6 @@ class GaussianRandomWalk(Proposal):
 
 
 class CrankNicolson(GaussianRandomWalk):
-
     """Preconditioned Crank Nicolson proposal. To use this proposal, the prior
     must be of the type scipy.stats.multivariate_normal.
 
@@ -351,7 +348,6 @@ class CrankNicolson(GaussianRandomWalk):
 
 
 class AdaptiveMetropolis(GaussianRandomWalk):
-
     """Adaptive Metropolis proposal, according to Haario et al. (2001)
 
     Attributes
@@ -495,7 +491,6 @@ class AdaptiveMetropolis(GaussianRandomWalk):
 
 
 class OperatorWeightedCrankNicolson(CrankNicolson):
-
     """Operator-weighted preconditioned Crank-Nicolson proposal (Law 2014).
 
     Attributes
@@ -589,7 +584,6 @@ class OperatorWeightedCrankNicolson(CrankNicolson):
 
 
 class DREAMZ(GaussianRandomWalk):
-
     """Dream(Z) proposal, similar to the DREAM(ZS) algorithm (see e.g. Vrugt
     2016).
 
@@ -978,9 +972,7 @@ class MALA(Proposal):
 
     def _compute_gradient_approx(self, link):
         # aproximate the gradient of the log-posterior using finite differences.
-        grad_log_posterior = approx_fprime(
-            link.parameters, lambda x: self.posterior.create_link(x).posterior
-        )
+        grad_log_posterior = approx_fprime(link.parameters, self.posterior.logpdf)
         return grad_log_posterior
 
 
@@ -1104,7 +1096,6 @@ class KernelMALA(MALA):
 
 
 class PoissonPointProposal(GaussianRandomWalk):
-
     """PoissonPointProposal can be seen as a special case of Reversible
     Jump MCMC. It is used to make moves for a PoissonPointProcess prior.
 
@@ -1168,6 +1159,12 @@ class PoissonPointProposal(GaussianRandomWalk):
 
         # internalise the dictionary of move probabilities.
         self.move_distribution = move_distribution
+
+        # forcing the move distribution to be symmetric.
+        if not self.move_distribution["create"] == self.move_distribution["destroy"]:
+            raise ValueError(
+                "Move distribution must be symmetric. Make sure that the probability of creating and destroying points is the same."
+            )
 
         # get the move functions and put them in a list.
         self.moves = [
@@ -1257,7 +1254,6 @@ class PoissonPointProposal(GaussianRandomWalk):
 
 
 class MLDA(Proposal):
-
     """MLDAChain is a Multilevel Delayed Acceptance sampler. It takes a list of
     posteriors of increasing level as input, as well as a proposal, which
     applies to the coarsest level only.
