@@ -5,9 +5,9 @@ import numpy as np
 import scipy.stats as stats
 
 
-class CompositePrior:
+class JointPrior:
 
-    """CompositePrior is a wrapper for a list of priors, if the parameters have
+    """JointPrior is a wrapper for a list of priors, if the parameters have
     different types of priors. The order must match the order of parameters for
     the model, since parameters are unnamed.
 
@@ -99,6 +99,10 @@ class CompositePrior:
 
         return y
 
+def CompositePrior(*args, **kwargs):
+    """Deprecation dummy."""
+    warnings.warn(" CompositePrior has been deprecated. Please use JointPrior.")
+    return JointPrior(*args, **kwargs)
 
 class PoissonPointProcess:
 
