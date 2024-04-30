@@ -10,16 +10,16 @@ TinyDA is designed to make use of distributions from ``scipy.stats``. Hence, onl
 .. autosummary::
     :nosignatures:
     
-    tinyDA.CompositePrior
+    tinyDA.JointPrior
     tinyDA.PoissonPointProcess
     tinyDA.GaussianLogLike
     tinyDA.DefaultGaussianLogLike
     tinyDA.AdaptiveGaussianLogLike
 
-Composite Prior
+Joint Prior
 ---------------
 
-.. autoclass:: tinyDA.CompositePrior
+.. autoclass:: tinyDA.JointPrior
     :members:
     
     .. automethod:: __init__
