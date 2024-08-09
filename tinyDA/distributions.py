@@ -207,6 +207,18 @@ def GaussianLogLike(data, covariance):
         IsotropicGaussianLogLike, depending on the structure of the
         giver covariance matrix.
     """
+
+    # check if covariance operator is a square numpy array.
+    if not isinstance(covariance, np.ndarray):
+        raise TypeError("Covariance must be a 2-D numpy array.")
+    elif covariance.ndim == 1:
+        raise TypeError("Covariance must be a 2-D numpy array.")
+    elif covariance.ndim >= 2:
+        if not covariance.shape[0] == data.shape[0]:
+            raise ValueError("Dimensions of data and covariance do not match.")
+    elif not covariance.shape[0] == covariance.shape[1]:
+        raise ValueError("Covariance must be an NxN array.")
+
     if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
         if np.all(np.diag(covariance) == covariance[0,0]):
             return IsotropicGaussianLogLike(data, covariance[0,0])
@@ -277,6 +289,12 @@ class DiagonalGaussianLogLike(DefaultGaussianLogLike):
         # set the data and covariance as attributes
         self.data = data
         self.cov = np.diag(covariance)
+
+        if not isinstance(covariance, np.ndarray):
+            raise TypeError("Covariance must be a numpy array.")
+        elif covariance.ndim == 1:
+            if not covariance.shape[0] == data.shape[0]:
+                raise ValueError("Dimensions of data and covariance do not match.")
 
     def loglike(self, x):
         # compute the unnormalised likelihood.
