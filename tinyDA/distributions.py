@@ -353,6 +353,16 @@ class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
         cov : numpy.ndarray
             The covariance of the Gaussian likelihood function.
         """
+        # check if covariance operator is a square numpy array.
+        if not isinstance(covariance, np.ndarray):
+            raise TypeError("Covariance must be a 2-D numpy array.")
+        elif covariance.ndim == 1:
+            raise TypeError("Covariance must be a 2-D numpy array.")
+        elif covariance.ndim >= 2:
+            if not covariance.shape[0] == data.shape[0]:
+                raise ValueError("Dimensions of data and covariance do not match.")
+        elif not covariance.shape[0] == covariance.shape[1]:
+            raise ValueError("Covariance must be an NxN array.")
 
         super().__init__(data, covariance)
 
