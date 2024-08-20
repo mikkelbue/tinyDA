@@ -209,15 +209,16 @@ def GaussianLogLike(data, covariance):
     """
 
     # check if covariance operator is a square numpy array.
+
     if not isinstance(covariance, np.ndarray):
         raise TypeError("Covariance must be a 2-D numpy array.")
-    elif covariance.ndim == 1:
-        raise TypeError("Covariance must be a 2-D numpy array.")
-    elif covariance.ndim >= 2:
+    if covariance.ndim == 2:
         if not covariance.shape[0] == data.shape[0]:
             raise ValueError("Dimensions of data and covariance do not match.")
-    elif not covariance.shape[0] == covariance.shape[1]:
-        raise ValueError("Covariance must be an NxN array.")
+        if not covariance.shape[0] == covariance.shape[1]:
+            raise ValueError("Covariance must be an NxN array.")
+    else:
+        raise TypeError("Covariance must be a 2-D numpy array.")
 
     if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
         if np.all(np.diag(covariance) == covariance[0,0]):
@@ -290,12 +291,6 @@ class DiagonalGaussianLogLike(DefaultGaussianLogLike):
         self.data = data
         self.cov = np.diag(covariance)
 
-        if not isinstance(covariance, np.ndarray):
-            raise TypeError("Covariance must be a numpy array.")
-        elif covariance.ndim == 1:
-            if not covariance.shape[0] == data.shape[0]:
-                raise ValueError("Dimensions of data and covariance do not match.")
-
     def loglike(self, x):
         # compute the unnormalised likelihood.
         return -0.5 * ((x-self.data)**2 / self.cov).sum()
@@ -356,13 +351,13 @@ class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
         # check if covariance operator is a square numpy array.
         if not isinstance(covariance, np.ndarray):
             raise TypeError("Covariance must be a 2-D numpy array.")
-        elif covariance.ndim == 1:
-            raise TypeError("Covariance must be a 2-D numpy array.")
-        elif covariance.ndim >= 2:
+        if covariance.ndim == 2:
             if not covariance.shape[0] == data.shape[0]:
                 raise ValueError("Dimensions of data and covariance do not match.")
-        elif not covariance.shape[0] == covariance.shape[1]:
-            raise ValueError("Covariance must be an NxN array.")
+            if not covariance.shape[0] == covariance.shape[1]:
+                raise ValueError("Covariance must be an NxN array.")
+        else:
+            raise TypeError("Covariance must be a 2-D numpy array.")
 
         super().__init__(data, covariance)
 

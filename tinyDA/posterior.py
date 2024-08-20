@@ -96,7 +96,7 @@ class Posterior:
 
         # check that model output is numpy array
         if not isinstance(model_output, np.ndarray):
-            raise TypeError("Model output must be numpy array!")
+            raise TypeError("Model output must be a numpy array!")
 
         # extract model output and qoi.
         if isinstance(model_output, tuple):
