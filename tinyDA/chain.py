@@ -149,6 +149,9 @@ class DAChain:
         Transition kernel for coarse MCMC proposals.
     subsampling_rate : int
         The subsampling rate for the coarse chain.
+    randomized_subchain_length : bool, optional
+        Randomized subchain lengths, see e.g. Liu (2009). Sample to be promoted
+        is drawn from uniform distribution, between 1 and subsampling_rate.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain_coarse : list
@@ -180,6 +183,7 @@ class DAChain:
         posterior_fine,
         proposal,
         subsampling_rate,
+        randomized_subchain_length=False,
         initial_parameters=None,
         adaptive_error_model=None,
         store_coarse_chain=True,
@@ -199,6 +203,9 @@ class DAChain:
             Transition kernel for coarse MCMC proposals.
         subsampling_rate : int
             The subsampling rate for the coarse chain.
+        randomized_subchain_length : bool, optional
+            Randomized subchain lengths, see e.g. Liu (2009). Sample to be promoted
+            is drawn from uniform distribution, between 1 and subsampling_rate.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw
             from prior).
@@ -217,6 +224,7 @@ class DAChain:
         self.posterior_fine = posterior_fine
         self.proposal = proposal
         self.subsampling_rate = subsampling_rate
+        self.randomized_subchain_length = randomized_subchain_length 
 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -291,6 +299,14 @@ class DAChain:
 
         # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
+
+        if self.randomized_subchain_length == True:
+            if self.subsampling_rate == 1:
+                raise ValueError("Randomized subchain length requires a subsampling_rate > 1.")
+            if self.store_coarse_chain == False:
+                raise ValueError("Randomized subchain length requires storing the coarse chain.")
+
+
 
     def sample(self, iterations, progressbar=True):
         """
@@ -533,6 +549,7 @@ class MLDAChain:
         subsampling_rates,
         initial_parameters=None,
         adaptive_error_model=None,
+        #randomized_subchain_length=False,
         store_coarse_chain=True,
     ):
         """
