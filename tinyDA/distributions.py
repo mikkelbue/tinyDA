@@ -207,6 +207,19 @@ def GaussianLogLike(data, covariance):
         IsotropicGaussianLogLike, depending on the structure of the
         giver covariance matrix.
     """
+
+    # check if covariance operator is a square numpy array.
+
+    if not isinstance(covariance, np.ndarray):
+        raise TypeError("Covariance must be a 2-D numpy array.")
+    if covariance.ndim == 2:
+        if not covariance.shape[0] == data.shape[0]:
+            raise ValueError("Dimensions of data and covariance do not match.")
+        if not covariance.shape[0] == covariance.shape[1]:
+            raise ValueError("Covariance must be an NxN array.")
+    else:
+        raise TypeError("Covariance must be a 2-D numpy array.")
+
     if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
         if np.all(np.diag(covariance) == covariance[0,0]):
             return IsotropicGaussianLogLike(data, covariance[0,0])
@@ -335,6 +348,16 @@ class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
         cov : numpy.ndarray
             The covariance of the Gaussian likelihood function.
         """
+        # check if covariance operator is a square numpy array.
+        if not isinstance(covariance, np.ndarray):
+            raise TypeError("Covariance must be a 2-D numpy array.")
+        if covariance.ndim == 2:
+            if not covariance.shape[0] == data.shape[0]:
+                raise ValueError("Dimensions of data and covariance do not match.")
+            if not covariance.shape[0] == covariance.shape[1]:
+                raise ValueError("Covariance must be an NxN array.")
+        else:
+            raise TypeError("Covariance must be a 2-D numpy array.")
 
         super().__init__(data, covariance)
 

@@ -282,6 +282,8 @@ class DAChain:
                 self.posterior_coarse.likelihood.set_bias(
                     self.model_diff, self.bias.get_sigma()
                 )
+            else:
+                raise ValueError("Adaptive error model can only be state-dependent, state-independent or None.")
 
             self.chain_coarse[-1] = self.posterior_coarse.update_link(
                 self.chain_coarse[-1]
@@ -485,7 +487,6 @@ class DAChain:
             self.posterior_coarse.likelihood.set_bias(
                 self.model_diff, self.bias.get_sigma()
             )
-
         self.chain_coarse[-1] = self.posterior_coarse.update_link(self.chain_coarse[-1])
 
 
@@ -622,7 +623,8 @@ class MLDAChain:
             # it may not be ergodic.
             elif self.adaptive_error_model == "state-dependent":
                 pass
-
+            else:
+                raise ValueError("Adaptive error model can only be state-dependent, state-independent or None.")
             # update the first coarser link with the adaptive error model.
             self.proposal.chain[-1] = self.proposal.posterior.update_link(
                 self.proposal.chain[-1]
