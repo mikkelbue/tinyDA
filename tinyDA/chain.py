@@ -624,7 +624,7 @@ class MLDAChain:
             elif self.adaptive_error_model == "state-dependent":
                 pass
             else:
-                raise NameError("Adaptive error model can only be state-dependent, state-independent or None.")
+                raise ValueError("Adaptive error model can only be state-dependent, state-independent or None.")
             # update the first coarser link with the adaptive error model.
             self.proposal.chain[-1] = self.proposal.posterior.update_link(
                 self.proposal.chain[-1]
