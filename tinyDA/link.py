@@ -14,7 +14,7 @@ class Link:
         The model output
     likelihood : float
         The log-likelihood of the data, given the parameters.
-    qoi
+    qoi : numpy.ndarray
         A Quantity of Interest.
     posterior : float
         The (unnormalised) posterior density.
@@ -46,3 +46,12 @@ class Link:
 
         # compute the (unnormalised) posterior.
         self.posterior = self.prior + self.likelihood
+
+
+class RandomProposal:
+    """Separate object for each sample on the fine level, that points to the 
+    proposal that was promoted by the subchain.
+    
+    Attributes
+    ----------
+    """
