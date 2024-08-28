@@ -371,7 +371,7 @@ class DAChain:
                     proposal_link_fine = self.posterior_fine.create_link(
                         self.chain_coarse[random_proposal].parameters)
                     self.promoted_coarse.append(self.chain_coarse[random_proposal])
-                    self.random_subchain_length.append(random_proposal)
+                    self.random_subchain_length.append(random_proposal+self.subsampling_rate)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
