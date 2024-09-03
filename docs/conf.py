@@ -20,12 +20,12 @@ sys.path.insert(0, '..')
 
 project = 'tinyDA'
 copyright = '2021, Mikkel Bue Lykkegaard'
-author = 'Mikkel Bue Lykkegaard'
+author = 'Mikkel Bue Lykkegaard, Sai-Aakash Ramesh, Louise Kluge'
 
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '0.9.18'
+release = '0.9.19'
 
 
 # -- General configuration ---------------------------------------------------
