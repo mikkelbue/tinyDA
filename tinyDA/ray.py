@@ -103,7 +103,7 @@ class ParallelDAChain(ParallelChain):
         adaptive_error_model=None,
         store_coarse_chain=True,
     ):
-        # internalise posteriors, proposal and subsampling rate.
+        # internalise posteriors, proposal and subchain length.
         self.posterior_coarse = posterior_coarse
         self.posterior_fine = posterior_fine
         self.proposal = proposal
@@ -150,7 +150,7 @@ class ParallelMLDAChain(ParallelChain):
         adaptive_error_model=None,
         store_coarse_chain=True,
     ):
-        # internalise posteriors, proposal and subsampling rate.
+        # internalise posteriors, proposal and subchain length.
         self.posteriors = posteriors
         self.proposal = proposal
         self.subchain_lengths = subchain_lengths

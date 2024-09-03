@@ -148,7 +148,7 @@ class DAChain:
     proposal : tinyDA.Proposal
         Transition kernel for coarse MCMC proposals.
     subchain_length : int
-        The subsampling rate for the coarse chain.
+        The subchain length for the coarse chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain_coarse : list
@@ -198,7 +198,7 @@ class DAChain:
         proposal : tinyDA.Proposal
             Transition kernel for coarse MCMC proposals.
         subchain_length : int
-            The subsampling rate for the coarse chain.
+            The subchain length for the coarse chain.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw
             from prior).
@@ -507,7 +507,7 @@ class MLDAChain:
     proposal : tinyDA.MLDA
         MLDA transition kernel for the next-coarser MCMC proposals.
     subchain_length : int
-        The subsampling rate for the next-coarser chain.
+        The subchain length for the next-coarser chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain : list
@@ -543,7 +543,7 @@ class MLDAChain:
         proposal : tinyDA.Proposal
             Transition kernel for coarsest MCMC proposals.
         subchain_lengths : list
-            List of subsampling rates. It must have length
+            List of subchain lengths. It must have length
             len(posteriors) - 1, in increasing order.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random
@@ -562,7 +562,7 @@ class MLDAChain:
         self.posterior = posteriors[-1]
         self.level = len(posteriors) - 1
 
-        # set the furrent level subsampling rate.
+        # set the furrent level subchain length.
         self.subchain_length = subchain_lengths[-1]
 
         # initialise a list, which holds the links.

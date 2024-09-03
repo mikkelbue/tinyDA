@@ -1269,7 +1269,7 @@ class MLDA(Proposal):
     proposal : tinyDA.MLDA or tinyDA.Proposal
         Transition kernel for the next-coarser MCMC proposals.
     subchain_length : int
-        The subsampling rate for the next-coarser chain.
+        The subchain length for the next-coarser chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain : list
@@ -1324,7 +1324,7 @@ class MLDA(Proposal):
         proposal : tinyDA.Proposal
             Transition kernel for coarsest MCMC proposals.
         subchain_lengths : list
-            List of subsampling rates. It must have length
+            List of subchain lengths. It must have length
             len(posteriors) - 1, in increasing order.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random
@@ -1359,7 +1359,7 @@ class MLDA(Proposal):
 
         # if this level is not the coarsest level.
         if self.level > 0:
-            # internalise the subsampling rate.
+            # internalise the subchain length.
             self.subchain_length = subchain_lengths[-1]
 
             # set MDLA as the proposal on the next-coarser level.
@@ -1474,7 +1474,7 @@ class MLDA(Proposal):
         """
         Parameters
         ----------
-        subsampling rate : int
+        subchain length : int
             The number of samples drawn in the subchain.
         """
 

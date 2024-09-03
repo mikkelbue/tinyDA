@@ -72,9 +72,9 @@ def sample(
         have the same initial sample. If None, each MCMC sampler will be
         initialised with a random draw from the prior. Default is None.
     subchain_length : list or int, optional
-        The subsampling rate(s). If subchain_length is a list, it must have
+        The subchain length(s). If subchain_length is a list, it must have
         length len(posteriors) - 1, in increasing order. If it is an int,
-        the same subsampling rate will be used for all levels. If running
+        the same subchain length will be used for all levels. If running
         single-level MCMC, this parameter is ignored. Default is 1,
         resulting in "classic" DA MCMC for a two-level model.
     adaptive_error_model : str or None, optional
@@ -100,7 +100,7 @@ def sample(
         A dict with keys 'sampler' (which sampler was used, MH or DA),
         'n_chains' (the number of independent MCMC chains),
         'iterations' (the number of MCMC samples in each independent chain),
-        'subchain_length' (the Delayed Acceptance subsampling rate) and
+        'subchain_length' (the Delayed Acceptance subchain length) and
         'chain_1' ... 'chain_n' containing the MCMC samples from each
         independent chain in the form of tinyDA.Link instances. This dict
         can be used as input for tinyDA.to_inference_data() to yield an
@@ -171,7 +171,7 @@ def sample(
 
     if adaptive_error_model == "state-dependent" and subchain_length > 1:
         warnings.warn(
-            " Using a state-dependent error model for subsampling rates larger than 1 is not guaranteed to be ergodic. \n"
+            " Using a state-dependent error model for subchain lengths larger than 1 is not guaranteed to be ergodic. \n"
         )
 
     # check if the given initial parameters are the right type and size.
