@@ -29,6 +29,7 @@ def sample(
     store_coarse_chain=True,
     force_sequential=False,
     force_progress_bar=False,
+    subsampling_rate=None,
 ):
     """Returns MCMC samples given a tinyDA.Posterior and a tinyDA.Proposal.
     This function takes as input a tinyDA.Posterior instance, or a list of
