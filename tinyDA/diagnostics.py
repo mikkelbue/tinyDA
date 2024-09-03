@@ -165,7 +165,7 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
     # if the input is a Delayed Acceptance chain.
     elif chain["sampler"] == "DA":
         # copy the subsampling rate across.
-        samples["subsampling_rate"] = chain["subsampling_rate"]
+        samples["subchain_length"] = chain["subchain_length"]
         # set the extraction level ('coarse' or 'fine').
         samples["level"] = level
         # extract attribute
@@ -181,7 +181,7 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         # if the input is a Delayed Acceptance chain.
     elif chain["sampler"] == "MLDA":
         # copy the subsampling rate across.
-        samples["subsampling_rates"] = chain["subsampling_rates"]
+        samples["subchain_lengths"] = chain["subchain_lengths"]
         # set the extraction level.
         samples["level"] = level
         # extract attribute

@@ -97,7 +97,7 @@ class ParallelDAChain(ParallelChain):
         posterior_coarse,
         posterior_fine,
         proposal,
-        subsampling_rate=1,
+        subchain_length=1,
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
@@ -107,7 +107,7 @@ class ParallelDAChain(ParallelChain):
         self.posterior_coarse = posterior_coarse
         self.posterior_fine = posterior_fine
         self.proposal = proposal
-        self.subsampling_rate = subsampling_rate
+        self.subchain_length = subchain_length
 
         # set the number of parallel chains and initial parameters.
         self.n_chains = n_chains
@@ -130,7 +130,7 @@ class ParallelDAChain(ParallelChain):
                 self.posterior_coarse,
                 self.posterior_fine,
                 self.proposal[i],
-                self.subsampling_rate,
+                self.subchain_length,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
                 self.store_coarse_chain,
@@ -144,7 +144,7 @@ class ParallelMLDAChain(ParallelChain):
         self,
         posteriors,
         proposal,
-        subsampling_rates=None,
+        subchain_lengths=None,
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
@@ -153,7 +153,7 @@ class ParallelMLDAChain(ParallelChain):
         # internalise posteriors, proposal and subsampling rate.
         self.posteriors = posteriors
         self.proposal = proposal
-        self.subsampling_rates = subsampling_rates
+        self.subchain_lengths = subchain_lengths
 
         # set the number of parallel chains and initial parameters.
         self.n_chains = n_chains
@@ -175,7 +175,7 @@ class ParallelMLDAChain(ParallelChain):
             RemoteMLDAChain.remote(
                 self.posteriors,
                 self.proposal[i],
-                self.subsampling_rates,
+                self.subchain_lengths,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
                 self.store_coarse_chain,
