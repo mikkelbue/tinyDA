@@ -830,7 +830,7 @@ def SingleDreamZ(*args, **kwargs):
     return DREAMZ(*args, **kwargs)
 
 
-class MALA(Proposal):
+class MALA(GaussianRandomWalk):
     """
     Metropolis-Adjusted Langevin Algorithm (MALA) proposal. If the model
     does not implement a "gradient" method, the posterior gradient will be
@@ -865,6 +865,7 @@ class MALA(Proposal):
         previous link.
     """
 
+    is_symmetric = False
     alpha_star = 0.57
 
     def __init__(self, scaling=0.1, adaptive=False, gamma=1.01, period=100):
