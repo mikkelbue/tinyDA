@@ -830,7 +830,7 @@ def SingleDreamZ(*args, **kwargs):
     return DREAMZ(*args, **kwargs)
 
 
-class MALA(Proposal):
+class MALA(GaussianRandomWalk):
     """
     Metropolis-Adjusted Langevin Algorithm (MALA) proposal. If the model
     does not implement a "gradient" method, the posterior gradient will be
@@ -865,6 +865,7 @@ class MALA(Proposal):
         previous link.
     """
 
+    is_symmetric = False
     alpha_star = 0.57
 
     def __init__(self, scaling=0.1, adaptive=False, gamma=1.01, period=100):
@@ -1268,8 +1269,8 @@ class MLDA(Proposal):
         The (numeric) level of the current level sampler.
     proposal : tinyDA.MLDA or tinyDA.Proposal
         Transition kernel for the next-coarser MCMC proposals.
-    subsampling_rate : int
-        The subsampling rate for the next-coarser chain.
+    subchain_length : int
+        The subchain length for the next-coarser chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain : list
@@ -1293,11 +1294,11 @@ class MLDA(Proposal):
     align_chain(parameters, accepted)
         Makes sure the first link of the current level subchain is aligned
         with the next-finer level.
-    make_mlda_proposal(subsampling_rate)
-        Generates a proposal by creating a subchain of length subsampling_rate
+    make_mlda_proposal(subchain_length)
+        Generates a proposal by creating a subchain of length subchain_length
         using MLDA and passing the final link to the next-finer level.
-    make_base_proposal(subsampling_rate)
-        Generates a proposal by creating a subchain of length subsampling_rate
+    make_base_proposal(subchain_length)
+        Generates a proposal by creating a subchain of length subchain_length
         using Metropolis-Hastings and passing the final link to the
         next-finer level.
     get_acceptance(proposal_link, previous_link)
@@ -1311,7 +1312,7 @@ class MLDA(Proposal):
         self,
         posteriors,
         proposal,
-        subsampling_rates,
+        subchain_lengths,
         initial_parameters,
         adaptive_error_model,
         store_coarse_chain,
@@ -1323,8 +1324,8 @@ class MLDA(Proposal):
             List of instances of tinyDA.Posterior, in increasing order.
         proposal : tinyDA.Proposal
             Transition kernel for coarsest MCMC proposals.
-        subsampling_rates : list
-            List of subsampling rates. It must have length
+        subchain_lengths : list
+            List of subchain lengths. It must have length
             len(posteriors) - 1, in increasing order.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random
@@ -1359,14 +1360,14 @@ class MLDA(Proposal):
 
         # if this level is not the coarsest level.
         if self.level > 0:
-            # internalise the subsampling rate.
-            self.subsampling_rate = subsampling_rates[-1]
+            # internalise the subchain length.
+            self.subchain_length = subchain_lengths[-1]
 
             # set MDLA as the proposal on the next-coarser level.
             self.proposal = MLDA(
                 posteriors[:-1],
                 proposal,
-                subsampling_rates[:-1],
+                subchain_lengths[:-1],
                 self.initial_parameters,
                 self.adaptive_error_model,
                 self.store_coarse_chain,
@@ -1470,21 +1471,21 @@ class MLDA(Proposal):
         if self.level > 0:
             self.proposal._reset_chain()
 
-    def make_mlda_proposal(self, subsampling_rate):
+    def make_mlda_proposal(self, subchain_length):
         """
         Parameters
         ----------
-        subsampling rate : int
+        subchain length : int
             The number of samples drawn in the subchain.
         """
 
         # iterate through the subsamples.
-        for i in range(subsampling_rate):
+        for i in range(subchain_length):
             # create a proposal from the next-lower level,
-            proposal = self.proposal.make_proposal(self.subsampling_rate)
+            proposal = self.proposal.make_proposal(self.subchain_length)
 
             # if there were no acceptances on the next-lower level, repeat previous sample.
-            if sum(self.proposal.accepted[-self.subsampling_rate :]) == 0:
+            if sum(self.proposal.accepted[-self.subchain_length :]) == 0:
                 self.chain.append(self.chain[-1])
                 self.accepted.append(False)
                 self.is_local.append(True)
@@ -1499,7 +1500,7 @@ class MLDA(Proposal):
                     proposal_link,
                     self.chain[-1],
                     self.proposal.chain[-1],
-                    self.proposal.chain[-(self.subsampling_rate + 1)],
+                    self.proposal.chain[-(self.subchain_length + 1)],
                 )
 
                 # perform Metropolis adjustment.
@@ -1551,9 +1552,9 @@ class MLDA(Proposal):
         # return the latest link.
         return self.chain[-1].parameters
 
-    def make_base_proposal(self, subsampling_rate):
+    def make_base_proposal(self, subchain_length):
         # iterate through the subsamples.
-        for i in range(subsampling_rate):
+        for i in range(subchain_length):
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
 

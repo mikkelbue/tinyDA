@@ -147,8 +147,8 @@ class DAChain:
         (sample objects).
     proposal : tinyDA.Proposal
         Transition kernel for coarse MCMC proposals.
-    subsampling_rate : int
-        The subsampling rate for the coarse chain.
+    subchain_length : int
+        The subchain length for the coarse chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain_coarse : list
@@ -179,7 +179,7 @@ class DAChain:
         posterior_coarse,
         posterior_fine,
         proposal,
-        subsampling_rate,
+        subchain_length,
         initial_parameters=None,
         adaptive_error_model=None,
         store_coarse_chain=True,
@@ -197,8 +197,8 @@ class DAChain:
             (sample objects).
         proposal : tinyDA.Proposal
             Transition kernel for coarse MCMC proposals.
-        subsampling_rate : int
-            The subsampling rate for the coarse chain.
+        subchain_length : int
+            The subchain length for the coarse chain.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw
             from prior).
@@ -216,7 +216,7 @@ class DAChain:
         self.posterior_coarse = posterior_coarse
         self.posterior_fine = posterior_fine
         self.proposal = proposal
-        self.subsampling_rate = subsampling_rate
+        self.subchain_length = subchain_length
 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -314,7 +314,7 @@ class DAChain:
                 pbar.set_description(
                     "Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}".format(
                         np.mean(
-                            self.accepted_coarse[-int(100 * self.subsampling_rate) :]
+                            self.accepted_coarse[-int(100 * self.subchain_length) :]
                         ),
                         np.mean(self.accepted_fine[-100:]),
                     )
@@ -324,11 +324,11 @@ class DAChain:
             self._sample_coarse()
 
             # if nothing was accepted on the coarse, repeat the previous sample.
-            if sum(self.accepted_coarse[-self.subsampling_rate :]) == 0:
+            if sum(self.accepted_coarse[-self.subchain_length :]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
                 self.chain_coarse.append(
-                    self.chain_coarse[-(self.subsampling_rate + 1)]
+                    self.chain_coarse[-(self.subchain_length + 1)]
                 )
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
@@ -358,7 +358,7 @@ class DAChain:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
                     self.chain_coarse.append(
-                        self.chain_coarse[-(self.subsampling_rate + 1)]
+                        self.chain_coarse[-(self.subchain_length + 1)]
                     )
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
@@ -378,7 +378,7 @@ class DAChain:
             self.chain_coarse = [self.chain_coarse[-1]]
 
         # subsample the coarse model.
-        for j in range(self.subsampling_rate):
+        for j in range(self.subchain_length):
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain_coarse[-1])
 
@@ -415,7 +415,7 @@ class DAChain:
 
         # create a throwaway link representing the reverse state.
         coarse_state_biased = self.posterior_coarse.update_link(
-            self.chain_coarse[-(self.subsampling_rate + 1)], bias_next
+            self.chain_coarse[-(self.subchain_length + 1)], bias_next
         )
 
         # compute the move probabilities.
@@ -444,7 +444,7 @@ class DAChain:
         alpha_2 = np.exp(
             proposal_link_fine.posterior
             - self.chain_fine[-1].posterior
-            + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
+            + self.chain_coarse[-(self.subchain_length + 1)].posterior
             - self.chain_coarse[-1].posterior
         )
         return alpha_2
@@ -506,8 +506,8 @@ class MLDAChain:
         The (numeric) level of the finest level sampler,
     proposal : tinyDA.MLDA
         MLDA transition kernel for the next-coarser MCMC proposals.
-    subsampling_rate : int
-        The subsampling rate for the next-coarser chain.
+    subchain_length : int
+        The subchain length for the next-coarser chain.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain : list
@@ -530,7 +530,7 @@ class MLDAChain:
         self,
         posteriors,
         proposal,
-        subsampling_rates,
+        subchain_lengths,
         initial_parameters=None,
         adaptive_error_model=None,
         store_coarse_chain=True,
@@ -542,8 +542,8 @@ class MLDAChain:
             List of instances of tinyDA.Posterior, in increasing order.
         proposal : tinyDA.Proposal
             Transition kernel for coarsest MCMC proposals.
-        subsampling_rates : list
-            List of subsampling rates. It must have length
+        subchain_lengths : list
+            List of subchain lengths. It must have length
             len(posteriors) - 1, in increasing order.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random
@@ -562,8 +562,8 @@ class MLDAChain:
         self.posterior = posteriors[-1]
         self.level = len(posteriors) - 1
 
-        # set the furrent level subsampling rate.
-        self.subsampling_rate = subsampling_rates[-1]
+        # set the furrent level subchain length.
+        self.subchain_length = subchain_lengths[-1]
 
         # initialise a list, which holds the links.
         self.chain = []
@@ -593,7 +593,7 @@ class MLDAChain:
         self.proposal = MLDA(
             posteriors[:-1],
             proposal,
-            subsampling_rates[:-1],
+            subchain_lengths[:-1],
             self.initial_parameters,
             self.adaptive_error_model,
             self.store_coarse_chain,
@@ -665,9 +665,9 @@ class MLDAChain:
                 self.proposal._reset_chain()
 
             # draw a new proposal, given the previous parameters.
-            proposal = self.proposal.make_proposal(self.subsampling_rate)
+            proposal = self.proposal.make_proposal(self.subchain_length)
 
-            if sum(self.proposal.accepted[-self.subsampling_rate :]) == 0:
+            if sum(self.proposal.accepted[-self.subchain_length :]) == 0:
                 self.chain.append(self.chain[-1])
                 self.accepted.append(False)
 
@@ -681,7 +681,7 @@ class MLDAChain:
                     proposal_link,
                     self.chain[-1],
                     self.proposal.chain[-1],
-                    self.proposal.chain[-(self.subsampling_rate + 1)],
+                    self.proposal.chain[-(self.subchain_length + 1)],
                 )
 
                 # perform Metropolis adjustment.
