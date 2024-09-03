@@ -107,6 +107,11 @@ def sample(
         arviz.InferenceData object.
     """
 
+
+    if subsampling_rate is not None:
+        warnings.warn(" subsampling_rate has been deprecated in favour of subchain_length.")
+        subchain_length = subsampling_rate
+
     # get the availability flag.
     global ray_is_available
 
