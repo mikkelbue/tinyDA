@@ -99,10 +99,12 @@ class JointPrior:
 
         return y
 
+
 def CompositePrior(*args, **kwargs):
     """Deprecation dummy."""
     warnings.warn(" CompositePrior has been deprecated. Please use JointPrior.")
     return JointPrior(*args, **kwargs)
+
 
 class PoissonPointProcess:
 
@@ -154,6 +156,7 @@ class PoissonPointProcess:
         self.lamb = lamb
         # internalise the domain.
         self.domain = domain
+        self.n_dim = domain.shape[0]
         # set the point process attributes.
         self.attributes = attributes
 
@@ -166,7 +169,17 @@ class PoissonPointProcess:
         )
 
     def logpdf(self, x):
-        # get the Poisson pmf of the number of points.
+        # check the all the points are within the domain distribution.
+        positions = np.array([point["position"] for point in x]).T
+        for i in range(self.n_dim):
+            if not (
+                np.all(positions[i, :] >= self.domain[i, 0])
+                and np.all(positions[i, :] <= self.domain[i, 1])
+            ):
+                return -np.inf
+
+        # if the points are within domain, the probability is the Poisson mass
+        # over the number of points.
         return self.pois.logpmf(len(x))
 
     def rvs(self):
@@ -185,6 +198,7 @@ class PoissonPointProcess:
             point[attr] = dist.rvs()
 
         return point
+
 
 def GaussianLogLike(data, covariance):
     """Factory pattern for initialising Gaussian likelihoods.
@@ -221,12 +235,13 @@ def GaussianLogLike(data, covariance):
         raise TypeError("Covariance must be a 2-D numpy array.")
 
     if np.count_nonzero(covariance - np.diag(np.diag(covariance))) == 0:
-        if np.all(np.diag(covariance) == covariance[0,0]):
-            return IsotropicGaussianLogLike(data, covariance[0,0])
+        if np.all(np.diag(covariance) == covariance[0, 0]):
+            return IsotropicGaussianLogLike(data, covariance[0, 0])
         else:
             return DiagonalGaussianLogLike(data, covariance)
     else:
         return DefaultGaussianLogLike(data, covariance)
+
 
 class DefaultGaussianLogLike:
     """GaussianLogLike is a minimal implementation of the (unnormalised)
@@ -285,6 +300,7 @@ class DefaultGaussianLogLike:
     def grad_loglike(self, x):
         return np.dot(self.cov_inverse, (self.data - x))
 
+
 class DiagonalGaussianLogLike(DefaultGaussianLogLike):
     def __init__(self, data, covariance):
         # set the data and covariance as attributes
@@ -293,10 +309,11 @@ class DiagonalGaussianLogLike(DefaultGaussianLogLike):
 
     def loglike(self, x):
         # compute the unnormalised likelihood.
-        return -0.5 * ((x-self.data)**2 / self.cov).sum()
+        return -0.5 * ((x - self.data) ** 2 / self.cov).sum()
 
     def grad_loglike(self, x):
-        return 1/self.cov * (self.data - x)
+        return 1 / self.cov * (self.data - x)
+
 
 class IsotropicGaussianLogLike(DefaultGaussianLogLike):
     def __init__(self, data, variance):
@@ -306,10 +323,11 @@ class IsotropicGaussianLogLike(DefaultGaussianLogLike):
 
     def loglike(self, x):
         # compute the unnormalised likelihood.
-        return -0.5 * np.linalg.norm(x-self.data)**2 / self.var
+        return -0.5 * np.linalg.norm(x - self.data) ** 2 / self.var
 
     def grad_loglike(self, x):
-        return 1/self.var * (self.data - x)
+        return 1 / self.var * (self.data - x)
+
 
 class AdaptiveGaussianLogLike(DefaultGaussianLogLike):
     """AdaptiveLogLike is a minimal implementation of the (unnormalised)
