@@ -150,7 +150,7 @@ class DAChain:
     subsampling_rate : int
         The subsampling rate for the coarse chain.
     randomize_subchain_length : bool, optional
-        Randomized subchain lengths, see e.g. Liu (2009). Sample to be promoted
+        Randomizes the subchain lengths, see e.g. Liu (2009). Sample to be promoted
         is drawn from uniform distribution, between 1 and subsampling_rate.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
@@ -209,7 +209,7 @@ class DAChain:
         subsampling_rate : int
             The subsampling rate for the coarse chain.
         randomize_subchain_length : bool, optional
-            Randomized subchain lengths, see e.g. Liu (2009). Sample to be promoted
+            Randomizes the subchain lengths, see e.g. Liu (2009). Sample to be promoted
             is drawn from uniform distribution, between 1 and subsampling_rate.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw
@@ -310,11 +310,11 @@ class DAChain:
         # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
 
-        if self.randomize_subchain_length == True:
+        if self.randomize_subchain_length:
             if self.subsampling_rate == 1:
-                raise ValueError("Randomized subchain length requires a subsampling_rate > 1.")
-            if self.store_coarse_chain == False:
-                raise ValueError("Randomized subchain length requires storing the coarse chain.")
+                raise ValueError("Randomize subchain length requires a subsampling_rate > 1.")
+            if not self.store_coarse_chain:
+                raise ValueError("Randomize subchain length requires storing the coarse chain.")
 
 
 
@@ -362,10 +362,12 @@ class DAChain:
             else:
                 # when subsampling is complete, create a new fine link from the
                 # previous coarse link.
-                if self.randomize_subchain_length == False:
+                if not self.randomize_subchain_length:
                     proposal_link_fine = self.posterior_fine.create_link(
                         self.chain_coarse[-1].parameters
-                    ) 
+                    )
+                    self.promoted_coarse.append(self.chain_coarse[-1]) 
+                # add last state of the coarse chain to the list of promoted states
                 else: #promote a random sample instead of the last sample
                     random_proposal = np.random.randint(-self.subsampling_rate,0) #prob does not correspond to correct state
                     proposal_link_fine = self.posterior_fine.create_link(
@@ -383,7 +385,7 @@ class DAChain:
                 # to restart from the previous accepted fine link.
 
                 # this is adapted to random_subchain_lengths
-                if self.randomize_subchain_length==True:                     
+                if self.randomize_subchain_length:                     
                     if np.random.random() < alpha_2:
                         self.chain_fine.append(proposal_link_fine)
                         self.accepted_fine.append(True)
@@ -462,7 +464,7 @@ class DAChain:
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
         # compute the bias at the proposal.
-        if self.randomize_subchain_length==True: #treat the case of randomize_subchain_length=True
+        if self.randomize_subchain_length: #treat the case of randomize_subchain_length=True
             bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
         else:
             bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
