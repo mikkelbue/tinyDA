@@ -151,7 +151,7 @@ class DAChain:
         The subchain length for the coarse chain.
     randomize_subchain_length : bool, optional
         Randomizes the subchain lengths, see e.g. Liu (2009). Sample to be promoted
-        is drawn from uniform distribution, between 1 and subsampling_rate.
+        is drawn from uniform distribution, between 1 and subchain_length.
     initial_parameters : numpy.ndarray
         Starting point for the MCMC sampler
     chain_coarse : list
@@ -165,7 +165,7 @@ class DAChain:
         List of coarse states ("Links") that are promoted to the fine chain
     random_subchain_length : list
         List of integers that correspond to the actual subchain length that was 
-        sampled randomly from a uniform distribution between 1 and subsampling_rate 
+        sampled randomly from a uniform distribution between 1 and subchain_length.
     chain_fine : list
         Samples ("Links") in the fine MCMC chain.
     accepted_fine : list
@@ -210,7 +210,7 @@ class DAChain:
             The subchain length for the coarse chain.
         randomize_subchain_length : bool, optional
             Randomizes the subchain lengths, see e.g. Liu (2009). Sample to be promoted
-            is drawn from uniform distribution, between 1 and subsampling_rate.
+            is drawn from uniform distribution, between 1 and subchain_length.
         initial_parameters : numpy.ndarray, optional
             Starting point for the MCMC sampler, default is None (random draw
             from prior).
@@ -311,8 +311,8 @@ class DAChain:
         self.store_coarse_chain = store_coarse_chain
 
         if self.randomize_subchain_length:
-            if self.subsampling_rate == 1:
-                raise ValueError("Randomize subchain length requires a subsampling_rate > 1.")
+            if self.subchain_length == 1:
+                raise ValueError("Randomize subchain length requires a subchain_length > 1.")
             if not self.store_coarse_chain:
                 raise ValueError("Randomize subchain length requires storing the coarse chain.")
 
@@ -369,11 +369,11 @@ class DAChain:
                     self.promoted_coarse.append(self.chain_coarse[-1]) 
                 # add last state of the coarse chain to the list of promoted states
                 else: #promote a random sample instead of the last sample
-                    random_proposal = np.random.randint(-self.subsampling_rate,0) #prob does not correspond to correct state
+                    random_proposal = np.random.randint(-self.subchain_length,0) #prob does not correspond to correct state
                     proposal_link_fine = self.posterior_fine.create_link(
                         self.chain_coarse[random_proposal].parameters)
                     self.promoted_coarse.append(self.chain_coarse[random_proposal])
-                    self.random_subchain_length.append(random_proposal+self.subsampling_rate)
+                    self.random_subchain_length.append(random_proposal+self.subchain_length)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
