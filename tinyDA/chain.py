@@ -382,39 +382,21 @@ class DAChain:
                     alpha_2 = self._get_state_independent_acceptance(proposal_link_fine)
 
                 # Perform Metropolis adjustment, and update the coarse chain
-                # to restart from the previous accepted fine link.
-
-                # this is adapted to random_subchain_lengths
-                if self.randomize_subchain_length:                     
-                    if np.random.random() < alpha_2:
-                        self.chain_fine.append(proposal_link_fine)
-                        self.accepted_fine.append(True)
-                        self.chain_coarse.append(self.promoted_coarse[-1])
-                        self.accepted_coarse.append(True)
-                        self.is_coarse.append(False)
-                    else:
-                        self.chain_fine.append(self.chain_fine[-1])
-                        self.accepted_fine.append(False)
-                        self.chain_coarse.append(
-                            self.chain_coarse[-(self.subsampling_rate + 1)]
-                        )
-                        self.accepted_coarse.append(False)
-                        self.is_coarse.append(False)
+                # to restart from the previous accepted fine link.                 
+                if np.random.random() < alpha_2:
+                    self.chain_fine.append(proposal_link_fine)
+                    self.accepted_fine.append(True)
+                    self.chain_coarse.append(self.promoted_coarse[-1])
+                    self.accepted_coarse.append(True)
+                    self.is_coarse.append(False)
                 else:
-                    if np.random.random() < alpha_2:
-                        self.chain_fine.append(proposal_link_fine)
-                        self.accepted_fine.append(True)
-                        self.chain_coarse.append(self.chain_coarse[-1])
-                        self.accepted_coarse.append(True)
-                        self.is_coarse.append(False)
-                    else:
-                        self.chain_fine.append(self.chain_fine[-1])
-                        self.accepted_fine.append(False)
-                        self.chain_coarse.append(
-                            self.chain_coarse[-(self.subsampling_rate + 1)]
-                        )
-                        self.accepted_coarse.append(False)
-                        self.is_coarse.append(False)
+                    self.chain_fine.append(self.chain_fine[-1])
+                    self.accepted_fine.append(False)
+                    self.chain_coarse.append(
+                        self.chain_coarse[-(self.subsampling_rate + 1)]
+                    )
+                    self.accepted_coarse.append(False)
+                    self.is_coarse.append(False)
 
             # update the adaptive error model.
             if self.adaptive_error_model is not None:
@@ -464,10 +446,8 @@ class DAChain:
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
         # compute the bias at the proposal.
-        if self.randomize_subchain_length: #treat the case of randomize_subchain_length=True
-            bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
-        else:
-            bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
+
+        bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
 
         # create a throwaway link representing the reverse state.
         coarse_state_biased = self.posterior_coarse.update_link(
@@ -496,20 +476,12 @@ class DAChain:
 
     def _get_state_independent_acceptance(self, proposal_link_fine):
         # compute the state-independent delayed acceptance probability.
-        if self.randomize_subchain_length==True:
-            alpha_2 = np.exp(
-                proposal_link_fine.posterior
-                - self.chain_fine[-1].posterior
-                + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
-                - self.promoted_coarse[-1].posterior
-            )
-        else:
-            alpha_2 = np.exp(
-                proposal_link_fine.posterior
-                - self.chain_fine[-1].posterior
-                + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
-                - self.chain_coarse[-1].posterior
-            )
+        alpha_2 = np.exp(
+            proposal_link_fine.posterior
+            - self.chain_fine[-1].posterior
+            + self.promoted_coarse[-2].posterior
+            - self.promoted_coarse[-1].posterior
+        )
         return alpha_2
 
     def _update_error_model(self):
