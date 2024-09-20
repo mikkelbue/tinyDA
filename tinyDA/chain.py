@@ -253,6 +253,7 @@ class DAChain:
         self.chain_coarse.append(
             self.posterior_coarse.create_link(self.initial_parameters)
         )
+        # we might want to also add an initial element to promoted_coarse
         self.accepted_coarse.append(True)
         self.is_coarse.append(False)
         #add the initial state to promoted states, since a fine pendant exists 
@@ -350,6 +351,7 @@ class DAChain:
             self._sample_coarse()
 
             # if nothing was accepted on the coarse, repeat the previous sample.
+            # we might want to rewrite this to make use of to promoted_coarse
             if sum(self.accepted_coarse[-self.subchain_length :]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
@@ -432,7 +434,7 @@ class DAChain:
                 self.accepted_coarse.append(True)
                 self.is_coarse.append(True)
             else:
-                self.chain_coarse.append(self.chain_coarse[-1])
+                self.chain_coarse.append(self.promoted_coarse[-1]) # adapted to use promoted_coarse
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(True)
 
