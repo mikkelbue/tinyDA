@@ -24,12 +24,13 @@ def sample(
     iterations,
     n_chains=1,
     initial_parameters=None,
-    subsampling_rate=1,
+    subchain_length=1,
     randomize_subchain_length=False,
     adaptive_error_model=None,
     store_coarse_chain=True,
     force_sequential=False,
     force_progress_bar=False,
+    subsampling_rate=None,
 ):
     """Returns MCMC samples given a tinyDA.Posterior and a tinyDA.Proposal.
     This function takes as input a tinyDA.Posterior instance, or a list of
@@ -72,10 +73,10 @@ def sample(
         samplers. If a numpy.ndarray is provided, all MCMC sampler will
         have the same initial sample. If None, each MCMC sampler will be
         initialised with a random draw from the prior. Default is None.
-    subsampling_rate : list or int, optional
-        The subsampling rate(s). If subsampling_rate is a list, it must have
+    subchain_length : list or int, optional
+        The subchain length(s). If subchain_length is a list, it must have
         length len(posteriors) - 1, in increasing order. If it is an int,
-        the same subsampling rate will be used for all levels. If running
+        the same subchain length will be used for all levels. If running
         single-level MCMC, this parameter is ignored. Default is 1,
         resulting in "classic" DA MCMC for a two-level model.
     adaptive_error_model : str or None, optional
@@ -101,12 +102,17 @@ def sample(
         A dict with keys 'sampler' (which sampler was used, MH or DA),
         'n_chains' (the number of independent MCMC chains),
         'iterations' (the number of MCMC samples in each independent chain),
-        'subsampling_rate' (the Delayed Acceptance subsampling rate) and
+        'subchain_length' (the Delayed Acceptance subchain length) and
         'chain_1' ... 'chain_n' containing the MCMC samples from each
         independent chain in the form of tinyDA.Link instances. This dict
         can be used as input for tinyDA.to_inference_data() to yield an
         arviz.InferenceData object.
     """
+
+
+    if subsampling_rate is not None:
+        warnings.warn(" subsampling_rate has been deprecated in favour of subchain_length.")
+        subchain_length = subsampling_rate
 
     # get the availability flag.
     global ray_is_available
@@ -170,9 +176,9 @@ def sample(
         )
         adaptive_error_model = "state-independent"
 
-    if adaptive_error_model == "state-dependent" and subsampling_rate > 1:
+    if adaptive_error_model == "state-dependent" and subchain_length > 1:
         warnings.warn(
-            " Using a state-dependent error model for subsampling rates larger than 1 is not guaranteed to be ergodic. \n"
+            " Using a state-dependent error model for subchain lengths larger than 1 is not guaranteed to be ergodic. \n"
         )
 
     # check if the given initial parameters are the right type and size.
@@ -220,7 +226,7 @@ def sample(
                 iterations,
                 n_chains,
                 initial_parameters,
-                subsampling_rate,
+                subchain_length,
                 randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
@@ -233,7 +239,7 @@ def sample(
                 iterations,
                 n_chains,
                 initial_parameters,
-                subsampling_rate,
+                subchain_length,
                 randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
@@ -241,10 +247,10 @@ def sample(
             )
 
     elif n_levels > 2:
-        if isinstance(subsampling_rate, list):
-            subsampling_rates = subsampling_rate
-        elif isinstance(subsampling_rate, int):
-            subsampling_rates = [subsampling_rate] * (len(posteriors) - 1)
+        if isinstance(subchain_length, list):
+            subchain_lengths = subchain_length
+        elif isinstance(subchain_length, int):
+            subchain_lengths = [subchain_length] * (len(posteriors) - 1)
 
         # sequential sampling.
         if not ray_is_available or n_chains == 1 or force_sequential:
@@ -254,7 +260,7 @@ def sample(
                 iterations,
                 n_chains,
                 initial_parameters,
-                subsampling_rates,
+                subchain_lengths,
                 adaptive_error_model,
                 store_coarse_chain,
             )
@@ -266,7 +272,7 @@ def sample(
                 iterations,
                 n_chains,
                 initial_parameters,
-                subsampling_rates,
+                subchain_lengths,
                 adaptive_error_model,
                 store_coarse_chain,
                 force_progress_bar,
@@ -321,7 +327,7 @@ def _sample_sequential_da(
     iterations,
     n_chains,
     initial_parameters,
-    subsampling_rate,
+    subchain_length,
     randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
@@ -337,7 +343,7 @@ def _sample_sequential_da(
                 posteriors[0],
                 posteriors[1],
                 proposal[i],
-                subsampling_rate,
+                subchain_length,
                 randomize_subchain_length,
                 initial_parameters[i],
                 adaptive_error_model,
@@ -350,7 +356,7 @@ def _sample_sequential_da(
         "sampler": "DA",
         "n_chains": n_chains,
         "iterations": iterations + 1,
-        "subsampling_rate": subsampling_rate,
+        "subchain_length": subchain_length,
     }
 
     # collect the coarse samples.
@@ -381,7 +387,7 @@ def _sample_parallel_da(
     iterations,
     n_chains,
     initial_parameters,
-    subsampling_rate,
+    subchain_length,
     randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
@@ -396,7 +402,7 @@ def _sample_parallel_da(
         posteriors[0],
         posteriors[1],
         proposal,
-        subsampling_rate,
+        subchain_length,
         randomize_subchain_length,
         n_chains,
         initial_parameters,
@@ -409,7 +415,7 @@ def _sample_parallel_da(
         "sampler": "DA",
         "n_chains": n_chains,
         "iterations": iterations + 1,
-        "subsampling_rate": subsampling_rate,
+        "subchain_length": subchain_length,
     }
 
     # collect the coarse samples.
@@ -432,7 +438,7 @@ def _sample_sequential_mlda(
     iterations,
     n_chains,
     initial_parameters,
-    subsampling_rates,
+    subchain_lengths,
     adaptive_error_model,
     store_coarse_chain,
 ):
@@ -448,7 +454,7 @@ def _sample_sequential_mlda(
             MLDAChain(
                 posteriors,
                 proposal[i],
-                subsampling_rates,
+                subchain_lengths,
                 initial_parameters[i],
                 adaptive_error_model,
                 store_coarse_chain,
@@ -461,7 +467,7 @@ def _sample_sequential_mlda(
         "n_chains": n_chains,
         "iterations": iterations + 1,
         "levels": levels,
-        "subsampling_rates": subsampling_rates,
+        "subchain_lengths": subchain_lengths,
     }
 
     # collect and return the samples.
@@ -494,7 +500,7 @@ def _sample_parallel_mlda(
     iterations,
     n_chains,
     initial_parameters,
-    subsampling_rates,
+    subchain_lengths,
     adaptive_error_model,
     store_coarse_chain,
     force_progress_bar,
@@ -509,7 +515,7 @@ def _sample_parallel_mlda(
     chains = ParallelMLDAChain(
         posteriors,
         proposal,
-        subsampling_rates,
+        subchain_lengths,
         n_chains,
         initial_parameters,
         adaptive_error_model,
@@ -522,7 +528,7 @@ def _sample_parallel_mlda(
         "n_chains": n_chains,
         "iterations": iterations + 1,
         "levels": levels,
-        "subsampling_rates": subsampling_rates,
+        "subchain_lengths": subchain_lengths,
     }
 
     # iterate through the different chains and MLDA levels recursively.
