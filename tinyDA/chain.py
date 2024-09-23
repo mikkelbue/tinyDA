@@ -253,7 +253,6 @@ class DAChain:
         self.chain_coarse.append(
             self.posterior_coarse.create_link(self.initial_parameters)
         )
-        # we might want to also add an initial element to promoted_coarse
         self.accepted_coarse.append(True)
         self.is_coarse.append(False)
         #add the initial state to promoted states, since a fine pendant exists 
@@ -351,7 +350,6 @@ class DAChain:
             self._sample_coarse()
 
             # if nothing was accepted on the coarse, repeat the previous sample.
-            # we might want to rewrite this to make use of to promoted_coarse
             if sum(self.accepted_coarse[-self.subchain_length :]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
@@ -395,7 +393,7 @@ class DAChain:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
                     self.chain_coarse.append(
-                        self.chain_coarse[-(self.subchain_length + 1)]
+                        self.promoted_coarse[-2]
                     )
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
@@ -417,7 +415,10 @@ class DAChain:
         # subsample the coarse model.
         for j in range(self.subchain_length):
             # draw a new proposal, given the previous parameters.
-            proposal = self.proposal.make_proposal(self.chain_coarse[-1])
+            if j==0:
+                proposal = self.proposal.make_proposal(self.promoted_coarse[-1])
+            else:
+                proposal = self.proposal.make_proposal(self.chain_coarse[-1])
 
             # create a link from that proposal.
             proposal_link_coarse = self.posterior_coarse.create_link(proposal)
@@ -481,7 +482,7 @@ class DAChain:
         alpha_2 = np.exp(
             proposal_link_fine.posterior
             - self.chain_fine[-1].posterior
-            + self.promoted_coarse[-2].posterior
+            + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
             - self.promoted_coarse[-1].posterior
         )
         return alpha_2
