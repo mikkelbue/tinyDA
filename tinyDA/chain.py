@@ -369,7 +369,7 @@ class DAChain:
             else:
                 # when subsampling is complete, create a new fine link from the
                 # previous coarse link.
-                proposal_index = self._get_proposal_index
+                proposal_index = self._get_proposal_index()
                 proposal_link_fine = self.posterior_fine.create_link(
                     self.chain_coarse[proposal_index].parameters
                 )
@@ -395,7 +395,7 @@ class DAChain:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
                     self.chain_coarse.append(
-                        self.promoted_coarse[self.chain_coarse[-(self.subchain_length+1)]]
+                        self.chain_coarse[-(self.subchain_length+1)]
                     )
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
@@ -488,7 +488,7 @@ class DAChain:
         alpha_2 = np.exp(
             proposal_link_fine.posterior
             - self.chain_fine[-1].posterior
-            + self.chain_coarse[-(self.subsampling_rate + 1)].posterior
+            + self.chain_coarse[-(self.subchain_length + 1)].posterior
             - self.promoted_coarse[-1].posterior
         )
         return alpha_2
