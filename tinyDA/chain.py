@@ -259,7 +259,7 @@ class DAChain:
         self.promoted_coarse.append(self.chain_coarse[0]) 
 
 
-        # append a link with the initial parameters to the coarse chain.
+        # append a link with the initial parameters to the fine chain.
         self.chain_fine.append(self.posterior_fine.create_link(self.initial_parameters))
         self.accepted_fine.append(True)
 
@@ -315,6 +315,13 @@ class DAChain:
                 raise ValueError("Randomize subchain length requires a subchain_length > 1.")
             if not self.store_coarse_chain:
                 raise ValueError("Randomize subchain length requires storing the coarse chain.")
+        
+        if self.randomize_subchain_length:
+            # this private method returns np.random.randint(-self.subsampling_rate,0)
+            self._get_proposal_index = self._get_random_proposal_index
+        else:
+            # this private method always returns -1
+            self._get_proposal_index = self._get_fixed_proposal_index
 
 
 
@@ -362,18 +369,13 @@ class DAChain:
             else:
                 # when subsampling is complete, create a new fine link from the
                 # previous coarse link.
-                if not self.randomize_subchain_length:
-                    proposal_link_fine = self.posterior_fine.create_link(
-                        self.chain_coarse[-1].parameters
-                    )
-                    self.promoted_coarse.append(self.chain_coarse[-1]) 
-                # add last state of the coarse chain to the list of promoted states
-                else: #promote a random sample instead of the last sample
-                    random_proposal = np.random.randint(-self.subchain_length,0) #prob does not correspond to correct state
-                    proposal_link_fine = self.posterior_fine.create_link(
-                        self.chain_coarse[random_proposal].parameters)
-                    self.promoted_coarse.append(self.chain_coarse[random_proposal])
-                    self.random_subchain_length.append(random_proposal+self.subchain_length)
+                proposal_index = self._get_proposal_index
+                proposal_link_fine = self.posterior_fine.create_link(
+                    self.chain_coarse[proposal_index].parameters
+                )
+                self.promoted_coarse.append(self.chain_coarse[proposal_index]) 
+                # add effective subchain lenght to list
+                self.random_subchain_length.append(proposal_index+self.subchain_length)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
@@ -393,7 +395,7 @@ class DAChain:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
                     self.chain_coarse.append(
-                        self.promoted_coarse[-2]
+                        self.promoted_coarse[self.chain_coarse[-(self.subchain_length+1)]]
                     )
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
@@ -415,8 +417,12 @@ class DAChain:
         # subsample the coarse model.
         for j in range(self.subchain_length):
             # draw a new proposal, given the previous parameters.
-            if j==0:
-                proposal = self.proposal.make_proposal(self.promoted_coarse[-1])
+            if j==0:# use correct starting point for subchain
+                if self.accepted_fine[-1]:
+                    proposal = self.proposal.make_proposal(self.promoted_coarse[-1])
+                else: #if fine chain did not accept, jump back to start of last chain 
+                    proposal = self.proposal.make_proposal(self.chain_coarse[-(self.subchain_length+1)])
+
             else:
                 proposal = self.proposal.make_proposal(self.chain_coarse[-1])
 
@@ -526,6 +532,15 @@ class DAChain:
                 self.model_diff, self.bias.get_sigma()
             )
         self.chain_coarse[-1] = self.posterior_coarse.update_link(self.chain_coarse[-1])
+
+    def _get_random_proposal_index(self):
+        random_proposal_index = np.random.randint(-self.subchain_length,0) #prob does not correspond to correct state
+        return random_proposal_index
+    
+    def _get_fixed_proposal_index(self):
+        fixed_proposal_index = -1
+        return fixed_proposal_index
+
 
 
 class MLDAChain:
