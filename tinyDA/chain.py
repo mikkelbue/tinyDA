@@ -381,7 +381,7 @@ class DAChain:
                     alpha_2 = self._get_state_independent_acceptance(proposal_link_fine)
 
                 # Perform Metropolis adjustment, and update the coarse chain
-                # to restart from the previous accepted fine link.                 
+                # to restart from the previous accepted fine link.
                 if np.random.random() < alpha_2:
                     self.chain_fine.append(proposal_link_fine)
                     self.accepted_fine.append(True)
