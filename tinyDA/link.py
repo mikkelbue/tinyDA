@@ -46,12 +46,3 @@ class Link:
 
         # compute the (unnormalised) posterior.
         self.posterior = self.prior + self.likelihood
-
-
-class RandomProposal:
-    """Separate object for each sample on the fine level, that points to the 
-    proposal that was promoted by the subchain.
-    
-    Attributes
-    ----------
-    """

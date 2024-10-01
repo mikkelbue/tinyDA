@@ -586,7 +586,6 @@ class MLDAChain:
         subchain_lengths,
         initial_parameters=None,
         adaptive_error_model=None,
-        #randomize_subchain_length=False,
         store_coarse_chain=True,
     ):
         """
