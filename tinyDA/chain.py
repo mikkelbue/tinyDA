@@ -163,7 +163,7 @@ class DAChain:
         coarse sampler or not.
     promoted_coarse : list
         List of coarse states ("Links") that are promoted to the fine chain
-    random_subchain_length : list
+    subchain_lengths : list
         List of integers that correspond to the actual subchain length that was 
         sampled randomly from a uniform distribution between 1 and subchain_length.
     chain_fine : list
@@ -237,7 +237,7 @@ class DAChain:
         self.accepted_coarse = []
         self.is_coarse = []
         self.promoted_coarse = []
-        self.random_subchain_length = []
+        self.subchain_lengths = []
 
         self.chain_fine = []
         self.accepted_fine = []
@@ -255,9 +255,6 @@ class DAChain:
         )
         self.accepted_coarse.append(True)
         self.is_coarse.append(False)
-        #add the initial state to promoted states, since a fine pendant exists 
-        self.promoted_coarse.append(self.chain_coarse[0]) 
-
 
         # append a link with the initial parameters to the fine chain.
         self.chain_fine.append(self.posterior_fine.create_link(self.initial_parameters))
@@ -375,7 +372,7 @@ class DAChain:
                 )
                 self.promoted_coarse.append(self.chain_coarse[proposal_index]) 
                 # add effective subchain lenght to list
-                self.random_subchain_length.append(proposal_index+self.subchain_length)
+                self.subchain_lengths.append(proposal_index + self.subchain_length)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
@@ -395,7 +392,7 @@ class DAChain:
                     self.chain_fine.append(self.chain_fine[-1])
                     self.accepted_fine.append(False)
                     self.chain_coarse.append(
-                        self.chain_coarse[-(self.subchain_length+1)]
+                        self.chain_coarse[-(self.subchain_length + 1)]
                     )
                     self.accepted_coarse.append(False)
                     self.is_coarse.append(False)
@@ -417,14 +414,7 @@ class DAChain:
         # subsample the coarse model.
         for j in range(self.subchain_length):
             # draw a new proposal, given the previous parameters.
-            if j==0:# use correct starting point for subchain
-                if self.accepted_fine[-1]:
-                    proposal = self.proposal.make_proposal(self.promoted_coarse[-1])
-                else: #if fine chain did not accept, jump back to start of last chain 
-                    proposal = self.proposal.make_proposal(self.chain_coarse[-(self.subchain_length+1)])
-
-            else:
-                proposal = self.proposal.make_proposal(self.chain_coarse[-1])
+            proposal = self.proposal.make_proposal(self.chain_coarse[-1])
 
             # create a link from that proposal.
             proposal_link_coarse = self.posterior_coarse.create_link(proposal)
@@ -441,7 +431,7 @@ class DAChain:
                 self.accepted_coarse.append(True)
                 self.is_coarse.append(True)
             else:
-                self.chain_coarse.append(self.promoted_coarse[-1]) # adapted to use promoted_coarse
+                self.chain_coarse.append(self.chain_coarse[-(self.subchain_length+1)]) # adapted to use promoted_coarse
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(True)
 
@@ -478,7 +468,7 @@ class DAChain:
             )
             - min(
                 self.chain_fine[-1].posterior + q_x_y,
-                self.chain_coarse[-1].posterior + q_y_x,
+                self.promoted_coarse[-1].posterior + q_y_x,
             )
         )
         return alpha_2
@@ -538,8 +528,7 @@ class DAChain:
         return random_proposal_index
     
     def _get_fixed_proposal_index(self):
-        fixed_proposal_index = -1
-        return fixed_proposal_index
+        return -1
 
 
 
