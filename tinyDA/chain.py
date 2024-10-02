@@ -372,7 +372,7 @@ class DAChain:
                 )
                 self.promoted_coarse.append(self.chain_coarse[proposal_index]) 
                 # add effective subchain lenght to list
-                self.subchain_lengths.append(proposal_index + self.subchain_length)
+                self.subchain_lengths.append(proposal_index + self.subchain_length+1)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
