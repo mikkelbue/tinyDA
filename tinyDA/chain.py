@@ -431,7 +431,7 @@ class DAChain:
                 self.accepted_coarse.append(True)
                 self.is_coarse.append(True)
             else:
-                self.chain_coarse.append(self.chain_coarse[-(self.subchain_length+1)]) # adapted to use promoted_coarse
+                self.chain_coarse.append(self.chain_coarse[-1])
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(True)
 
