@@ -431,7 +431,7 @@ class DAChain:
                 self.accepted_coarse.append(True)
                 self.is_coarse.append(True)
             else:
-                self.chain_coarse.append(self.chain_coarse[-(self.subchain_length+1)]) # adapted to use promoted_coarse
+                self.chain_coarse.append(self.chain_coarse[-1]) 
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(True)
 
@@ -445,8 +445,7 @@ class DAChain:
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
         # compute the bias at the proposal.
-
-        bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
+        bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
 
         # create a throwaway link representing the reverse state.
         coarse_state_biased = self.posterior_coarse.update_link(
@@ -524,7 +523,7 @@ class DAChain:
         self.chain_coarse[-1] = self.posterior_coarse.update_link(self.chain_coarse[-1])
 
     def _get_random_proposal_index(self):
-        random_proposal_index = np.random.randint(-self.subchain_length,0) #prob does not correspond to correct state
+        random_proposal_index = np.random.randint(-self.subchain_length,0)
         return random_proposal_index
     
     def _get_fixed_proposal_index(self):
