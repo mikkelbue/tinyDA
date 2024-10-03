@@ -445,7 +445,7 @@ class DAChain:
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
         # compute the bias at the proposal.
-        bias_next = proposal_link_fine.model_output - self.chain_coarse[-1].model_output
+        bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
 
         # create a throwaway link representing the reverse state.
         coarse_state_biased = self.posterior_coarse.update_link(
