@@ -136,7 +136,7 @@ class ParallelDAChain(ParallelChain):
                 self.proposal[i],
                 self.subchain_length,
                 self.initial_parameters[i],
-                self.randomize_subchain_lenght,
+                self.randomize_subchain_length,
                 self.adaptive_error_model,
                 self.store_coarse_chain,
             )
