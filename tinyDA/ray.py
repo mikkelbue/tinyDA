@@ -98,9 +98,9 @@ class ParallelDAChain(ParallelChain):
         posterior_fine,
         proposal,
         subchain_length=1,
+        randomize_subchain_length=False,
         n_chains=2,
         initial_parameters=None,
-        randomize_subchain_length=False,
         adaptive_error_model=None,
         store_coarse_chain=True,
     ):
@@ -135,8 +135,8 @@ class ParallelDAChain(ParallelChain):
                 self.posterior_fine,
                 self.proposal[i],
                 self.subchain_length,
-                self.initial_parameters[i],
                 self.randomize_subchain_length,
+                self.initial_parameters[i],
                 self.adaptive_error_model,
                 self.store_coarse_chain,
             )
