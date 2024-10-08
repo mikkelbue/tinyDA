@@ -14,7 +14,7 @@ class Link:
         The model output
     likelihood : float
         The log-likelihood of the data, given the parameters.
-    qoi
+    qoi : any
         A Quantity of Interest.
     posterior : float
         The (unnormalised) posterior density.

@@ -98,6 +98,7 @@ class ParallelDAChain(ParallelChain):
         posterior_fine,
         proposal,
         subchain_length=1,
+        randomize_subchain_length=False,
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
@@ -115,6 +116,9 @@ class ParallelDAChain(ParallelChain):
         # set the initial parameters.
         self.initial_parameters = initial_parameters
 
+        # set whether to randomize subchain length
+        self.randomize_subchain_length = randomize_subchain_length
+
         # set the adaptive error model.
         self.adaptive_error_model = adaptive_error_model
 
@@ -131,6 +135,7 @@ class ParallelDAChain(ParallelChain):
                 self.posterior_fine,
                 self.proposal[i],
                 self.subchain_length,
+                self.randomize_subchain_length,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
                 self.store_coarse_chain,
