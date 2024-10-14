@@ -315,7 +315,7 @@ def _sample_parallel(
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
-    chains = {"chain_{}".format(i): chain for i, chain in enumerate(chains.chains)}
+    chains = {"chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)}
 
     # return the samples.
     return {**info, **chains}
@@ -352,9 +352,56 @@ def _sample_sequential_da(
         )
         chains[i].sample(iterations)
 
+    result = _get_result_da(chains, iterations, subchain_length, store_coarse_chain)
+
+    return result
+
+
+def _sample_parallel_da(
+    posteriors,
+    proposal,
+    iterations,
+    n_chains,
+    initial_parameters,
+    subchain_length,
+    randomize_subchain_length,
+    adaptive_error_model,
+    store_coarse_chain,
+    force_progress_bar,
+):
+    """Helper function for tinyDA.sample()"""
+
+    print("Sampling {} chains in parallel".format(n_chains))
+
+    # create a parallel sampling instance and sample.
+    parallel_chain = ParallelDAChain(
+        posteriors[0],
+        posteriors[1],
+        proposal,
+        subchain_length,
+        randomize_subchain_length,
+        n_chains,
+        initial_parameters,
+        adaptive_error_model,
+        store_coarse_chain,
+    )
+    parallel_chain.sample(iterations, force_progress_bar)
+    chains = parallel_chain.chains
+
+    result = _get_result_da(chains, iterations, subchain_length, store_coarse_chain)
+
+    return result
+
+def _get_result_da(
+    chains,
+    iterations,
+    subchain_length,
+    store_coarse_chain,
+):
+
     info = {
         "sampler": "DA",
-        "n_chains": n_chains,
+        "n_chains": len(chains),
         "iterations": iterations + 1,
         "subchain_length": subchain_length,
     }
@@ -379,58 +426,6 @@ def _sample_sequential_da(
 
     # return eveything.
     return {**info, **chains_coarse, **chains_fine}
-
-
-def _sample_parallel_da(
-    posteriors,
-    proposal,
-    iterations,
-    n_chains,
-    initial_parameters,
-    subchain_length,
-    randomize_subchain_length,
-    adaptive_error_model,
-    store_coarse_chain,
-    force_progress_bar,
-):
-    """Helper function for tinyDA.sample()"""
-
-    print("Sampling {} chains in parallel".format(n_chains))
-
-    # create a parallel sampling instance and sample.
-    chains = ParallelDAChain(
-        posteriors[0],
-        posteriors[1],
-        proposal,
-        subchain_length,
-        randomize_subchain_length,
-        n_chains,
-        initial_parameters,
-        adaptive_error_model,
-        store_coarse_chain,
-    )
-    chains.sample(iterations, force_progress_bar)
-
-    info = {
-        "sampler": "DA",
-        "n_chains": n_chains,
-        "iterations": iterations + 1,
-        "subchain_length": subchain_length,
-    }
-
-    # collect the coarse samples.
-    chains_coarse = {
-        "chain_coarse_{}".format(i): chain[0] for i, chain in enumerate(chains.chains)
-    }
-
-    # collect the fine samples.
-    chains_fine = {
-        "chain_fine_{}".format(i): chain[1] for i, chain in enumerate(chains.chains)
-    }
-
-    # return everything.
-    return {**info, **chains_coarse, **chains_fine}
-
 
 def _sample_sequential_mlda(
     posteriors,
@@ -462,9 +457,56 @@ def _sample_sequential_mlda(
         )
         chains[i].sample(iterations)
 
+    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+
+    return result
+
+
+def _sample_parallel_mlda(
+    posteriors,
+    proposal,
+    iterations,
+    n_chains,
+    initial_parameters,
+    subchain_lengths,
+    adaptive_error_model,
+    store_coarse_chain,
+    force_progress_bar,
+):
+    """Helper function for tinyDA.sample()"""
+
+    levels = len(posteriors)
+
+    print("Sampling {} chains in parallel".format(n_chains))
+
+    # create a parallel sampling instance and sample.
+    parallel_chain = ParallelMLDAChain(
+        posteriors,
+        proposal,
+        subchain_lengths,
+        n_chains,
+        initial_parameters,
+        adaptive_error_model,
+        store_coarse_chain,
+    )
+    parallel_chain.sample(iterations, force_progress_bar)
+    chains = parallel_chain.chains
+
+    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+
+    return result
+
+def _get_result_mlda(
+    chains,
+    levels,
+    iterations,
+    subchain_lengths,
+    store_coarse_chain,
+):
+
     info = {
         "sampler": "MLDA",
-        "n_chains": n_chains,
+        "n_chains": len(chains),
         "iterations": iterations + 1,
         "levels": levels,
         "subchain_lengths": subchain_lengths,
@@ -490,51 +532,5 @@ def _sample_sequential_mlda(
             }
         chains_all = {**chains_all, **chains_current}
         _current = [chain.proposal for chain in _current]
-
-    return {**info, **chains_all}
-
-
-def _sample_parallel_mlda(
-    posteriors,
-    proposal,
-    iterations,
-    n_chains,
-    initial_parameters,
-    subchain_lengths,
-    adaptive_error_model,
-    store_coarse_chain,
-    force_progress_bar,
-):
-    """Helper function for tinyDA.sample()"""
-
-    levels = len(posteriors)
-
-    print("Sampling {} chains in parallel".format(n_chains))
-
-    # create a parallel sampling instance and sample.
-    chains = ParallelMLDAChain(
-        posteriors,
-        proposal,
-        subchain_lengths,
-        n_chains,
-        initial_parameters,
-        adaptive_error_model,
-        store_coarse_chain,
-    )
-    chains.sample(iterations, force_progress_bar)
-
-    info = {
-        "sampler": "MLDA",
-        "n_chains": n_chains,
-        "iterations": iterations + 1,
-        "levels": levels,
-        "subchain_lengths": subchain_lengths,
-    }
-
-    # iterate through the different chains and MLDA levels recursively.
-    chains_all = {}
-    for i in range(n_chains):
-        for j in range(levels):
-            chains_all["chain_l{}_{}".format(j, i)] = chains.chains[i][j]
 
     return {**info, **chains_all}
