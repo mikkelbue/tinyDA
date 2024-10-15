@@ -208,12 +208,3 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
     # return the samples.
     return samples
 
-# work in progress
-
-def get_DA_samples(chain): 
-    # creates dict with additional keyword "fine_correction" 
-    return 0
-
-def DA_estimator(DA_samples):
-    # computes the MLDA estimator of some qoi w.r.t the posterior
-    return 0
