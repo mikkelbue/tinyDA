@@ -207,3 +207,4 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
 
     # return the samples.
     return samples
+
