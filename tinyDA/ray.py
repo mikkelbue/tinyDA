@@ -193,43 +193,21 @@ class ParallelMLDAChain(ParallelChain):
 class RemoteChain(Chain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
-
-        return self.chain
+        return self
 
 
 @ray.remote
 class RemoteDAChain(DAChain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
-
-        if self.store_coarse_chain:
-            chain_coarse = list(compress(self.chain_coarse, self.is_coarse))
-        else:
-            chain_coarse = None
-
-        return chain_coarse, self.chain_fine
+        return self
 
 
 @ray.remote
 class RemoteMLDAChain(MLDAChain):
     def sample(self, iterations, progressbar):
         super().sample(iterations, progressbar)
-
-        # collect and return the samples.
-        chains = [self.chain]
-
-        # iterate through the levels.
-        _current = self.proposal
-        for i in range(self.level):
-            if self.store_coarse_chain:
-                chain_current = list(compress(_current.chain, _current.is_local))
-            else:
-                chain_current = None
-            chains.append(chain_current)
-            _current = _current.proposal
-
-        # flip the list of chains and return it.
-        return chains[::-1]
+        return self
 
 
 class MultipleTry(Proposal):
