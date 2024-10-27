@@ -4,6 +4,7 @@ import warnings
 from itertools import compress
 import numpy as np
 from scipy.special import logsumexp
+from tqdm import tqdm
 
 from .chain import Chain, DAChain, MLDAChain
 from .proposal import *
@@ -361,3 +362,84 @@ class RemotePosterior:
 
     def create_link(self, parameters):
         return self.posterior.create_link(parameters)
+
+@ray.remote
+class RemoteSharedArchiveChain(Chain):
+    def __init__(self, posterior, proposal, initial_parameters=None):
+        if not isinstance(proposal, SharedArchiveProposal):
+            raise TypeError("Proposals without a shared archive cannot be used with these chains")
+
+        super().__init__(posterior, proposal, initial_parameters=None)
+        # shared archive with data from all chains
+        self.shared_archive = None
+        # indicator of a new sample to be collected and shared
+        self.new_sample_indicator = False
+        # new samples to be added to the shared archive
+        self.new_samples = []
+
+    # Check if this chain has new samples to be added to the shared archive
+    def new_samples_check(self):
+        return self.new_sample_indicator
+
+    # Add new samples from this chain into the shared archive
+    def new_samples_get(self):
+        new_samples_copy = deepcopy(self.new_samples)
+        self.new_samples = []
+        self.new_sample_indicator = False
+        return new_samples_copy
+
+
+    def update_shared_archive(self, data):
+        self.shared_archive = data
+
+    def sample(self, iterations, progressbar=True):
+        # Set up a progressbar, if required.
+        if progressbar:
+            pbar = tqdm(range(iterations))
+        else:
+            pbar = range(iterations)
+
+        # start the iteration
+        for i in pbar:
+            if progressbar:
+                pbar.set_description(
+                    "Running chain, \u03B1 = %0.2f" % np.mean(self.accepted[-100:])
+                )
+
+            # draw a new proposal, given the previous parameters.
+            proposal = self.proposal.make_proposal(self.chain[-1])
+
+            # create a link from that proposal.
+            proposal_link = self.posterior.create_link(proposal)
+
+            # compute the acceptance probability, which is unique to
+            # the proposal.
+            alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
+
+            # perform Metropolis adjustment.
+            if np.random.random() < alpha:
+                self.chain.append(proposal_link)
+                self.accepted.append(True)
+            else:
+                self.chain.append(self.chain[-1])
+                self.accepted.append(False)
+
+            # adapt the proposal. if the proposal is set to non-adaptive,
+            # this has no effect.
+            self.proposal.adapt(
+                parameters=self.chain[-1].parameters,
+                parameters_previous=self.chain[-2].parameters,
+                accepted=self.accepted,
+                archive=self.shared_archive # only change compared to regular Chain.sample()
+            )
+
+            # new sample to be collected
+            self.new_sample_indicator = True
+            self.new_samples.append(proposal_link)
+
+        # close the progressbar if it was initialised.
+        if progressbar:
+            pbar.close()
+
+        # to match RemoteChain
+        return self
