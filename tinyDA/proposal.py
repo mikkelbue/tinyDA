@@ -40,6 +40,14 @@ class Proposal:
         pass
 
 
+class SharedArchiveProposal(Proposal):
+    def __init__(self):
+        self.shared_archive = None
+
+    def update_archive(self, data):
+        self.shared_archive = data
+
+
 class IndependenceSampler(Proposal):
     """Independence sampler using a proposal distribution q(x).
 
