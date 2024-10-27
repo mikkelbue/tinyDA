@@ -1602,3 +1602,26 @@ class MLDA(Proposal):
             + previous_link_below.posterior
             - proposal_link_below.posterior
         )
+
+
+class DREAM(DREAMZ, SharedArchiveProposal):
+    def __init__(
+        self,
+        M0,
+        delta=1,
+        b=5e-2,
+        b_star=1e-6,
+        Z_method="random",
+        nCR=3,
+        adaptive=False,
+        gamma=1.01,
+        period=100,
+    ):
+        DREAMZ.__init__(self, M0, delta, b, b_star, Z_method, nCR, adaptive, gamma, period)
+        SharedArchiveProposal.__init__(self)
+
+    def adapt(self, **kwargs):
+        # Update shared archive
+        # This results in a duplicate of the last sample of this chain (kwargs["parameters"])
+        self.update_archive(kwargs["archive"])
+        super().adapt(**kwargs)
