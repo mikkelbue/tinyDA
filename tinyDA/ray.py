@@ -443,3 +443,62 @@ class RemoteSharedArchiveChain(Chain):
 
         # to match RemoteChain
         return self
+
+class ParallelSharedArchiveChain:
+    def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
+        # internalise the posterior and proposal.
+        self.posterior = posterior
+        self.proposal = proposal
+
+        # set the number of parallel chains and initial parameters.
+        self.n_chains = n_chains
+
+        # set the initial parameters.
+        self.initial_parameters = initial_parameters
+
+        # initialise Ray.
+        ray.init(ignore_reinit_error=True)
+
+        # set up the parallel chains as Ray actors.
+        self.remote_chains = [
+            RemoteSharedArchiveChain.remote(
+                self.posterior, self.proposal[i], self.initial_parameters[i]
+            )
+            for i in range(self.n_chains)
+        ]
+
+        # initialize shared archive
+        # flat array for now, differentiation of data between chains not necessary
+        self.shared_archive = []
+
+    def sample(self, iterations, progressbar=False):
+        # start sampling
+        processes = [
+            chain.sample.remote(iterations, progressbar) for chain in self.remote_chains
+        ]
+
+        # perioidcally start checking for new samples and for sampling finish
+        ready_ids = []
+        _remaining_ids = processes
+
+        # check if there are any chains that have not yet finished sampling
+        while _remaining_ids:
+            ready_ids, _remaining_ids = ray.wait([processes], timeout=0)
+
+            any_new_data = False
+            for remote_chain in self.remote_chains:
+                # start job to check if new samples are present in remote chain
+                check_ref = remote_chain.new_samples_check.remote()
+                if ray.get(check_ref) is True:
+                    # start job to get new samples from remote chain
+                    values_ref = remote_chain.new_samples_get.remote()
+                    self.shared_archive.append(ray.get(values_ref))
+                    any_new_data = True
+
+            if any_new_data:
+                for remote_chain in self.remote_chains:
+                    # no sync functionality for now, just fire and forget
+                    remote_chain.update_shared_archive.remote()
+
+        # once sampling has concluded on all chains, collect data
+        self.chains = ray.get(ready_ids)
