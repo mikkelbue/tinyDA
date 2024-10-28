@@ -9,8 +9,8 @@ from tinyDA.posterior import Posterior
 from tinyDA.sampler import sample
 from tinyDA.diagnostics import to_inference_data
 
-PRIOR_MEAN = np.array([7, 5])
-PRIOR_COV = np.array([[16, -4], [-4, 16]])
+PRIOR_MEAN = np.array([12, 9])
+PRIOR_COV = np.array([[32, -16], [-16, 32]])
 
 NOISE_SIGMA = 2e-4
 OBSERVED = -1e-3
@@ -27,7 +27,7 @@ ADAPTION_PERIOD = 500
 
 M0 = 1000 # initial archive size
 DELTA = 5 # number of sample pairs to use to compute jump
-NCR = 2 
+NCR = 2
 
 def test_DREAMZ():
     proposal = DREAMZ(
