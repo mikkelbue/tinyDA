@@ -206,6 +206,15 @@ def sample(
                 posteriors, proposal, iterations, n_chains, initial_parameters
             )
         # parallel sampling.
+        elif isinstance(proposal[0], SharedArchiveProposal):
+            samples = _sample_parallel_sa(
+                posteriors,
+                proposal,
+                iterations,
+                n_chains,
+                initial_parameters,
+                force_progress_bar,
+            )
         else:
             samples = _sample_parallel(
                 posteriors,
@@ -312,6 +321,24 @@ def _sample_parallel(
 
     # create a parallel sampling instance and sample.
     chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters)
+    chains.sample(iterations, force_progress_bar)
+
+    info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
+    chains = {"chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)}
+
+    # return the samples.
+    return {**info, **chains}
+
+def _sample_parallel_sa(
+    posteriors,
+    proposal,
+    iterations,
+    n_chains,
+    initial_parameters,
+    force_progress_bar,
+):
+    # create a parallel sampling instance and sample.
+    chains = ParallelSharedArchiveChain(posteriors[0], proposal, n_chains, initial_parameters)
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
