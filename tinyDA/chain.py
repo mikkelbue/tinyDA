@@ -255,7 +255,11 @@ class DAChain:
         )
         self.accepted_coarse.append(True)
         self.is_coarse.append(False)
-
+        # append a link with the initial parameters to promoted_coarse as well
+        # to keep the length compatible with the fine chain
+        self.promoted_coarse.append(
+            self.posterior_coarse.create_link(self.initial_parameters)
+        )       
         # append a link with the initial parameters to the fine chain.
         self.chain_fine.append(self.posterior_fine.create_link(self.initial_parameters))
         self.accepted_fine.append(True)
