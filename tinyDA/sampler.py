@@ -424,8 +424,12 @@ def _get_result_da(
         "chain_fine_{}".format(i): chain.chain_fine for i, chain in enumerate(chains)
     }
 
+    chains_promoted_coarse = {
+        "chain_promoted_coarse_{}".format(i): chain.promoted_coarse for i, chain in enumerate(chains)
+    }
+
     # return eveything.
-    return {**info, **chains_coarse, **chains_fine}
+    return {**info, **chains_coarse, **chains_fine, **chains_promoted_coarse}
 
 def _sample_sequential_mlda(
     posteriors,
