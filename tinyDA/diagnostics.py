@@ -129,7 +129,7 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
         to extract. The default is 'parameters'.
     level : str, optional
-        Which level to extract samples from ('fine', 'coarse').
+        Which level to extract samples from ('fine', 'coarse', 'promoted_coarse').
         If input is single-level MCMC, this parameter is ignored.
         The default is 'fine'.
     burnin : int, optional

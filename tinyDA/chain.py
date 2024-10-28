@@ -360,6 +360,9 @@ class DAChain:
                 self.chain_coarse.append(
                     self.chain_coarse[-(self.subchain_length + 1)]
                 )
+                self.promoted_coarse.append(
+                    self.chain_coarse[-(self.subchain_length + 1)]
+                )
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
 
