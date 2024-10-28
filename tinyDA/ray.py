@@ -1,3 +1,4 @@
+from time import sleep
 import ray
 import warnings
 
@@ -479,11 +480,11 @@ class ParallelSharedArchiveChain:
 
         # perioidcally start checking for new samples and for sampling finish
         ready_ids = []
-        _remaining_ids = processes
+        _remaining_ids = deepcopy(processes)
 
         # check if there are any chains that have not yet finished sampling
         while _remaining_ids:
-            ready_ids, _remaining_ids = ray.wait([processes], timeout=0)
+            ready_ids, _remaining_ids = ray.wait(_remaining_ids, timeout=0)
 
             any_new_data = False
             for remote_chain in self.remote_chains:
@@ -496,9 +497,15 @@ class ParallelSharedArchiveChain:
                     any_new_data = True
 
             if any_new_data:
+                # shared archive can be big in size (>10^5 samples)
+                # -> avoid passing shared archive directly to avoid harming performance
+                archive_ref = ray.put(self.shared_archive)
                 for remote_chain in self.remote_chains:
                     # no sync functionality for now, just fire and forget
-                    remote_chain.update_shared_archive.remote()
+                    remote_chain.update_shared_archive.remote(archive_ref)
+
+            # wait some time before checking again to avoid flooding messages
+            #sleep(0.1)
 
         # once sampling has concluded on all chains, collect data
-        self.chains = ray.get(ready_ids)
+        self.chains = ray.get(processes)
