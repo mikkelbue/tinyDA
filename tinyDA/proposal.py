@@ -1625,3 +1625,6 @@ class DREAM(DREAMZ, SharedArchiveProposal):
         # This results in a duplicate of the last sample of this chain (kwargs["parameters"])
         self.update_archive(kwargs["archive"])
         super().adapt(**kwargs)
+        # To prevend duplication of samples - undo what super().adapt() does to self.Z and self.M
+        self.Z = self.Z[:-1]
+        self.M = self.M - 1
