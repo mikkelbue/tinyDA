@@ -366,32 +366,18 @@ class RemotePosterior:
 
 @ray.remote
 class RemoteSharedArchiveChain(Chain):
-    def __init__(self, posterior, proposal, initial_parameters=None):
+    def __init__(self, posterior, proposal, archive_ref, chain_id, initial_parameters=None):
         if not isinstance(proposal, SharedArchiveProposal):
             raise TypeError("Proposals without a shared archive cannot be used with these chains")
 
+        if not archive_ref:
+            raise Exception("Missing reference for shared archive actor")
+
         super().__init__(posterior, proposal, initial_parameters=None)
         # shared archive with data from all chains
+        self.archive_ref = archive_ref
         self.shared_archive = None
-        # indicator of a new sample to be collected and shared
-        self.new_sample_indicator = False
-        # new samples to be added to the shared archive
-        self.new_samples = []
-
-    # Check if this chain has new samples to be added to the shared archive
-    def new_samples_check(self):
-        return self.new_sample_indicator
-
-    # Add new samples from this chain into the shared archive
-    def new_samples_get(self):
-        new_samples_copy = deepcopy(self.new_samples)
-        self.new_samples = []
-        self.new_sample_indicator = False
-        return new_samples_copy
-
-
-    def update_shared_archive(self, data):
-        self.shared_archive = data
+        self.id = chain_id
 
     def sample(self, iterations, progressbar=True):
         # Set up a progressbar, if required.
@@ -418,13 +404,19 @@ class RemoteSharedArchiveChain(Chain):
             alpha = self.proposal.get_acceptance(proposal_link, self.chain[-1])
 
             # perform Metropolis adjustment.
+            # update shared archive
             if np.random.random() < alpha:
                 self.chain.append(proposal_link)
+                self.archive_ref.update_archive.remote(proposal_link.parameters, self.id)
                 self.accepted.append(True)
             else:
                 self.chain.append(self.chain[-1])
+                self.archive_ref.update_archive.remote(self.chain[-1].parameters, self.id)
                 self.accepted.append(False)
 
+
+            #self.shared_archive = ray.get(self.archive_ref.get_archive.remote())
+            self.shared_archive = ray.get(self.archive_ref.get_last_generation.remote())
             # adapt the proposal. if the proposal is set to non-adaptive,
             # this has no effect.
             self.proposal.adapt(
@@ -434,9 +426,6 @@ class RemoteSharedArchiveChain(Chain):
                 archive=self.shared_archive # only change compared to regular Chain.sample()
             )
 
-            # new sample to be collected
-            self.new_sample_indicator = True
-            self.new_samples.append(proposal_link)
 
         # close the progressbar if it was initialised.
         if progressbar:
@@ -446,6 +435,7 @@ class RemoteSharedArchiveChain(Chain):
         return self
 
 class ParallelSharedArchiveChain:
+
     def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
         # internalise the posterior and proposal.
         self.posterior = posterior
@@ -460,52 +450,80 @@ class ParallelSharedArchiveChain:
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
 
+        # setup archive manager
+        self.archive_manager = ArchiveManager.remote(chain_count=n_chains)
+
         # set up the parallel chains as Ray actors.
         self.remote_chains = [
             RemoteSharedArchiveChain.remote(
-                self.posterior, self.proposal[i], self.initial_parameters[i]
+                self.posterior, self.proposal[i], self.archive_manager, i, self.initial_parameters[i]
             )
             for i in range(self.n_chains)
         ]
 
-        # initialize shared archive
-        # flat array for now, differentiation of data between chains not necessary
-        self.shared_archive = []
+        # timeout in seconds for ray commands
+        self.timeout = 0.5
+
 
     def sample(self, iterations, progressbar=False):
-        # start sampling
+        # initialise sampling on the chains and fetch the results.
         processes = [
             chain.sample.remote(iterations, progressbar) for chain in self.remote_chains
         ]
-
-        # perioidcally start checking for new samples and for sampling finish
-        ready_ids = []
-        _remaining_ids = deepcopy(processes)
-
-        # check if there are any chains that have not yet finished sampling
-        while _remaining_ids:
-            ready_ids, _remaining_ids = ray.wait(_remaining_ids, timeout=0)
-
-            any_new_data = False
-            for remote_chain in self.remote_chains:
-                # start job to check if new samples are present in remote chain
-                check_ref = remote_chain.new_samples_check.remote()
-                if ray.get(check_ref) is True:
-                    # start job to get new samples from remote chain
-                    values_ref = remote_chain.new_samples_get.remote()
-                    self.shared_archive.append(ray.get(values_ref))
-                    any_new_data = True
-
-            if any_new_data:
-                # shared archive can be big in size (>10^5 samples)
-                # -> avoid passing shared archive directly to avoid harming performance
-                archive_ref = ray.put(self.shared_archive)
-                for remote_chain in self.remote_chains:
-                    # no sync functionality for now, just fire and forget
-                    remote_chain.update_shared_archive.remote(archive_ref)
-
-            # wait some time before checking again to avoid flooding messages
-            #sleep(0.1)
-
-        # once sampling has concluded on all chains, collect data
         self.chains = ray.get(processes)
+        #archive = ray.get(self.archive_manager.get_archive.remote())
+        #print(archive)
+
+
+@ray.remote
+class ArchiveManager:
+    def __init__(self, chain_count):
+        # initialize shared archive
+        # flat array for now, differentiation of data between chains not necessary
+        self.shared_archive = [None] * chain_count
+        self.chain_count = chain_count
+
+    # Update archive contents
+    def update_archive(self, sample, chain_id):
+        # archive is 3D
+        # dim0 - chains (static size - number of chains)
+        # dim1 - chain (variable size depending on chain)
+        # dim2 - parameters (sample)
+        # because dim1's size is variable - list of ndarrays
+        # dim0 - list, dim1 and dim2 - ndarray
+
+        chain_archive = self.shared_archive[chain_id]
+
+        # initialize array
+        if chain_archive is None:
+            chain_archive = np.array(sample)
+
+        # update the whole collection
+        self.shared_archive[chain_id] = np.vstack((chain_archive, sample))
+
+    # Get archive contents
+    def get_archive(self):
+        # flatten chains
+        flattened_archives = []
+        for chain_archive in self.shared_archive:
+            if chain_archive is not None:
+                flattened_archives.append(chain_archive)
+
+        # turn into one flat array
+        return np.concatenate(flattened_archives)
+
+    def get_last_generation(self):
+        last_generation = None
+        for chain_archive in self.shared_archive:
+            if chain_archive is not None:
+                # if its the first element, initialize the structure
+                if last_generation is None:
+                    last_generation = np.array(chain_archive[-1, :])
+                else:
+                    last_generation = np.vstack((last_generation, chain_archive[-1, :]))
+
+        # if less than 3 shapes are present, temporarily use all samples
+        if last_generation.shape[0] < 3:
+            return self.get_archive()
+        
+        return last_generation
