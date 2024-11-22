@@ -8,6 +8,7 @@ from scipy.linalg import sqrtm
 import scipy.stats as stats
 from scipy.optimize import approx_fprime
 from scipy.stats import gaussian_kde
+import ray
 
 # internal imports
 from .utils import RecursiveSampleMoments, grad_log_p, grad_log_l
@@ -42,10 +43,26 @@ class Proposal:
 
 class SharedArchiveProposal(Proposal):
     def __init__(self):
-        self.shared_archive = None
+        # so that the archive can tell what chain is the sample's origin
+        self.id = None
+        self.archive_reference = None
 
-    def update_archive(self, data):
-        self.shared_archive = data
+    def set_id(self, proposal_id):
+        self.id = proposal_id
+
+    def link_archive(self, archive_reference):
+        self.archive_reference = archive_reference
+
+    def read_archive(self):
+        # to get the value and block the thread until its ready
+        archive = ray.get(self.archive_reference.get_archive.remote())
+        #print(len(archive)) #debug
+        return archive
+
+    def update_archive(self, params):
+        # ray.get here to wait for the sample to be added
+        # if there was no ray.get, this sample could be excluded from the next read_archive call in the same chain
+        ray.get(self.archive_reference.update_archive.remote(params, self.id))
 
 
 class IndependenceSampler(Proposal):
