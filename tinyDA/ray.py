@@ -1,11 +1,9 @@
-from time import sleep
 import ray
 import warnings
 
 from itertools import compress
 import numpy as np
 from scipy.special import logsumexp
-from tqdm import tqdm
 
 from .chain import Chain, DAChain, MLDAChain
 from .proposal import *
