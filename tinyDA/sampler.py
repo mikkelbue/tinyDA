@@ -167,6 +167,14 @@ def sample(
             "Proposal must be tinyDA.PoissonPointProposal for tinyDA.PoissonPointProcess prior."
         )
 
+    # if proposal is using a shared archive, add setup the shared archive and pass the reference to the proposal
+    if isinstance(proposal, SharedArchiveProposal):
+        # create archive manager
+        archive_manager = ArchiveManager.remote(chain_count=n_chains)
+        # link it to the proposal
+        proposal.link_archive(archive_manager)
+
+
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
 
     # raise a warning if there are more than two levels (not implemented yet).
