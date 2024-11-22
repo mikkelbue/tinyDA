@@ -177,6 +177,11 @@ def sample(
 
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
 
+    # add unique IDs from 0 to n_chains - 1 to allow archive to identify samples
+    # no effect on non-shared archive proposals
+    if isinstance(proposal[0], SharedArchiveProposal):
+        for id, prop in enumerate(proposal):
+            prop.set_id(id)
     # raise a warning if there are more than two levels (not implemented yet).
     if n_levels > 2 and adaptive_error_model == "state-dependent":
         warnings.warn(
