@@ -1639,10 +1639,10 @@ class DREAM(DREAMZ, SharedArchiveProposal):
 
     def adapt(self, **kwargs):
         # Update shared archive
-        self.update_archive(kwargs["archive"])
-        if self.shared_archive is not None:
-            self.Z = self.shared_archive
-            self.M = self.Z.shape[0]
+        self.update_archive(kwargs["parameters"])
+        # Get the up-to-date archive
+        # Last sample from this chain will be included because update_archive blocks this thread
+        self.Z = self.read_archive()
         super().adapt(**kwargs)
         # To prevend duplication of samples - undo what super().adapt() does to self.Z and self.M
         self.Z = self.Z[:-1]
