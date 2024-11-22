@@ -379,7 +379,8 @@ class ArchiveManager:
         # dim1 - chain (variable size depending on chain)
         # dim2 - parameters (sample)
         # because dim1's size is variable - list of ndarrays
-        # dim0 - list, dim1 and dim2 - ndarray
+        # dim0 - list
+        # dim1, dim2 - ndarray
 
         chain_archive = self.shared_archive[chain_id]
 
@@ -411,7 +412,7 @@ class ArchiveManager:
                 else:
                     last_generation = np.vstack((last_generation, chain_archive[-1, :]))
 
-        # if less than 3 shapes are present, temporarily use all samples
+        # if less than 3 samples are present, temporarily use all samples
         if last_generation.shape[0] < 3:
             return self.get_archive()
         
