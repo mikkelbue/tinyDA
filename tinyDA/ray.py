@@ -364,11 +364,12 @@ class RemotePosterior:
 
 @ray.remote
 class ArchiveManager:
-    def __init__(self, chain_count):
+    def __init__(self, chain_count, data_len):
         # initialize shared archive
         # flat array for now, differentiation of data between chains not necessary
         self.shared_archive = [None] * chain_count
         self.chain_count = chain_count
+        self.data_len = data_len
 
     # Update archive contents
     def update_archive(self, sample, chain_id):
@@ -398,6 +399,9 @@ class ArchiveManager:
                 flattened_archives.append(chain_archive)
 
         # turn into one flat array
+        # if array is empty - return empty array
+        if not flattened_archives:
+            return np.empty((0, self.data_len))
         return np.concatenate(flattened_archives)
 
     def get_last_generation(self):
