@@ -1635,13 +1635,19 @@ class DREAM(DREAMZ, SharedArchiveProposal):
         DREAMZ.__init__(self, M0, delta, b, b_star, Z_method, nCR, adaptive, gamma, period)
         SharedArchiveProposal.__init__(self)
 
+    def setup_proposal(self, **kwargs):
+        super().setup_proposal(**kwargs)
+        # Make a copy of the initial archive
+        self.ZL = deepcopy(self.Z)
+
+
     def adapt(self, **kwargs):
+        # Get the up-to-date archive
+        Z_s = self.read_archive()
+        # Total archive is shared archive + initial archive
+        self.Z = np.concatenate((Z_s, self.ZL))
+
+        super().adapt(**kwargs)
+
         # Update shared archive
         self.update_archive(kwargs["parameters"])
-        # Get the up-to-date archive
-        # Last sample from this chain will be included because update_archive blocks this thread
-        self.Z = self.read_archive()
-        super().adapt(**kwargs)
-        # To prevend duplication of samples - undo what super().adapt() does to self.Z and self.M
-        self.Z = self.Z[:-1]
-        self.M = self.M - 1
