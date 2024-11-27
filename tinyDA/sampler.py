@@ -169,8 +169,10 @@ def sample(
 
     # if proposal is using a shared archive, add setup the shared archive and pass the reference to the proposal
     if isinstance(proposal, SharedArchiveProposal):
+        # get model output size
+        size = posteriors[0].prior.rvs().size
         # create archive manager
-        archive_manager = ArchiveManager.remote(chain_count=n_chains)
+        archive_manager = ArchiveManager.remote(chain_count=n_chains, data_len=size)
         # link it to the proposal
         proposal.link_archive(archive_manager)
 
