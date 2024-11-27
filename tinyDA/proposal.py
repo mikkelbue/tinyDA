@@ -1640,12 +1640,11 @@ class DREAM(DREAMZ, SharedArchiveProposal):
         # Make a copy of the initial archive
         self.ZL = deepcopy(self.Z)
 
-
     def adapt(self, **kwargs):
         # Get the up-to-date archive
-        Z_s = self.read_archive()
+        ZS = self.read_archive()
         # Total archive is shared archive + initial archive
-        self.Z = np.concatenate((Z_s, self.ZL))
+        self.Z = np.concatenate((ZS, self.ZL))
 
         super().adapt(**kwargs)
 
