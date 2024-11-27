@@ -60,9 +60,7 @@ class SharedArchiveProposal(Proposal):
         return archive
 
     def update_archive(self, params):
-        # ray.get here to wait for the sample to be added
-        # if there was no ray.get, this sample could be excluded from the next read_archive call in the same chain
-        ray.get(self.archive_reference.update_archive.remote(params, self.id))
+        self.archive_reference.update_archive.remote(params, self.id)
 
 
 class IndependenceSampler(Proposal):
