@@ -1641,16 +1641,15 @@ class DREAM(DREAMZ, SharedArchiveProposal):
 
     def setup_proposal(self, **kwargs):
         super().setup_proposal(**kwargs)
-        # Make a copy of the initial archive
-        self.ZL = deepcopy(self.Z)
+        # Sync initial local archive with shared archive
+        for sample in self.Z:
+            self.update_archive(sample)
 
     def adapt(self, **kwargs):
-        # Get the up-to-date archive
-        ZS = self.read_archive()
-        # Total archive is shared archive + initial archive
-        self.Z = np.concatenate((ZS, self.ZL))
-
         super().adapt(**kwargs)
-
         # Update shared archive
         self.update_archive(kwargs["parameters"])
+
+    def make_proposal(self, link):
+        Z = self.read_archive()
+        return super().make_proposal(link, Z)
