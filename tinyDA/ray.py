@@ -404,18 +404,18 @@ class ArchiveManager:
             return np.empty((0, self.data_len))
         return np.concatenate(flattened_archives)
 
-    def get_last_generation(self):
-        last_generation = None
-        for chain_archive in self.shared_archive:
-            if chain_archive is not None:
-                # if its the first element, initialize the structure
-                if last_generation is None:
-                    last_generation = np.array(chain_archive[-1, :])
-                else:
-                    last_generation = np.vstack((last_generation, chain_archive[-1, :]))
-
-        # if less than 3 samples are present, temporarily use all samples
-        if last_generation.shape[0] < 3:
-            return self.get_archive()
-        
-        return last_generation
+    #def get_last_generation(self):
+    #    last_generation = None
+    #    for chain_archive in self.shared_archive:
+    #        if chain_archive is not None:
+    #            # if its the first element, initialize the structure
+    #            if last_generation is None:
+    #                last_generation = np.array(chain_archive[-1, :])
+    #            else:
+    #                last_generation = np.vstack((last_generation, chain_archive[-1, :]))
+    #
+    #    # if less than 3 samples are present, temporarily use all samples
+    #    if last_generation.shape[0] < 3:
+    #        return self.get_archive()
+    #    
+    #    return last_generation
