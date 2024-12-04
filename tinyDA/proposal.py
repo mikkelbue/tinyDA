@@ -56,7 +56,6 @@ class SharedArchiveProposal(Proposal):
     def read_archive(self):
         # to get the value and block the thread until its ready
         archive = ray.get(self.archive_reference.get_archive.remote())
-        #print(len(archive)) #debug
         return archive
 
     def update_archive(self, params):
