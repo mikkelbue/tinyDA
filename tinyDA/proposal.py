@@ -808,7 +808,12 @@ class DREAMZ(GaussianRandomWalk):
                 DeltaCR_mean = self.DeltaCR / self.LCR
                 self.pCR = DeltaCR_mean / DeltaCR_mean.sum()
 
-    def make_proposal(self, link):
+    def make_proposal(self, link, Z=None):
+
+        # get the local archive if Z isn't provided.
+        if Z is None:
+            Z = self.Z
+
         # initialise the jump vectors.
         Z_r1 = np.zeros(self.d)
         Z_r2 = np.zeros(self.d)
@@ -816,8 +821,8 @@ class DREAMZ(GaussianRandomWalk):
         # get jump vector components.
         for i in range(self.delta):
             r1, r2 = np.random.choice(self.M, 2, replace=False)
-            Z_r1 += self.Z[r1, :]
-            Z_r2 += self.Z[r2, :]
+            Z_r1 += Z[r1, :]
+            Z_r2 += Z[r2, :]
 
         # randomly choose crossover probability.
         self.mCR = np.random.choice(self.nCR, p=self.pCR)
