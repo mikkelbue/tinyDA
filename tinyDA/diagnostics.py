@@ -208,7 +208,7 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
     # return the samples.
     return samples
 
-def DA_estimator(chain, attribute="qoi", burnin=0):
+def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
     # compose unbiased Monte-Carlo estimator for Delayed Acceptance,
     # as derived in Lykkegaard et al. 2023
     inferencedata_coarse = to_inference_data(chain, level='coarse', burnin=burnin)
@@ -227,7 +227,7 @@ def DA_estimator(chain, attribute="qoi", burnin=0):
 
     qoi_fine_corr = qoi1 - qoi2
 
-    mean_fine_corr = az.summary(qoi_fine_corr, var_names=["x0"]).loc["x0", "mean"]
-    mean_coarse = az.summary(inferencedata_coarse, var_names=["x0"]).loc["x0", "mean"]
+    mean_fine_corr = az.summary(qoi_fine_corr, var_names=[variable]).loc[variable, "mean"]
+    mean_coarse = az.summary(inferencedata_coarse, var_names=[variable]).loc[variable, "mean"]
     # return sum of means 
     return mean_coarse+mean_fine_corr
