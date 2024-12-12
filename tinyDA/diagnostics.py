@@ -209,8 +209,30 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
     return samples
 
 def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
-    # compose unbiased Monte-Carlo estimator for Delayed Acceptance,
-    # as derived in Lykkegaard et al. 2023
+    '''Computes the unbiased Monte-Carlo estimator for Delayed Acceptance (two-level),
+    as derived in Lykkegaard et al. 2023.
+
+    Parameters
+    ----------
+    chain : dict
+        A dict as returned by tinyDA.sample, containing chain information
+        and lists of tinyDA.Link instances.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
+        to extract. The default is 'parameters'.
+    variable : str, optional
+        Which variable of the posterior or qoi to marginalize over.
+    burnin : int, optional
+        The burnin length. The default is 0.
+
+    Returns
+    ----------
+    float
+        Outpu of the estimator computation.
+
+    '''
+
+
     inferencedata_coarse = to_inference_data(chain, level='coarse', burnin=burnin)
     inferencedata_coarse_promoted = to_inference_data(chain, level='promoted_coarse', burnin=burnin)
     inferencedata_fine = to_inference_data(chain, level='fine', burnin=burnin)
