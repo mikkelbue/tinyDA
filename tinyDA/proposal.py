@@ -1316,6 +1316,7 @@ class MLDA(Proposal):
         initial_parameters,
         adaptive_error_model,
         store_coarse_chain,
+        randomize_subchain_length,
     ):
         """
         Parameters
@@ -1335,6 +1336,11 @@ class MLDA(Proposal):
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        radomize_subchain_length : bool, default is false.
+            If set "True", the subchain lenght will be sampled from a 
+            uniform distribution [1, subchain length] at every level. This 
+            is needed for computing the unbiased multilevel Monte Carlo 
+            estimator (see Lykkegaard 2023).
         """
 
         # internalise the current level posterior and set the level.
@@ -1346,6 +1352,7 @@ class MLDA(Proposal):
         self.chain = []
         self.accepted = []
         self.is_local = []
+        self.promoted = []
 
         # create a link from the initial parameters and write to the histories.
         self.chain.append(self.posterior.create_link(self.initial_parameters))
@@ -1358,9 +1365,12 @@ class MLDA(Proposal):
         # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
 
+        # set whether to randomize the subchain length
+        self.randomize_subchain_lenght = randomize_subchain_length
+
         # if this level is not the coarsest level.
         if self.level > 0:
-            # internalise the subchain length.
+            # internalise the subchain length. If randomize_subchain_lenght
             self.subchain_length = subchain_lengths[-1]
 
             # set MDLA as the proposal on the next-coarser level.
@@ -1371,6 +1381,7 @@ class MLDA(Proposal):
                 self.initial_parameters,
                 self.adaptive_error_model,
                 self.store_coarse_chain,
+                self.randomize_subchain_lenght,
             )
 
             # set the current level make_proposal method to MLDA.
@@ -1594,3 +1605,5 @@ class MLDA(Proposal):
             + previous_link_below.posterior
             - proposal_link_below.posterior
         )
+    
+    
