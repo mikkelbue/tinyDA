@@ -381,14 +381,8 @@ class ArchiveManager:
 
     # Get archive contents
     def get_archive(self):
-        # flatten chains
-        flattened_archives = []
-        for chain_archive in self.shared_archive:
-            if chain_archive is not None:
-                flattened_archives.append(chain_archive)
-
-        # turn into one flat array
-        # if array is empty - return empty array
-        if not flattened_archives:
-            return np.empty((0, self.data_len))
-        return np.concatenate(flattened_archives)
+        try:
+            return np.concatenate(self.shared_archive)
+        except ValueError:
+            valid_achives = [a for a in self.shared_archive if a is not None]
+            return np.concatenate(valid_achives)
