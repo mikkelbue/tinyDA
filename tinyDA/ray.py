@@ -364,7 +364,7 @@ class RemotePosterior:
 
 @ray.remote
 class ArchiveManager:
-    def __init__(self, chain_count, data_len):
+    def __init__(self, chain_count):
         # separate collection for each chain
         self.shared_archive = [None] * chain_count
         self.chain_count = chain_count
