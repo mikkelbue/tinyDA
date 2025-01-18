@@ -43,7 +43,7 @@ class Proposal:
 
 class SharedArchiveProposal(Proposal):
     def __init__(self):
-        # so that the archive can tell what chain is the sample's origin
+        # so that the archive can tell what sampler the sample belongs to
         self.id = None
         self.archive_reference = None
 
@@ -54,7 +54,7 @@ class SharedArchiveProposal(Proposal):
         self.archive_reference = archive_reference
 
     def read_archive(self):
-        # to get the value and block the thread until its ready
+        # get the value and block the thread until ready
         archive = ray.get(self.archive_reference.get_archive.remote())
         return archive
 
