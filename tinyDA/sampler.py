@@ -167,23 +167,19 @@ def sample(
             "Proposal must be tinyDA.PoissonPointProposal for tinyDA.PoissonPointProcess prior."
         )
 
-    # if proposal is using a shared archive, add setup the shared archive and pass the reference to the proposal
+    # if proposal is using a shared archive, initialize the shared archive and pass the reference to the proposal
     if isinstance(proposal, SharedArchiveProposal):
-        # get model output size
-        size = posteriors[0].prior.rvs().size
-        # create archive manager
-        archive_manager = ArchiveManager.remote(chain_count=n_chains, data_len=size)
-        # link it to the proposal
+        archive_manager = ArchiveManager.remote(chain_count=n_chains)
         proposal.link_archive(archive_manager)
 
 
     proposal = [copy.deepcopy(proposal) for i in range(n_chains)]
 
-    # add unique IDs from 0 to n_chains - 1 to allow archive to identify samples
-    # no effect on non-shared archive proposals
+    # if proposal is using a shared archive, add unique IDs to each prpoposal - allow archive to identify samples
     if isinstance(proposal[0], SharedArchiveProposal):
-        for id, prop in enumerate(proposal):
-            prop.set_id(id)
+        for prop_id, prop in enumerate(proposal):
+            prop.set_id(prop_id)
+
     # raise a warning if there are more than two levels (not implemented yet).
     if n_levels > 2 and adaptive_error_model == "state-dependent":
         warnings.warn(
