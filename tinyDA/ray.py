@@ -365,13 +365,10 @@ class RemotePosterior:
 @ray.remote
 class ArchiveManager:
     def __init__(self, chain_count, data_len):
-        # initialize shared archive
-        # flat array for now, differentiation of data between chains not necessary
+        # separate collection for each chain
         self.shared_archive = [None] * chain_count
         self.chain_count = chain_count
-        self.data_len = data_len
 
-    # Update archive contents
     def update_archive(self, sample, chain_id):
         # update the whole collection
         try:
@@ -379,7 +376,6 @@ class ArchiveManager:
         except ValueError:
             self.shared_archive[chain_id] = sample
 
-    # Get archive contents
     def get_archive(self):
         try:
             return np.concatenate(self.shared_archive)
