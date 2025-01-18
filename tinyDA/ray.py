@@ -373,49 +373,16 @@ class ArchiveManager:
 
     # Update archive contents
     def update_archive(self, sample, chain_id):
-        # archive is 3D
-        # dim0 - chains (static size - number of chains)
-        # dim1 - chain (variable size depending on chain)
-        # dim2 - parameters (sample)
-        # because dim1's size is variable - list of ndarrays
-        # dim0 - list
-        # dim1, dim2 - ndarray
-
-        chain_archive = self.shared_archive[chain_id]
-
-        # initialize array
-        if chain_archive is None:
-            chain_archive = np.array(sample)
-
         # update the whole collection
-        self.shared_archive[chain_id] = np.vstack((chain_archive, sample))
+        try:
+            self.shared_archive[chain_id] = np.vstack((self.shared_archive[chain_id], sample))
+        except ValueError:
+            self.shared_archive[chain_id] = sample
 
     # Get archive contents
     def get_archive(self):
-        # flatten chains
-        flattened_archives = []
-        for chain_archive in self.shared_archive:
-            if chain_archive is not None:
-                flattened_archives.append(chain_archive)
-
-        # turn into one flat array
-        # if array is empty - return empty array
-        if not flattened_archives:
-            return np.empty((0, self.data_len))
-        return np.concatenate(flattened_archives)
-
-    #def get_last_generation(self):
-    #    last_generation = None
-    #    for chain_archive in self.shared_archive:
-    #        if chain_archive is not None:
-    #            # if its the first element, initialize the structure
-    #            if last_generation is None:
-    #                last_generation = np.array(chain_archive[-1, :])
-    #            else:
-    #                last_generation = np.vstack((last_generation, chain_archive[-1, :]))
-    #
-    #    # if less than 3 samples are present, temporarily use all samples
-    #    if last_generation.shape[0] < 3:
-    #        return self.get_archive()
-    #    
-    #    return last_generation
+        try:
+            return np.concatenate(self.shared_archive)
+        except ValueError:
+            valid_achives = [a for a in self.shared_archive if a is not None]
+            return np.concatenate(valid_achives)
