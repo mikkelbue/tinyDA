@@ -373,22 +373,11 @@ class ArchiveManager:
 
     # Update archive contents
     def update_archive(self, sample, chain_id):
-        # archive is 3D
-        # dim0 - chains (static size - number of chains)
-        # dim1 - chain (variable size depending on chain)
-        # dim2 - parameters (sample)
-        # because dim1's size is variable - list of ndarrays
-        # dim0 - list
-        # dim1, dim2 - ndarray
-
-        chain_archive = self.shared_archive[chain_id]
-
-        # initialize array
-        if chain_archive is None:
-            chain_archive = np.array(sample)
-
         # update the whole collection
-        self.shared_archive[chain_id] = np.vstack((chain_archive, sample))
+        try:
+            self.shared_archive[chain_id] = np.vstack((self.shared_archive[chain_id], sample))
+        except ValueError:
+            self.shared_archive[chain_id] = sample
 
     # Get archive contents
     def get_archive(self):
