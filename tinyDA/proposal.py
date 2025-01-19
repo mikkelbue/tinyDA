@@ -813,6 +813,7 @@ class DREAMZ(GaussianRandomWalk):
         # get the local archive if Z isn't provided.
         if Z is None:
             Z = self.Z
+        M = Z.shape[0]
 
         # initialise the jump vectors.
         Z_r1 = np.zeros(self.d)
@@ -820,7 +821,7 @@ class DREAMZ(GaussianRandomWalk):
 
         # get jump vector components.
         for i in range(self.delta):
-            r1, r2 = np.random.choice(self.M, 2, replace=False)
+            r1, r2 = np.random.choice(M, 2, replace=False)
             Z_r1 += Z[r1, :]
             Z_r2 += Z[r2, :]
 
