@@ -25,7 +25,7 @@ author = 'Mikkel Bue Lykkegaard, Sai-Aakash Ramesh, Louise Kluge, Ondřej Šimů
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '0.9.20'
+release = '0.9.21'
 
 
 # -- General configuration ---------------------------------------------------
