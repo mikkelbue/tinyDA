@@ -206,7 +206,7 @@ def sample(
         else:
             raise TypeError("Initial paramaters must be list, numpy array or None")
     else:
-        initial_parameters = [None] * n_chains
+        initial_parameters = [posteriors[0].prior.rvs() for i in range(n_chains)]
 
     # start the appropriate sampling algorithm.
     # "vanilla" MCMC
