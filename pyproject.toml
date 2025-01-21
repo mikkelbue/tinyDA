@@ -1,4 +1,4 @@
-[tool.poetry]`
+[tool.poetry]
 name = "tinyda"
 version = "0.9.21"
 description = "Delayed Acceptance MCMC Sampler"
