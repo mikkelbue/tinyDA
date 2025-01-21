@@ -20,7 +20,7 @@ sys.path.insert(0, '..')
 
 project = 'tinyDA'
 copyright = '2021, Mikkel Bue Lykkegaard'
-author = 'Mikkel Bue Lykkegaard, Sai-Aakash Ramesh, Louise Kluge'
+author = 'Mikkel Bue Lykkegaard, Sai-Aakash Ramesh, Louise Kluge, Ondřej Šimůnek, Jan Brezina'
 
 # The short X.Y version
 version = ''
