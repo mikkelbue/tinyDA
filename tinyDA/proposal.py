@@ -8,6 +8,7 @@ from scipy.linalg import sqrtm
 import scipy.stats as stats
 from scipy.optimize import approx_fprime
 from scipy.stats import gaussian_kde
+import ray
 
 # internal imports
 from .utils import RecursiveSampleMoments, grad_log_p, grad_log_l
@@ -38,6 +39,27 @@ class Proposal:
 
     def get_q(self, x_link, y_link):
         pass
+
+
+class SharedArchiveProposal(Proposal):
+    def __init__(self):
+        # so that the archive can tell what sampler the sample belongs to
+        self.id = None
+        self.archive_reference = None
+
+    def set_id(self, proposal_id):
+        self.id = proposal_id
+
+    def link_archive(self, archive_reference):
+        self.archive_reference = archive_reference
+
+    def read_archive(self):
+        # get the value and block the thread until ready
+        archive = ray.get(self.archive_reference.get_archive.remote())
+        return archive
+
+    def update_archive(self, params):
+        self.archive_reference.update_archive.remote(params, self.id)
 
 
 class IndependenceSampler(Proposal):
@@ -786,16 +808,22 @@ class DREAMZ(GaussianRandomWalk):
                 DeltaCR_mean = self.DeltaCR / self.LCR
                 self.pCR = DeltaCR_mean / DeltaCR_mean.sum()
 
-    def make_proposal(self, link):
+    def make_proposal(self, link, Z=None):
+
+        # get the local archive if Z isn't provided.
+        if Z is None:
+            Z = self.Z
+        M = Z.shape[0]
+
         # initialise the jump vectors.
         Z_r1 = np.zeros(self.d)
         Z_r2 = np.zeros(self.d)
 
         # get jump vector components.
         for i in range(self.delta):
-            r1, r2 = np.random.choice(self.M, 2, replace=False)
-            Z_r1 += self.Z[r1, :]
-            Z_r2 += self.Z[r2, :]
+            r1, r2 = np.random.choice(M, 2, replace=False)
+            Z_r1 += Z[r1, :]
+            Z_r2 += Z[r2, :]
 
         # randomly choose crossover probability.
         self.mCR = np.random.choice(self.nCR, p=self.pCR)
@@ -1594,3 +1622,35 @@ class MLDA(Proposal):
             + previous_link_below.posterior
             - proposal_link_below.posterior
         )
+
+
+class DREAM(DREAMZ, SharedArchiveProposal):
+    def __init__(
+        self,
+        M0,
+        delta=1,
+        b=5e-2,
+        b_star=1e-6,
+        Z_method="random",
+        nCR=3,
+        adaptive=False,
+        gamma=1.01,
+        period=100,
+    ):
+        DREAMZ.__init__(self, M0, delta, b, b_star, Z_method, nCR, adaptive, gamma, period)
+        SharedArchiveProposal.__init__(self)
+
+    def setup_proposal(self, **kwargs):
+        super().setup_proposal(**kwargs)
+        # Sync initial local archive with shared archive
+        for sample in self.Z:
+            self.update_archive(sample)
+
+    def adapt(self, **kwargs):
+        super().adapt(**kwargs)
+        # Update shared archive
+        self.update_archive(kwargs["parameters"])
+
+    def make_proposal(self, link):
+        Z = self.read_archive()
+        return super().make_proposal(link, Z)
