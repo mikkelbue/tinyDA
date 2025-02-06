@@ -236,19 +236,19 @@ def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
     inferencedata_coarse_promoted = to_inference_data(chain, level='promoted_coarse', burnin=burnin)
     inferencedata_fine = to_inference_data(chain, level='fine', burnin=burnin)
 
-    qoi1 = 0
-    qoi2 = 0
+    values_coarse_promoted = 0
+    values_fine = 0
 
     if attribute=="qoi":
-        qoi1 = inferencedata_coarse_promoted.qoi
-        qoi2 = inferencedata_fine.qoi
+        values_coarse_promoted = inferencedata_coarse_promoted.qoi
+        values_fine = inferencedata_fine.qoi
     if attribute=="posterior":
-        qoi1 = inferencedata_coarse_promoted.posterior
-        qoi2 = inferencedata_fine.posterior
+        values_coarse_promoted = inferencedata_coarse_promoted.posterior
+        values_fine = inferencedata_fine.posterior
 
-    qoi_fine_corr = qoi1 - qoi2
+    values_difference = values_coarse_promoted - values_fine
 
-    mean_fine_corr = az.summary(qoi_fine_corr, var_names=[variable]).loc[variable, "mean"]
+    mean_difference = az.summary(values_difference, var_names=[variable]).loc[variable, "mean"]
     mean_coarse = az.summary(inferencedata_coarse, var_names=[variable]).loc[variable, "mean"]
     # return sum of means 
-    return mean_coarse+mean_fine_corr
+    return mean_coarse+mean_difference
