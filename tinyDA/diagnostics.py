@@ -20,7 +20,7 @@ def to_inference_data(chain, level="fine", burnin=0, parameter_names=None):
     burnin : int, optional
         The burnin length. The default is 0.
     parameter_names : list, optional
-        List of the names of the parameters in the chain, in the same order 
+        List of the names of the parameters in the chain, in the same order
         as they appear in each link. Default is None, meaning that
         parameters will be named [x1, x2, ...].
 
@@ -149,8 +149,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         "attribute": attribute,
     }
 
-    if attribute == 'stats':
-        getattribute = lambda link, attribute: np.array([link.prior, link.likelihood, link.posterior])
+    if attribute == "stats":
+        getattribute = lambda link, attribute: np.array(
+            [link.prior, link.likelihood, link.posterior]
+        )
     else:
         getattribute = lambda link, attribute: getattr(link, attribute)
 
@@ -159,7 +161,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         # extract link attribute.
         for i in range(chain["n_chains"]):
             samples["chain_{}".format(i)] = np.array(
-                [getattribute(link, attribute) for link in chain["chain_{}".format(i)][burnin:]]
+                [
+                    getattribute(link, attribute)
+                    for link in chain["chain_{}".format(i)][burnin:]
+                ]
             )
 
     # if the input is a Delayed Acceptance chain.
@@ -176,7 +181,6 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
                     for link in chain["chain_{}_{}".format(level, i)][burnin:]
                 ]
             )
-
 
         # if the input is a Delayed Acceptance chain.
     elif chain["sampler"] == "MLDA":
@@ -208,8 +212,9 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
     # return the samples.
     return samples
 
+
 def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
-    '''Computes the unbiased Monte-Carlo estimator for Delayed Acceptance (two-level),
+    """Computes the unbiased Monte-Carlo estimator for Delayed Acceptance (two-level),
     as derived in Lykkegaard et al. 2023.
 
     Parameters
@@ -230,28 +235,32 @@ def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
     float
         Outpu of the estimator computation.
 
-    '''
+    """
 
-    inferencedata_coarse = to_inference_data(chain, level='coarse', burnin=burnin)
-    inferencedata_coarse_promoted = to_inference_data(chain, level='promoted_coarse', burnin=burnin)
-    inferencedata_fine = to_inference_data(chain, level='fine', burnin=burnin)
+    inferencedata_coarse = to_inference_data(chain, level="coarse", burnin=burnin)
+    inferencedata_coarse_promoted = to_inference_data(
+        chain, level="promoted_coarse", burnin=burnin
+    )
+    inferencedata_fine = to_inference_data(chain, level="fine", burnin=burnin)
 
-<<<<<<< HEAD
     values_coarse_promoted = 0
     values_fine = 0
+    values_coarse = 0
 
-=======
->>>>>>> b8762e97fbb18964f1db86115cc0d147f4a5b0ca
-    if attribute=="qoi":
+    if attribute == "qoi":
         values_coarse_promoted = inferencedata_coarse_promoted.qoi
         values_fine = inferencedata_fine.qoi
-    if attribute=="posterior":
+        values_coarse = inferencedata_coarse.qoi
+    if attribute == "posterior":
         values_coarse_promoted = inferencedata_coarse_promoted.posterior
         values_fine = inferencedata_fine.posterior
+        values_coarse = inferencedata_coarse.posterior
 
     values_difference = values_coarse_promoted - values_fine
 
-    mean_difference = az.summary(values_difference, var_names=[variable]).loc[variable, "mean"]
-    mean_coarse = az.summary(inferencedata_coarse, var_names=[variable]).loc[variable, "mean"]
-    # return sum of means 
-    return mean_coarse+mean_difference
+    mean_difference = az.summary(values_difference, var_names=[variable]).loc[
+        variable, "mean"
+    ]
+    mean_coarse = az.summary(values_coarse, var_names=[variable]).loc[variable, "mean"]
+    # return sum of means
+    return mean_coarse + mean_difference
