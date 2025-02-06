@@ -109,9 +109,10 @@ def sample(
         arviz.InferenceData object.
     """
 
-
     if subsampling_rate is not None:
-        warnings.warn(" subsampling_rate has been deprecated in favour of subchain_length.")
+        warnings.warn(
+            " subsampling_rate has been deprecated in favour of subchain_length."
+        )
         subchain_length = subsampling_rate
 
     # get the availability flag.
@@ -326,7 +327,9 @@ def _sample_parallel(
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
-    chains = {"chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)}
+    chains = {
+        "chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)
+    }
 
     # return the samples.
     return {**info, **chains}
@@ -403,6 +406,7 @@ def _sample_parallel_da(
 
     return result
 
+
 def _get_result_da(
     chains,
     iterations,
@@ -435,8 +439,14 @@ def _get_result_da(
         "chain_fine_{}".format(i): chain.chain_fine for i, chain in enumerate(chains)
     }
 
+    chains_promoted_coarse = {
+        "chain_promoted_coarse_{}".format(i): chain.promoted_coarse
+        for i, chain in enumerate(chains)
+    }
+
     # return eveything.
-    return {**info, **chains_coarse, **chains_fine}
+    return {**info, **chains_coarse, **chains_fine, **chains_promoted_coarse}
+
 
 def _sample_sequential_mlda(
     posteriors,
@@ -468,7 +478,9 @@ def _sample_sequential_mlda(
         )
         chains[i].sample(iterations)
 
-    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+    result = _get_result_mlda(
+        chains, levels, iterations, subchain_lengths, store_coarse_chain
+    )
 
     return result
 
@@ -503,9 +515,12 @@ def _sample_parallel_mlda(
     parallel_chain.sample(iterations, force_progress_bar)
     chains = parallel_chain.chains
 
-    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+    result = _get_result_mlda(
+        chains, levels, iterations, subchain_lengths, store_coarse_chain
+    )
 
     return result
+
 
 def _get_result_mlda(
     chains,
