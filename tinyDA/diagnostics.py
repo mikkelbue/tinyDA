@@ -236,9 +236,12 @@ def DA_estimator(chain, attribute="qoi", variable="x0", burnin=0):
     inferencedata_coarse_promoted = to_inference_data(chain, level='promoted_coarse', burnin=burnin)
     inferencedata_fine = to_inference_data(chain, level='fine', burnin=burnin)
 
+<<<<<<< HEAD
     values_coarse_promoted = 0
     values_fine = 0
 
+=======
+>>>>>>> b8762e97fbb18964f1db86115cc0d147f4a5b0ca
     if attribute=="qoi":
         values_coarse_promoted = inferencedata_coarse_promoted.qoi
         values_fine = inferencedata_fine.qoi
