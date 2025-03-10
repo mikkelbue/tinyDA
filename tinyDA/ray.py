@@ -361,3 +361,24 @@ class RemotePosterior:
 
     def create_link(self, parameters):
         return self.posterior.create_link(parameters)
+
+@ray.remote
+class ArchiveManager:
+    def __init__(self, chain_count):
+        # separate collection for each chain
+        self.shared_archive = [None] * chain_count
+        self.chain_count = chain_count
+
+    def update_archive(self, sample, chain_id):
+        # update the whole collection
+        try:
+            self.shared_archive[chain_id] = np.vstack((self.shared_archive[chain_id], sample))
+        except ValueError:
+            self.shared_archive[chain_id] = sample
+
+    def get_archive(self):
+        try:
+            return np.concatenate(self.shared_archive)
+        except ValueError:
+            valid_achives = [a for a in self.shared_archive if a is not None]
+            return np.concatenate(valid_achives)
