@@ -1651,6 +1651,13 @@ class MLDA(Proposal):
             + previous_link_below.posterior
             - proposal_link_below.posterior
         )
+    
+    def _get_random_proposal_index(self):
+        random_proposal_index = np.random.randint(-self.subchain_length, 0)
+        return random_proposal_index
+
+    def _get_fixed_proposal_index(self):
+        return -1
 
 
 class DREAM(DREAMZ, SharedArchiveProposal):
@@ -1683,11 +1690,3 @@ class DREAM(DREAMZ, SharedArchiveProposal):
     def make_proposal(self, link):
         Z = self.read_archive()
         return super().make_proposal(link, Z)
-
-    
-    def _get_random_proposal_index(self):
-        random_proposal_index = np.random.randint(-self.subchain_length, 0)
-        return random_proposal_index
-
-    def _get_fixed_proposal_index(self):
-        return -1
