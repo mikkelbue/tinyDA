@@ -67,6 +67,14 @@ DREAM(Z)
 
     .. automethod:: __init__
 
+DREAM
+-----
+
+.. autoclass:: tinyDA.DREAM
+    :members:
+
+    .. automethod:: __init__
+
 Metropolis Adjusted Langevin Algorithm
 --------------------------------------
 
