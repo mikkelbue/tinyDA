@@ -10,7 +10,6 @@ from .proposal import *
 
 
 class ParallelChain:
-
     """ParallelChain creates n_chains instances of tinyDA.Chain and runs the
     chains in parallel. It is initialsed with a Posterior (which holds the
     model and the distributions, and returns Links), and a proposal (transition
@@ -211,7 +210,6 @@ class RemoteMLDAChain(MLDAChain):
 
 
 class MultipleTry(Proposal):
-
     """Multiple-Try proposal (Liu et al. 2000), which will take any other
     TinyDA proposal as a kernel. If the kernel is symmetric, it uses MTM(II),
     otherwise it uses MTM(I). The parameter k sets the number of tries.
