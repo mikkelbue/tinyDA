@@ -1394,29 +1394,29 @@ class MLDA(Proposal):
         self.store_coarse_chain = store_coarse_chain
 
         # set whether to randomize the subchain length
-        self.randomize_subchain_lenght = randomize_subchain_length
+        self.randomize_subchain_length = randomize_subchain_length
 
         # check that store coarse chain is on in case of randomized subchain length
-        if self.randomize_subchain_lenght:
+        if self.randomize_subchain_length:
             if not self.store_coarse_chain:
                 raise ValueError(
                     "Randomize subchain length requires storing the coarse chain."
                 )
+            
+        # set proposal index
+        if self.randomize_subchain_length:
+            # this private method returns np.random.randint(-self.subchain_length,0)
+            self._get_proposal_index = self._get_random_proposal_index
+        else:
+            # this private method always returns -1
+            self._get_proposal_index = self._get_fixed_proposal_index
 
         # if this level is not the coarsest level.
         if self.level > 0:
             # internalise the subchain length.
             self.subchain_length = subchain_lengths[-1]
 
-            # set proposal index
-            if self.randomize_subchain_length:
-                # this private method returns np.random.randint(-self.subchain_length,0)
-                self._get_proposal_index = self._get_random_proposal_index
-            else:
-                # this private method always returns -1
-                self._get_proposal_index = self._get_fixed_proposal_index
-                # set MDLA as the proposal on the next-coarser level.
-
+            # set MDLA as the proposal on the next-coarser level.
             self.proposal = MLDA(
                 posteriors[:-1],
                 proposal,
@@ -1424,7 +1424,7 @@ class MLDA(Proposal):
                 self.initial_parameters,
                 self.adaptive_error_model,
                 self.store_coarse_chain,
-                self.randomize_subchain_lenght,
+                self.randomize_subchain_length,
             )
 
             # set the current level make_proposal method to MLDA.
@@ -1525,7 +1525,7 @@ class MLDA(Proposal):
         if self.level > 0:
             self.proposal._reset_chain()
 
-    def make_mlda_proposal(self, subchain_length, proposal_index):
+    def make_mlda_proposal(self, subchain_length):
         """
         Parameters
         ----------
@@ -1535,7 +1535,7 @@ class MLDA(Proposal):
             Index of the sample to be promoted in this subchain.
             This only differs from subchain_length if randomize_subchain_length is true.
         """
-
+        proposal_index = self._get_proposal_index()
         # iterate through the subsamples.
         for i in range(subchain_length):
             # create a proposal from the next-lower level,
@@ -1605,12 +1605,14 @@ class MLDA(Proposal):
                 self.proposal.chain[-1] = self.proposal.posterior.update_link(
                     self.proposal.chain[-1]
                 )
-
+            
         # return the latest link.
-        return self.chain[-1].parameters
+        return self.chain[-proposal_index].parameters
 
     def make_base_proposal(self, subchain_length):
         # iterate through the subsamples.
+        proposal_index = self._get_proposal_index()
+
         for i in range(subchain_length):
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
@@ -1638,8 +1640,9 @@ class MLDA(Proposal):
                 parameters_previous=self.chain[-2].parameters,
                 accepted=self.accepted,
             )
+
         # return the latest link.
-        return self.chain[-1].parameters
+        return self.chain[-proposal_index].parameters
 
     def get_acceptance(
         self, proposal_link, previous_link, proposal_link_below, previous_link_below
