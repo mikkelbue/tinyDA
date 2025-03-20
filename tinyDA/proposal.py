@@ -1556,7 +1556,7 @@ class MLDA(Proposal):
                 alpha = self.proposal.get_acceptance(
                     proposal_link,
                     self.chain[-1],
-                    self.proposal.chain[-1],
+                    self.proposal.chain[-1], # this is the element forwarded by the subchain 
                     self.proposal.chain[-(self.subchain_length + 1)],
                 )
 
@@ -1605,9 +1605,9 @@ class MLDA(Proposal):
                 self.proposal.chain[-1] = self.proposal.posterior.update_link(
                     self.proposal.chain[-1]
                 )
-            
+        self.promoted.append(self.chain[proposal_index])
         # return the latest link.
-        return self.chain[-proposal_index].parameters
+        return self.chain[proposal_index].parameters
 
     def make_base_proposal(self, subchain_length):
         # iterate through the subsamples.
@@ -1640,9 +1640,9 @@ class MLDA(Proposal):
                 parameters_previous=self.chain[-2].parameters,
                 accepted=self.accepted,
             )
-
+        self.promoted.append(self.chain[proposal_index])
         # return the latest link.
-        return self.chain[-proposal_index].parameters
+        return self.chain[proposal_index].parameters
 
     def get_acceptance(
         self, proposal_link, previous_link, proposal_link_below, previous_link_below
