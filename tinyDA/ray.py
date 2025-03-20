@@ -149,6 +149,7 @@ class ParallelMLDAChain(ParallelChain):
         posteriors,
         proposal,
         subchain_lengths=None,
+        randomize_subchain_length=False,
         n_chains=2,
         initial_parameters=None,
         adaptive_error_model=None,
@@ -171,6 +172,8 @@ class ParallelMLDAChain(ParallelChain):
         # whether to store the coarse chain.
         self.store_coarse_chain = store_coarse_chain
 
+        self.randomize_subchain_length = randomize_subchain_length
+
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
 
@@ -180,6 +183,7 @@ class ParallelMLDAChain(ParallelChain):
                 self.posteriors,
                 self.proposal[i],
                 self.subchain_lengths,
+                self.randomize_subchain_length,
                 self.initial_parameters[i],
                 self.adaptive_error_model,
                 self.store_coarse_chain,
