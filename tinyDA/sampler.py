@@ -79,6 +79,9 @@ def sample(
         the same subchain length will be used for all levels. If running
         single-level MCMC, this parameter is ignored. Default is 1,
         resulting in "classic" DA MCMC for a two-level model.
+    randomize_subchain_length: bool, optional
+        Randomizes the subchain length, as described in Lykkegaard et al. 
+        (2023). Default is false.
     adaptive_error_model : str or None, optional
         The adaptive error model, see e.g. Cui et al. (2019). If running
         single-level MCMC, this parameter is ignored. Default is None
@@ -273,6 +276,7 @@ def sample(
                 n_chains,
                 initial_parameters,
                 subchain_lengths,
+                randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
             )
@@ -285,6 +289,7 @@ def sample(
                 n_chains,
                 initial_parameters,
                 subchain_lengths,
+                randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
                 force_progress_bar,
@@ -450,6 +455,7 @@ def _sample_sequential_mlda(
     n_chains,
     initial_parameters,
     subchain_lengths,
+    randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
 ):
@@ -466,6 +472,7 @@ def _sample_sequential_mlda(
                 posteriors,
                 proposal[i],
                 subchain_lengths,
+                randomize_subchain_length,
                 initial_parameters[i],
                 adaptive_error_model,
                 store_coarse_chain,
@@ -474,7 +481,7 @@ def _sample_sequential_mlda(
         chains[i].sample(iterations)
 
     result = _get_result_mlda(
-        chains, levels, iterations, subchain_lengths, store_coarse_chain
+        chains, levels, iterations, subchain_lengths, randomize_subchain_length, store_coarse_chain,
     )
 
     return result
@@ -487,6 +494,7 @@ def _sample_parallel_mlda(
     n_chains,
     initial_parameters,
     subchain_lengths,
+    randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
     force_progress_bar,
@@ -502,6 +510,7 @@ def _sample_parallel_mlda(
         posteriors,
         proposal,
         subchain_lengths,
+        randomize_subchain_length,
         n_chains,
         initial_parameters,
         adaptive_error_model,
@@ -511,7 +520,7 @@ def _sample_parallel_mlda(
     chains = parallel_chain.chains
 
     result = _get_result_mlda(
-        chains, levels, iterations, subchain_lengths, store_coarse_chain
+        chains, levels, iterations, subchain_lengths, randomize_subchain_length, store_coarse_chain,
     )
 
     return result
@@ -522,7 +531,9 @@ def _get_result_mlda(
     levels,
     iterations,
     subchain_lengths,
+    randomize_subchain_length,
     store_coarse_chain,
+
 ):
 
     info = {
@@ -531,6 +542,7 @@ def _get_result_mlda(
         "iterations": iterations + 1,
         "levels": levels,
         "subchain_lengths": subchain_lengths,
+        "randomize_subchain_length":randomize_subchain_length,
     }
 
     # collect and return the samples.

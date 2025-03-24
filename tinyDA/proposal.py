@@ -1535,7 +1535,7 @@ class MLDA(Proposal):
             Index of the sample to be promoted in this subchain.
             This only differs from subchain_length if randomize_subchain_length is true.
         """
-        proposal_index = self._get_proposal_index()
+        proposal_index = self._get_proposal_index(subchain_length)
         # iterate through the subsamples.
         for i in range(subchain_length):
             # create a proposal from the next-lower level,
@@ -1611,7 +1611,7 @@ class MLDA(Proposal):
 
     def make_base_proposal(self, subchain_length):
         # iterate through the subsamples.
-        proposal_index = self._get_proposal_index()
+        proposal_index = self._get_proposal_index(subchain_length)
 
         for i in range(subchain_length):
             # draw a new proposal, given the previous parameters.
@@ -1655,11 +1655,11 @@ class MLDA(Proposal):
             - proposal_link_below.posterior
         )
     
-    def _get_random_proposal_index(self):
-        random_proposal_index = np.random.randint(-self.subchain_length, 0)
+    def _get_random_proposal_index(self, subchain_length):
+        random_proposal_index = np.random.randint(-subchain_length, 0)
         return random_proposal_index
 
-    def _get_fixed_proposal_index(self):
+    def _get_fixed_proposal_index(self, subchain_length):
         return -1
 
 
