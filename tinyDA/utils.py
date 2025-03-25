@@ -7,7 +7,6 @@ from .distributions import DefaultGaussianLogLike
 
 
 class RecursiveSampleMoments:
-
     """Iteratively constructs a sample mean and covariance, given input
     samples. Used to capture an estimate of the mean and covariance of the bias
     of an MLDA coarse model, and for the Adaptive Metropolis (AM) proposal.
@@ -125,7 +124,6 @@ class RecursiveSampleMoments:
 
 
 class ZeroMeanRecursiveSampleMoments(RecursiveSampleMoments):
-
     """Iteratively constructs a sample covariance, with zero mean given input
     samples. It is a specialised version of RecursiveSampleMoments, used only
     in the state dependent error model.
