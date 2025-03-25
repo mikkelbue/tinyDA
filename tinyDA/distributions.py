@@ -6,7 +6,6 @@ import scipy.stats as stats
 
 
 class JointPrior:
-
     """JointPrior is a wrapper for a list of priors, if the parameters have
     different types of priors. The order must match the order of parameters for
     the model, since parameters are unnamed.
@@ -107,7 +106,6 @@ def CompositePrior(*args, **kwargs):
 
 
 class PoissonPointProcess:
-
     """PoissonPointProcess is a geometric prior, where the number of points
     has a Poisson distribution and their locations are uniformly distributed
     on the domain. Additional geometric attributes of the points can also be
