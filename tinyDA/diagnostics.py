@@ -20,7 +20,7 @@ def to_inference_data(chain, level="fine", burnin=0, parameter_names=None):
     burnin : int, optional
         The burnin length. The default is 0.
     parameter_names : list, optional
-        List of the names of the parameters in the chain, in the same order 
+        List of the names of the parameters in the chain, in the same order
         as they appear in each link. Default is None, meaning that
         parameters will be named [x1, x2, ...].
 
@@ -149,8 +149,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         "attribute": attribute,
     }
 
-    if attribute == 'stats':
-        getattribute = lambda link, attribute: np.array([link.prior, link.likelihood, link.posterior])
+    if attribute == "stats":
+        getattribute = lambda link, attribute: np.array(
+            [link.prior, link.likelihood, link.posterior]
+        )
     else:
         getattribute = lambda link, attribute: getattr(link, attribute)
 
@@ -159,7 +161,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         # extract link attribute.
         for i in range(chain["n_chains"]):
             samples["chain_{}".format(i)] = np.array(
-                [getattribute(link, attribute) for link in chain["chain_{}".format(i)][burnin:]]
+                [
+                    getattribute(link, attribute)
+                    for link in chain["chain_{}".format(i)][burnin:]
+                ]
             )
 
     # if the input is a Delayed Acceptance chain.
@@ -176,7 +181,6 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
                     for link in chain["chain_{}_{}".format(level, i)][burnin:]
                 ]
             )
-
 
         # if the input is a Delayed Acceptance chain.
     elif chain["sampler"] == "MLDA":
