@@ -576,10 +576,10 @@ class MLDAChain:
         posteriors,
         proposal,
         subchain_lengths,
+        randomize_subchain_length=False,
         initial_parameters=None,
         adaptive_error_model=None,
         store_coarse_chain=True,
-        randomize_subchain_length=False,
     ):
         """
         Parameters
