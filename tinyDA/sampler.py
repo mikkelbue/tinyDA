@@ -559,11 +559,20 @@ def _get_result_mlda(
                 "chain_l{}_{}".format(i, j): list(compress(chain.chain, chain.is_local))
                 for j, chain in enumerate(_current)
             }
+            promoted_current = {
+                "promoted_l{}_{}".format(i, j): list(compress(chain.promoted, chain.is_local))
+                for j, chain in enumerate(_current)
+            }
         else:
             chains_current = {
                 "chain_l{}_{}".format(i, j): None for j, chain in enumerate(_current)
             }
-        chains_all = {**chains_all, **chains_current}
+            promoted_current = {
+                "promoted_l{}_{}".format(i, j): None for j, chain in enumerate(_current)
+            }
+        chains_all = {**chains_all, **chains_current, **promoted_current}
         _current = [chain.proposal for chain in _current]
+
+    
 
     return {**info, **chains_all}
