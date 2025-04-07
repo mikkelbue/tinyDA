@@ -211,3 +211,29 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
 
     # return the samples.
     return samples
+
+
+def MLDA_estimators(chain, attribute="qoi", variable="x0", burnin=0):
+    """Computes the unbiased Monte-Carlo estimator for Multilevel Delayed Acceptance 
+    chains, as derived in Lykkegaard et al. 2023.
+
+    Parameters
+    ----------
+    chain : dict
+        A dict as returned by tinyDA.sample, containing chain information
+        and lists of tinyDA.Link instances.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
+        to extract. The default is 'parameters'.
+    variable : str, optional
+        Which variable of the posterior or qoi to marginalize over.
+    burnin : int, optional
+        The burnin length. The default is 0.
+    Returns
+    ----------
+    float
+        Outpu of the estimator computation.
+    """
+    
+    estimator = 0
+    return estimator
