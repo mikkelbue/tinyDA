@@ -322,13 +322,14 @@ def _sample_parallel(
     n_chains,
     initial_parameters,
     force_progress_bar,
+    randomize_subchain_length,
 ):
     """Helper function for tinyDA.sample()"""
 
     print("Sampling {} chains in parallel".format(n_chains))
 
     # create a parallel sampling instance and sample.
-    chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters)
+    chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters, randomize_subchain_length)
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
@@ -560,7 +561,7 @@ def _get_result_mlda(
                 for j, chain in enumerate(_current)
             }
             promoted_current = {
-                "promoted_l{}_{}".format(i, j): list(compress(chain.promoted, chain.is_local))
+                "promoted_l{}_{}".format(i, j): chain.promoted
                 for j, chain in enumerate(_current)
             }
         else:

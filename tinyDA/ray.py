@@ -35,7 +35,7 @@ class ParallelChain:
         Runs the MCMC for the specified number of iterations.
     """
 
-    def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None):
+    def __init__(self, posterior, proposal, n_chains=2, initial_parameters=None, randomize_subchain_length=False):
         """
         Parameters
         ----------
@@ -61,13 +61,15 @@ class ParallelChain:
         # set the initial parameters.
         self.initial_parameters = initial_parameters
 
+        self.randomize_suchain_length = randomize_subchain_length
+
         # initialise Ray.
         ray.init(ignore_reinit_error=True)
 
         # set up the parallel chains as Ray actors.
         self.remote_chains = [
             RemoteChain.remote(
-                self.posterior, self.proposal[i], self.initial_parameters[i]
+                self.posterior, self.proposal[i], self.initial_parameters[i], self.randomize_suchain_length
             )
             for i in range(self.n_chains)
         ]
