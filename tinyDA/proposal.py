@@ -1435,7 +1435,7 @@ class MLDA(Proposal):
             if self.adaptive_error_model is not None:
                 # compute the difference between coarse and fine level.
                 self.model_diff = (
-                    self.chain[-1].model_output - self.proposal.chain[-1].model_output
+                    self.chain[-1].model_output - self.proposal.promoted[-1].model_output
                 )
 
                 # set up the state-independent adaptive error model.
@@ -1522,7 +1522,7 @@ class MLDA(Proposal):
     def _reset_chain(self):
         # remove everything except the latest coarse link, if the coarse
         # chain shouldn't be stored.
-        self.chain = [self.chain[-1]]
+        self.chain = [self.chain[-self.proposal_index]]
         if self.level > 0:
             self.proposal._reset_chain()
 
