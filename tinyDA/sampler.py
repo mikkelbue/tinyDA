@@ -543,7 +543,7 @@ def _get_result_mlda(
         "iterations": iterations + 1,
         "levels": levels,
         "subchain_lengths": subchain_lengths,
-        "randomize_subchain_length":randomize_subchain_length,
+        "randomize_subchain_length": randomize_subchain_length,
     }
 
     # collect and return the samples.
