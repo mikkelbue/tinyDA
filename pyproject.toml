@@ -18,10 +18,10 @@ packages = [{include = "tinyDA"}]
 "Bug Tracker" = "https://github.com/mikkelbue/tinyDA/issues"
 
 [tool.poetry.dependencies]
-arviz = "^0.18.0"
+arviz = "^0.22.0"
 matplotlib = "^3.8.0"
-numpy = "^1.26.0"
-python = ">=3.10,<4.0.0"
+numpy = "^2.3.2"
+python = ">=3.11,<4.0.0"
 tqdm = "^4.66.0"
 scipy = "^1.12.0"
 
@@ -31,7 +31,7 @@ black = "^23.12.1"
 pytest = "^7.4.4"
 nbmake = "^1.4.6"
 umbridge = "^1.2.4"
-ray = "^2.9.0"
+ray = "^2.49.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
