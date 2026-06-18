@@ -208,6 +208,12 @@ def sample(
     else:
         initial_parameters = [posteriors[0].prior.rvs() for i in range(n_chains)]
 
+    # check if the prior.logpdf() outputs a float
+    if not isinstance(posteriors[0].prior.logpdf(initial_parameters[0]), float):
+        raise TypeError(
+            "Prior must output a float upon sampling."
+        )
+
     # start the appropriate sampling algorithm.
     # "vanilla" MCMC
     if n_levels == 1:
