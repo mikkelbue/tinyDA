@@ -211,7 +211,7 @@ def sample(
     # check if the prior.logpdf() outputs a float
     if not isinstance(posteriors[0].prior.logpdf(initial_parameters[0]), float):
         raise TypeError(
-            "Prior must output a float upon sampling."
+            "Prior logpdf method must output a float."
         )
 
     # start the appropriate sampling algorithm.
