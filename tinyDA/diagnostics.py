@@ -207,3 +207,205 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
 
     # return the samples.
     return samples
+
+def get_promoted_samples(chain, attribute="parameters", level=0, burnin=0):
+    """Extracts promoted samples from MLDA chains at a specified level.
+    
+    Parameters
+    ----------
+    chain : dict
+        A dict as returned by tinyDA.sample, containing chain information
+        and lists of tinyDA.Link instances.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
+        to extract. The default is 'parameters'.
+    level : int, optional
+        Which level to extract promoted samples from. The default is 0.
+        Cannot be the top level (finest level).
+    burnin : int, optional
+        The burnin length for the next higher level. The default is 0.
+
+    Returns
+    ----------
+    dict
+        A dict of numpy array(s) with the promoted samples, following the
+        same structure as get_samples().
+    """
+    
+    # Check if this is an MLDA chain
+    if chain["sampler"] != "MLDA":
+        raise ValueError("Function only works with MLDA chains.")
+    
+    # Check if level is valid
+    if level >= chain["levels"] - 1:
+        raise ValueError(f"Level {level} cannot promote samples. Top level is {chain['levels'] - 1}.")
+    
+    # Calculate burnin for promoted samples (use next higher level's burnin)
+    subchain_lengths = chain["subchain_lengths"]
+    cumulative_factor = 1
+    for upper_level in range(level + 1, chain["levels"] - 1):
+        cumulative_factor *= subchain_lengths[upper_level]
+    promoted_burnin = burnin * cumulative_factor
+    
+    # Copy some items across
+    promoted = {
+        "sampler": chain["sampler"],
+        "n_chains": chain["n_chains"],
+        "level": level,
+        "attribute": attribute,
+        "burnin": promoted_burnin,
+    }
+    
+    # Set up the getattribute function
+    if attribute == 'stats':
+        getattribute = lambda link, attribute: np.array([link.prior, link.likelihood, link.posterior])
+    else:
+        getattribute = lambda link, attribute: getattr(link, attribute)
+    
+    # Extract promoted samples for each chain
+    for i in range(chain["n_chains"]):
+        promoted_key = f"promoted_l{level}_{i}"
+        
+        if promoted_key in chain and chain[promoted_key] is not None:
+            promoted_samples = chain[promoted_key][promoted_burnin:]
+            
+            if len(promoted_samples) > 0:
+                promoted[f"chain_{i}"] = np.array(
+                    [getattribute(link, attribute) for link in promoted_samples]
+                )
+            else:
+                promoted[f"chain_{i}"] = np.array([])
+        else:
+            # If no promoted samples exist, return empty array
+            promoted[f"chain_{i}"] = np.array([])
+    
+    # Handle case where promoted samples exist
+    if promoted[f"chain_0"].size > 0:
+        # Expand dimension if needed (same as get_samples)
+        for i in range(chain["n_chains"]):
+            if promoted[f"chain_{i}"].ndim == 1:
+                promoted[f"chain_{i}"] = promoted[f"chain_{i}"][..., np.newaxis]
+        
+        # Add iterations and dimension info
+        promoted["iterations"] = promoted["chain_0"].shape[0]
+        promoted["dimension"] = promoted["chain_0"].shape[1]
+    else:
+        promoted["iterations"] = 0
+        promoted["dimension"] = 0
+    
+    return promoted
+
+def get_multilevel_inference_data(chain, attribute="parameters", parameter_names=None, burnin=0):
+    """Extracts all chains and promoted chains from MLDA sampling.
+    
+    Parameters
+    ----------
+    chain : dict
+        A dict as returned by tinyDA.sample, containing MLDA chain information
+        and lists of tinyDA.Link instances.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
+        to extract. The default is 'parameters'.
+    parameter_names : list, optional
+        List of parameter names. Default is None.
+    burnin : int, optional
+        The burnin length for the top level. Lower levels use scaled burnin
+        based on subchain lengths. The default is 0.
+
+    Returns
+    ----------
+    dict
+        A dict containing 'chains' and 'promoted' with all level/chain data.
+    """
+    
+    if chain["sampler"] != "MLDA":
+        raise ValueError("Function only works with MLDA chains.")
+    
+    levels = chain["levels"]
+    n_chains = chain["n_chains"]
+    subchain_lengths = chain["subchain_lengths"]
+    
+    # Calculate burnin for each level
+    level_burnins = [0] * levels
+    level_burnins[levels - 1] = burnin  # Top level
+    
+    # For lower levels, multiply by cumulative subchain lengths
+    for level in range(levels - 2, -1, -1):
+        cumulative_factor = 1
+        for upper_level in range(level, levels - 1):
+            cumulative_factor *= subchain_lengths[upper_level]
+        level_burnins[level] = burnin * cumulative_factor
+    
+    # Set up attribute handling
+    if attribute == 'stats':
+        getattribute = lambda link, attribute: np.array([link.prior, link.likelihood, link.posterior])
+    else:
+        getattribute = lambda link, attribute: getattr(link, attribute)
+    
+    multilevel_inference_data = {
+        "sampler": chain["sampler"],
+        "levels": levels,
+        "n_chains": n_chains,
+        "attribute": attribute,
+        "burnin": burnin,
+        "level_burnins": level_burnins,
+        "chains": {},
+        "promoted": {}
+    }
+    
+    # Loop through all levels
+    for level in range(levels):
+        # Extract chains for this level
+        for chain_idx in range(n_chains):
+            chain_key = f"chain_l{level}_{chain_idx}"
+            
+            if chain_key in chain and chain[chain_key] is not None:
+                chain_samples = chain[chain_key]
+                
+                # Apply burnin for this level
+                chain_burnin = level_burnins[level]
+                
+                # For top level, remove first element (initial sample) plus burnin
+                if level == levels - 1:
+                    chain_samples = chain_samples[1 + chain_burnin:]
+                else:
+                    chain_samples = chain_samples[chain_burnin:]
+                
+                if len(chain_samples) > 0:
+                    samples = np.array([getattribute(link, attribute) for link in chain_samples])
+                    
+                    # Expand dimension if needed
+                    if samples.ndim == 1:
+                        samples = samples[..., np.newaxis]
+                    
+                    multilevel_inference_data["chains"][f"level{level}_chain{chain_idx}"] = samples
+        
+        # Extract promoted samples (not for top level)
+        if level < levels - 1:
+            for chain_idx in range(n_chains):
+                promoted_key = f"promoted_l{level}_{chain_idx}"
+                
+                if promoted_key in chain and chain[promoted_key] is not None:
+                    promoted_samples = chain[promoted_key]
+                    
+                    # Apply burnin for promoted samples - use next higher level's burnin
+                    promoted_burnin = level_burnins[level + 1]
+                    promoted_samples = promoted_samples[promoted_burnin:]
+                    
+                    if len(promoted_samples) > 0:
+                        samples = np.array([getattribute(link, attribute) for link in promoted_samples])
+                        
+                        # Expand dimension if needed
+                        if samples.ndim == 1:
+                            samples = samples[..., np.newaxis]
+                        
+                        multilevel_inference_data["promoted"][f"level{level}_chain{chain_idx}"] = samples
+    
+    # Add dimension info if chains exist
+    if multilevel_inference_data["chains"]:
+        first_chain = list(multilevel_inference_data["chains"].values())[0]
+        multilevel_inference_data["dimension"] = first_chain.shape[1]
+    else:
+        multilevel_inference_data["dimension"] = 0
+    
+    return multilevel_inference_data
