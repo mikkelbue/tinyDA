@@ -20,7 +20,7 @@ def to_inference_data(chain, level="fine", burnin=0, parameter_names=None):
     burnin : int, optional
         The burnin length. The default is 0.
     parameter_names : list, optional
-        List of the names of the parameters in the chain, in the same order 
+        List of the names of the parameters in the chain, in the same order
         as they appear in each link. Default is None, meaning that
         parameters will be named [x1, x2, ...].
 
@@ -149,8 +149,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         "attribute": attribute,
     }
 
-    if attribute == 'stats':
-        getattribute = lambda link, attribute: np.array([link.prior, link.likelihood, link.posterior])
+    if attribute == "stats":
+        getattribute = lambda link, attribute: np.array(
+            [link.prior, link.likelihood, link.posterior]
+        )
     else:
         getattribute = lambda link, attribute: getattr(link, attribute)
 
@@ -159,7 +161,10 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
         # extract link attribute.
         for i in range(chain["n_chains"]):
             samples["chain_{}".format(i)] = np.array(
-                [getattribute(link, attribute) for link in chain["chain_{}".format(i)][burnin:]]
+                [
+                    getattribute(link, attribute)
+                    for link in chain["chain_{}".format(i)][burnin:]
+                ]
             )
 
     # if the input is a Delayed Acceptance chain.
@@ -176,7 +181,6 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
                     for link in chain["chain_{}_{}".format(level, i)][burnin:]
                 ]
             )
-
 
         # if the input is a Delayed Acceptance chain.
     elif chain["sampler"] == "MLDA":
@@ -207,3 +211,29 @@ def get_samples(chain, attribute="parameters", level="fine", burnin=0):
 
     # return the samples.
     return samples
+
+
+def MLDA_estimators(chain, attribute="qoi", variable="x0", burnin=0):
+    """Computes the unbiased Monte-Carlo estimator for Multilevel Delayed Acceptance 
+    chains, as derived in Lykkegaard et al. 2023.
+
+    Parameters
+    ----------
+    chain : dict
+        A dict as returned by tinyDA.sample, containing chain information
+        and lists of tinyDA.Link instances.
+    attribute : str, optional
+        Which link attribute ('parameters', 'model_output', 'qoi' or 'stats')
+        to extract. The default is 'parameters'.
+    variable : str, optional
+        Which variable of the posterior or qoi to marginalize over.
+    burnin : int, optional
+        The burnin length. The default is 0.
+    Returns
+    ----------
+    float
+        Outpu of the estimator computation.
+    """
+    
+    estimator = 0
+    return estimator

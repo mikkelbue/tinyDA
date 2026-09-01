@@ -79,6 +79,9 @@ def sample(
         the same subchain length will be used for all levels. If running
         single-level MCMC, this parameter is ignored. Default is 1,
         resulting in "classic" DA MCMC for a two-level model.
+    randomize_subchain_length: bool, optional
+        Randomizes the subchain length, as described in Lykkegaard et al. 
+        (2023). Default is false.
     adaptive_error_model : str or None, optional
         The adaptive error model, see e.g. Cui et al. (2019). If running
         single-level MCMC, this parameter is ignored. Default is None
@@ -109,9 +112,10 @@ def sample(
         arviz.InferenceData object.
     """
 
-
     if subsampling_rate is not None:
-        warnings.warn(" subsampling_rate has been deprecated in favour of subchain_length.")
+        warnings.warn(
+            " subsampling_rate has been deprecated in favour of subchain_length."
+        )
         subchain_length = subsampling_rate
 
     # get the availability flag.
@@ -278,6 +282,7 @@ def sample(
                 n_chains,
                 initial_parameters,
                 subchain_lengths,
+                randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
             )
@@ -290,6 +295,7 @@ def sample(
                 n_chains,
                 initial_parameters,
                 subchain_lengths,
+                randomize_subchain_length,
                 adaptive_error_model,
                 store_coarse_chain,
                 force_progress_bar,
@@ -322,17 +328,20 @@ def _sample_parallel(
     n_chains,
     initial_parameters,
     force_progress_bar,
+    randomize_subchain_length,
 ):
     """Helper function for tinyDA.sample()"""
 
     print("Sampling {} chains in parallel".format(n_chains))
 
     # create a parallel sampling instance and sample.
-    chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters)
+    chains = ParallelChain(posteriors[0], proposal, n_chains, initial_parameters, randomize_subchain_length)
     chains.sample(iterations, force_progress_bar)
 
     info = {"sampler": "MH", "n_chains": n_chains, "iterations": iterations + 1}
-    chains = {"chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)}
+    chains = {
+        "chain_{}".format(i): chain.chain for i, chain in enumerate(chains.chains)
+    }
 
     # return the samples.
     return {**info, **chains}
@@ -409,6 +418,7 @@ def _sample_parallel_da(
 
     return result
 
+
 def _get_result_da(
     chains,
     iterations,
@@ -444,6 +454,7 @@ def _get_result_da(
     # return eveything.
     return {**info, **chains_coarse, **chains_fine}
 
+
 def _sample_sequential_mlda(
     posteriors,
     proposal,
@@ -451,6 +462,7 @@ def _sample_sequential_mlda(
     n_chains,
     initial_parameters,
     subchain_lengths,
+    randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
 ):
@@ -467,6 +479,7 @@ def _sample_sequential_mlda(
                 posteriors,
                 proposal[i],
                 subchain_lengths,
+                randomize_subchain_length,
                 initial_parameters[i],
                 adaptive_error_model,
                 store_coarse_chain,
@@ -474,7 +487,9 @@ def _sample_sequential_mlda(
         )
         chains[i].sample(iterations)
 
-    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+    result = _get_result_mlda(
+        chains, levels, iterations, subchain_lengths, randomize_subchain_length, store_coarse_chain,
+    )
 
     return result
 
@@ -486,6 +501,7 @@ def _sample_parallel_mlda(
     n_chains,
     initial_parameters,
     subchain_lengths,
+    randomize_subchain_length,
     adaptive_error_model,
     store_coarse_chain,
     force_progress_bar,
@@ -501,6 +517,7 @@ def _sample_parallel_mlda(
         posteriors,
         proposal,
         subchain_lengths,
+        randomize_subchain_length,
         n_chains,
         initial_parameters,
         adaptive_error_model,
@@ -509,16 +526,21 @@ def _sample_parallel_mlda(
     parallel_chain.sample(iterations, force_progress_bar)
     chains = parallel_chain.chains
 
-    result = _get_result_mlda(chains, levels, iterations, subchain_lengths, store_coarse_chain)
+    result = _get_result_mlda(
+        chains, levels, iterations, subchain_lengths, randomize_subchain_length, store_coarse_chain,
+    )
 
     return result
+
 
 def _get_result_mlda(
     chains,
     levels,
     iterations,
     subchain_lengths,
+    randomize_subchain_length,
     store_coarse_chain,
+
 ):
 
     info = {
@@ -527,6 +549,7 @@ def _get_result_mlda(
         "iterations": iterations + 1,
         "levels": levels,
         "subchain_lengths": subchain_lengths,
+        "randomize_subchain_length": randomize_subchain_length,
     }
 
     # collect and return the samples.
@@ -543,11 +566,20 @@ def _get_result_mlda(
                 "chain_l{}_{}".format(i, j): list(compress(chain.chain, chain.is_local))
                 for j, chain in enumerate(_current)
             }
+            promoted_current = {
+                "promoted_l{}_{}".format(i, j): chain.promoted
+                for j, chain in enumerate(_current)
+            }
         else:
             chains_current = {
                 "chain_l{}_{}".format(i, j): None for j, chain in enumerate(_current)
             }
-        chains_all = {**chains_all, **chains_current}
+            promoted_current = {
+                "promoted_l{}_{}".format(i, j): None for j, chain in enumerate(_current)
+            }
+        chains_all = {**chains_all, **chains_current, **promoted_current}
         _current = [chain.proposal for chain in _current]
+
+    
 
     return {**info, **chains_all}

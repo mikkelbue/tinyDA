@@ -9,7 +9,6 @@ from .utils import *
 
 
 class Chain:
-
     """Chain is a single level MCMC sampler. It is initialsed with a
     Posterior (which holds the model and the distributions, and returns
     Links), and a proposal (transition kernel).
@@ -95,7 +94,7 @@ class Chain:
         for i in pbar:
             if progressbar:
                 pbar.set_description(
-                    "Running chain, \u03B1 = %0.2f" % np.mean(self.accepted[-100:])
+                    "Running chain, \u03b1 = %0.2f" % np.mean(self.accepted[-100:])
                 )
 
             # draw a new proposal, given the previous parameters.
@@ -130,7 +129,6 @@ class Chain:
 
 
 class DAChain:
-
     """DAChain is a two-level Delayed Acceptance sampler. It takes a coarse and
     a fine posterior as input, as well as a proposal, which applies to the
     coarse level only.
@@ -164,7 +162,7 @@ class DAChain:
     promoted_coarse : list
         List of coarse states ("Links") that are promoted to the fine chain
     subchain_lengths : list
-        List of integers that correspond to the actual subchain length that was 
+        List of integers that correspond to the actual subchain length that was
         sampled randomly from a uniform distribution between 1 and subchain_length.
     chain_fine : list
         Samples ("Links") in the fine MCMC chain.
@@ -229,7 +227,7 @@ class DAChain:
         self.posterior_fine = posterior_fine
         self.proposal = proposal
         self.subchain_length = subchain_length
-        self.randomize_subchain_length = randomize_subchain_length 
+        self.randomize_subchain_length = randomize_subchain_length
 
         # set up lists to hold coarse and fine links, as well as acceptance
         # accounting
@@ -298,7 +296,9 @@ class DAChain:
                     self.model_diff, self.bias.get_sigma()
                 )
             else:
-                raise ValueError("Adaptive error model can only be state-dependent, state-independent or None.")
+                raise ValueError(
+                    "Adaptive error model can only be state-dependent, state-independent or None."
+                )
 
             self.chain_coarse[-1] = self.posterior_coarse.update_link(
                 self.chain_coarse[-1]
@@ -309,18 +309,20 @@ class DAChain:
 
         if self.randomize_subchain_length:
             if self.subchain_length == 1:
-                raise ValueError("Randomize subchain length requires a subchain_length > 1.")
+                raise ValueError(
+                    "Randomize subchain length requires a subchain_length > 1."
+                )
             if not self.store_coarse_chain:
-                raise ValueError("Randomize subchain length requires storing the coarse chain.")
-        
+                raise ValueError(
+                    "Randomize subchain length requires storing the coarse chain."
+                )
+
         if self.randomize_subchain_length:
-            # this private method returns np.random.randint(-self.subsampling_rate,0)
+            # this private method returns np.random.randint(-self.subchain_length,0)
             self._get_proposal_index = self._get_random_proposal_index
         else:
             # this private method always returns -1
             self._get_proposal_index = self._get_fixed_proposal_index
-
-
 
     def sample(self, iterations, progressbar=True):
         """
@@ -342,7 +344,7 @@ class DAChain:
         for i in pbar:
             if progressbar:
                 pbar.set_description(
-                    "Running chain, \u03B1_c = {0:.3f}, \u03B1_f = {1:.2f}".format(
+                    "Running chain, \u03b1_c = {0:.3f}, \u03b1_f = {1:.2f}".format(
                         np.mean(
                             self.accepted_coarse[-int(100 * self.subchain_length) :]
                         ),
@@ -357,9 +359,7 @@ class DAChain:
             if sum(self.accepted_coarse[-self.subchain_length :]) == 0:
                 self.chain_fine.append(self.chain_fine[-1])
                 self.accepted_fine.append(False)
-                self.chain_coarse.append(
-                    self.chain_coarse[-(self.subchain_length + 1)]
-                )
+                self.chain_coarse.append(self.chain_coarse[-(self.subchain_length + 1)])
                 self.accepted_coarse.append(False)
                 self.is_coarse.append(False)
 
@@ -370,9 +370,9 @@ class DAChain:
                 proposal_link_fine = self.posterior_fine.create_link(
                     self.chain_coarse[proposal_index].parameters
                 )
-                self.promoted_coarse.append(self.chain_coarse[proposal_index]) 
+                self.promoted_coarse.append(self.chain_coarse[proposal_index])
                 # add effective subchain lenght to list
-                self.subchain_lengths.append(proposal_index + self.subchain_length+1)
+                self.subchain_lengths.append(proposal_index + self.subchain_length + 1)
 
                 # compute the delayed acceptance probability.
                 if self.adaptive_error_model == "state-dependent":
@@ -445,7 +445,9 @@ class DAChain:
 
     def _get_state_dependent_acceptance(self, proposal_link_fine):
         # compute the bias at the proposal.
-        bias_next = proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
+        bias_next = (
+            proposal_link_fine.model_output - self.promoted_coarse[-1].model_output
+        )
 
         # create a throwaway link representing the reverse state.
         coarse_state_biased = self.posterior_coarse.update_link(
@@ -523,16 +525,14 @@ class DAChain:
         self.chain_coarse[-1] = self.posterior_coarse.update_link(self.chain_coarse[-1])
 
     def _get_random_proposal_index(self):
-        random_proposal_index = np.random.randint(-self.subchain_length,0)
+        random_proposal_index = np.random.randint(-self.subchain_length, 0)
         return random_proposal_index
-    
+
     def _get_fixed_proposal_index(self):
         return -1
 
 
-
 class MLDAChain:
-
     """MLDAChain is a Multilevel Delayed Acceptance sampler. It takes a list of
     posteriors of increasing level as input, as well as a proposal, which
     applies to the coarsest level only.
@@ -557,6 +557,10 @@ class MLDAChain:
         List of bool, signifying whether a proposal was accepted or not.
     adaptive_error_model : str or None
         The adaptive error model, see e.g. Cui et al. (2019).
+    randomize_subchain_length : bool, optional
+        Randomizes the subchain lengths, see e.g. Liu (2009). Sample to be promoted
+        is drawn from uniform distribution, between 1 and subchain_length.
+        Default is False.
     bias : tinaDA.RecursiveSampleMoments
         A recursive Gaussian error model that computes the sample moments
         of the next-coarser bias.
@@ -572,6 +576,7 @@ class MLDAChain:
         posteriors,
         proposal,
         subchain_lengths,
+        randomize_subchain_length=False,
         initial_parameters=None,
         adaptive_error_model=None,
         store_coarse_chain=True,
@@ -597,13 +602,17 @@ class MLDAChain:
         store_coarse_chain : bool, optional
             Whether to store the coarse chains. Disable if the sampler is
             taking up too much memory. Default is True.
+        randomize_subchain_length : bool, optional
+            Randomizes the subchain lengths, see e.g. Liu (2009). Sample 
+            to be promoted is drawn from uniform distribution, between 1 
+            and subchain_length. Default is False.
         """
 
         # internalise the finest posterior and set the level.
         self.posterior = posteriors[-1]
         self.level = len(posteriors) - 1
 
-        # set the furrent level subchain length.
+        # set the current level subchain length.
         self.subchain_length = subchain_lengths[-1]
 
         # initialise a list, which holds the links.
@@ -630,6 +639,9 @@ class MLDAChain:
         # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
 
+        # set wether to randomize subchain lengths
+        self.randomize_subchain_length = randomize_subchain_length
+
         # set the effective proposal to MLDA which runs on the next-coarser level.
         self.proposal = MLDA(
             posteriors[:-1],
@@ -638,6 +650,7 @@ class MLDAChain:
             self.initial_parameters,
             self.adaptive_error_model,
             self.store_coarse_chain,
+            self.randomize_subchain_length
         )
 
         # set up the adaptive error model.
@@ -665,7 +678,9 @@ class MLDAChain:
             elif self.adaptive_error_model == "state-dependent":
                 pass
             else:
-                raise ValueError("Adaptive error model can only be state-dependent, state-independent or None.")
+                raise ValueError(
+                    "Adaptive error model can only be state-dependent, state-independent or None."
+                )
             # update the first coarser link with the adaptive error model.
             self.proposal.chain[-1] = self.proposal.posterior.update_link(
                 self.proposal.chain[-1]
@@ -697,7 +712,7 @@ class MLDAChain:
         for i in pbar:
             if progressbar:
                 pbar.set_description(
-                    "Running chain, \u03B1 = %0.2f" % np.mean(self.accepted[-100:])
+                    "Running chain, \u03b1 = %0.2f" % np.mean(self.accepted[-100:])
                 )
 
             # remove everything except the latest coarse link, if the coarse

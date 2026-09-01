@@ -1,7 +1,7 @@
 import numpy as np
 
-class UmBridgeModel:
 
+class UmBridgeModel:
     """UmBridgeModel provides a wrapper for an UM-Bridge HTTPModel,
     which allows for using UM-Bridge forward operators directly in a
     tinyDA BlackBoxLinkFactory.
@@ -22,7 +22,6 @@ class UmBridgeModel:
     """
 
     def __init__(self, umbridge_model, pre=None, umbridge_config={}):
-
         """
         Parameters
         ----------
@@ -54,7 +53,6 @@ class UmBridgeModel:
         self.umbridge_config = umbridge_config
 
     def __call__(self, parameters):
-
         """
         Parameters
         ----------
@@ -86,7 +84,9 @@ class UmBridgeModel:
         umbridge_sens = sensitivity.tolist()
 
         # send converted model input the the UM-Bridge model.
-        umbridge_gradient = self.umbridge_model.gradient(0, 0, umbridge_input, umbridge_sens, self.umbridge_config)
+        umbridge_gradient = self.umbridge_model.gradient(
+            0, 0, umbridge_input, umbridge_sens, self.umbridge_config
+        )
 
         # convert the UM-Bridge output back to a NumPy array.
         gradient = np.array(umbridge_gradient).flatten()

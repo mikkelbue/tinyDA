@@ -1344,6 +1344,7 @@ class MLDA(Proposal):
         initial_parameters,
         adaptive_error_model,
         store_coarse_chain,
+        randomize_subchain_length,
     ):
         """
         Parameters
@@ -1363,6 +1364,11 @@ class MLDA(Proposal):
             is None (no error model), options are 'state-independent' or
             'state-dependent'. If an error model is used, the likelihood
             MUST have a set_bias() method, use e.g. tinyDA.AdaptiveLogLike.
+        radomize_subchain_length : bool, default is false.
+            If set "True", the subchain lenght will be sampled from a
+            uniform distribution [1, subchain length] at every level. This
+            is needed for computing the unbiased multilevel Monte Carlo
+            estimator (see Lykkegaard 2023).
         """
 
         # internalise the current level posterior and set the level.
@@ -1374,17 +1380,37 @@ class MLDA(Proposal):
         self.chain = []
         self.accepted = []
         self.is_local = []
+        self.promoted = []
 
         # create a link from the initial parameters and write to the histories.
         self.chain.append(self.posterior.create_link(self.initial_parameters))
         self.accepted.append(True)
         self.is_local.append(False)
+        self.promoted.append(self.chain[-1])
 
         # set the adaptive error model as an attribute.
         self.adaptive_error_model = adaptive_error_model
 
         # set whether to store the coarse chain
         self.store_coarse_chain = store_coarse_chain
+
+        # set whether to randomize the subchain length
+        self.randomize_subchain_length = randomize_subchain_length
+
+        # check that store coarse chain is on in case of randomized subchain length
+        if self.randomize_subchain_length:
+            if not self.store_coarse_chain:
+                raise ValueError(
+                    "Randomize subchain length requires storing the coarse chain."
+                )
+            
+        # set proposal index
+        if self.randomize_subchain_length:
+            # this private method returns np.random.randint(-self.subchain_length,0)
+            self._get_proposal_index = self._get_random_proposal_index
+        else:
+            # this private method always returns -1
+            self._get_proposal_index = self._get_fixed_proposal_index
 
         # if this level is not the coarsest level.
         if self.level > 0:
@@ -1399,6 +1425,7 @@ class MLDA(Proposal):
                 self.initial_parameters,
                 self.adaptive_error_model,
                 self.store_coarse_chain,
+                self.randomize_subchain_length,
             )
 
             # set the current level make_proposal method to MLDA.
@@ -1408,7 +1435,7 @@ class MLDA(Proposal):
             if self.adaptive_error_model is not None:
                 # compute the difference between coarse and fine level.
                 self.model_diff = (
-                    self.chain[-1].model_output - self.proposal.chain[-1].model_output
+                    self.chain[-1].model_output - self.proposal.promoted[-1].model_output
                 )
 
                 # set up the state-independent adaptive error model.
@@ -1495,7 +1522,7 @@ class MLDA(Proposal):
     def _reset_chain(self):
         # remove everything except the latest coarse link, if the coarse
         # chain shouldn't be stored.
-        self.chain = [self.chain[-1]]
+        self.chain = [self.chain[-self.proposal_index]]
         if self.level > 0:
             self.proposal._reset_chain()
 
@@ -1505,8 +1532,11 @@ class MLDA(Proposal):
         ----------
         subchain length : int
             The number of samples drawn in the subchain.
+        proposal index : int
+            Index of the sample to be promoted in this subchain.
+            This only differs from subchain_length if randomize_subchain_length is true.
         """
-
+        proposal_index = self._get_proposal_index(subchain_length)
         # iterate through the subsamples.
         for i in range(subchain_length):
             # create a proposal from the next-lower level,
@@ -1527,7 +1557,7 @@ class MLDA(Proposal):
                 alpha = self.proposal.get_acceptance(
                     proposal_link,
                     self.chain[-1],
-                    self.proposal.chain[-1],
+                    self.proposal.chain[-1], # this is the element forwarded by the subchain 
                     self.proposal.chain[-(self.subchain_length + 1)],
                 )
 
@@ -1576,12 +1606,14 @@ class MLDA(Proposal):
                 self.proposal.chain[-1] = self.proposal.posterior.update_link(
                     self.proposal.chain[-1]
                 )
-
+        self.promoted.append(self.chain[proposal_index])
         # return the latest link.
-        return self.chain[-1].parameters
+        return self.chain[proposal_index].parameters
 
     def make_base_proposal(self, subchain_length):
         # iterate through the subsamples.
+        proposal_index = self._get_proposal_index(subchain_length)
+
         for i in range(subchain_length):
             # draw a new proposal, given the previous parameters.
             proposal = self.proposal.make_proposal(self.chain[-1])
@@ -1609,8 +1641,9 @@ class MLDA(Proposal):
                 parameters_previous=self.chain[-2].parameters,
                 accepted=self.accepted,
             )
+        self.promoted.append(self.chain[proposal_index])
         # return the latest link.
-        return self.chain[-1].parameters
+        return self.chain[proposal_index].parameters
 
     def get_acceptance(
         self, proposal_link, previous_link, proposal_link_below, previous_link_below
@@ -1622,6 +1655,13 @@ class MLDA(Proposal):
             + previous_link_below.posterior
             - proposal_link_below.posterior
         )
+    
+    def _get_random_proposal_index(self, subchain_length):
+        random_proposal_index = np.random.randint(-subchain_length, 0)
+        return random_proposal_index
+
+    def _get_fixed_proposal_index(self, subchain_length):
+        return -1
 
 
 class DREAM(DREAMZ, SharedArchiveProposal):
