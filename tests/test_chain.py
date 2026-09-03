@@ -206,7 +206,7 @@ def assert_constructor(chain, level, initial_parameters):
         assert_list_of_type(chain.chain_coarse, Link, 1)
         assert_list_of_type(chain.accepted_coarse, bool, 1)
         assert_list_of_type(chain.is_coarse, bool, 1)
-        assert_list_of_type(chain.promoted_coarse, Link, 0)
+        assert_list_of_type(chain.promoted_coarse, Link, 1)
         assert_list_of_type(chain.subchain_lengths, int, 0)
         assert_list_of_type(chain.chain_fine, Link, 1)
         assert_list_of_type(chain.accepted_fine, bool, 1)
