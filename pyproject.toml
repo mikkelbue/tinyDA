@@ -24,6 +24,7 @@ packages = [{include = "tinyDA"}]
 "Bug Tracker" = "https://github.com/mikkelbue/tinyDA/issues"
 
 [tool.poetry.dependencies]
+arviz = "^0.18.0"
 matplotlib = "^3.8.0"
 numpy = "^1.26.0"
 python = ">=3.10,<4.0.0"
